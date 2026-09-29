@@ -12,20 +12,25 @@
 
 ---
 
-Un serveur [MCP](https://modelcontextprotocol.io/) qui connecte ton IA à **Roblox Studio** et lui donne, en plus des outils classiques
-(lire/écrire des scripts, créer des objets…), un **Game Kit** : des jeux complets, des systèmes testés, des générateurs de
-mondes et d'interfaces, et un **playtest automatique** qui trouve et explique les erreurs.
+Un serveur [MCP](https://modelcontextprotocol.io/) qui connecte ton IA à **Roblox Studio**. Il réunit :
+
+- **le Game Kit** : des jeux complets, des systèmes testés, des générateurs de mondes et d'interfaces, et un **playtest
+  automatique** qui trouve et explique les erreurs ;
+- **plus de 140 outils Studio** (base [6xvl](https://github.com/6xvl/robloxstudio-mcp-server)) : scripts, objets,
+  terrain, éclairage, animations, sons, particules, assets, profilage, captures d'écran, tests multijoueurs,
+  plusieurs Studio à la fois, et le lien vers le MCP officiel intégré à Studio.
 
 Résultat : même une IA « faible en code » peut sortir un jeu jouable et propre, parce qu'elle **assemble des briques
 déjà testées** au lieu d'écrire 2000 lignes de Luau fragile.
 
 ```
- Ton IA ──stdio──► Roblox Ultimate MCP ──HTTP (localhost)──► Plugin Studio ──► Ton jeu
-                    │
-                    ├─ Game Kit : 6 jeux complets, 18 systèmes, mondes, UI, éclairages
+ Ton IA ──stdio──► Roblox Ultimate MCP ──HTTP localhost:58741──► Plugin Studio ──► Ton jeu
+                    │                                              (édition + copies serveur/client
+                    │                                               pendant les playtests)
+                    ├─ Game Kit : 6 jeux complets, 18 systèmes, mondes, UI, ambiances
                     ├─ Garde-fous : compilateur Luau (WASM) + linter « erreurs de débutant »
                     ├─ Vérification : check_game (audit) + test_game (playtest automatique)
-                    └─ 60+ outils bas niveau (scripts, propriétés, tags, attributs, playtest…)
+                    └─ 140+ outils Studio (terrain, éclairage, animations, profilage, multi-Studio…)
 ```
 
 ## ✨ Ce qui le rend « ultime »
@@ -40,10 +45,9 @@ déjà testées** au lieu d'écrire 2000 lignes de Luau fragile.
 | 🛡️ | **`write_script`** / **`check_luau`** | Le vrai compilateur Luau (WASM) + linter : refuse le code cassé **avant** Studio, explique la correction |
 | 🔍 | **`check_game`** | Audit complet : syntaxe de tous les scripts, scripts mal placés (qui ne tournent jamais), spawn manquant, pièces non ancrées… |
 | 🧪 | **`test_game`** | Lance le jeu, **joue tout seul** (checkpoints, pièces, pièges), récupère les erreurs serveur ET client avec explication, s'arrête et nettoie |
+| 🧰 | **140+ outils Studio** | Terrain, éclairage, animations, particules, sons, matériaux, assets du Creator Store, captures d'écran, simulateur d'appareils, tests à 8 joueurs, profileurs, points d'arrêt, `.rbxm`, synchro de fichiers… |
 | 🧠 | Guides, prompts, instructions | La méthode est injectée automatiquement dans l'IA ; `roblox_guide` explique Luau, client/serveur, game design, erreurs… |
-| 🎚️ | Profils d'outils | 25 outils par défaut (au lieu de 70+) pour ne pas perdre une petite IA ; tout reste accessible via `find_tools`/`call_tool` |
-
-Tout passe par `execute_luau` : **le plugin Studio fourni fonctionne tel quel**, rien à recompiler côté Roblox.
+| 🎚️ | Profils d'outils | 27 outils par défaut (au lieu de 160) pour ne pas perdre une petite IA ; tout reste accessible via `find_tools`/`call_tool` |
 
 ---
 
@@ -56,17 +60,21 @@ Il faut [Node.js](https://nodejs.org) 18 ou plus.
 ```bash
 git clone https://github.com/artioramouche-glitch/roblox.git
 cd roblox
-npm install        # compile aussi le projet (dist/)
+npm install        # installe ET compile tout
 ```
 
 ### 2. Installer le plugin dans Roblox Studio
 
-1. Copie `studio-plugin/MCPPlugin.rbxmx` dans le dossier des plugins :
-   - **Windows** : `%LOCALAPPDATA%\Roblox\Plugins\`
-   - **macOS** : `~/Documents/Roblox/Plugins/`
-2. Redémarre Studio et ouvre un jeu (Fichier → Nouveau → Baseplate suffit).
-3. **Paramètres du jeu → Sécurité → Autoriser les requêtes HTTP** ✅
-4. Onglet **Plugins → MCP Server → Connect**.
+```bash
+npm run install-plugin
+```
+
+(ou copie `studio-plugin/MCPPlugin.rbxmx` dans `%LOCALAPPDATA%\Roblox\Plugins\` sous Windows,
+`~/Documents/Roblox/Plugins/` sous macOS). Puis :
+
+1. Redémarre Studio et ouvre un jeu (Fichier → Nouveau → Baseplate suffit).
+2. **Paramètres du jeu → Sécurité → Autoriser les requêtes HTTP** ✅
+3. Onglet **Plugins → MCP Server → Connect**.
 
 ### 3. Brancher ton IA
 
@@ -74,7 +82,7 @@ Remplace `CHEMIN` par le dossier cloné (ex. `C:/Users/moi/roblox` ou `/home/moi
 
 **Claude Code**
 ```bash
-claude mcp add roblox -- node CHEMIN/dist/index.js
+claude mcp add roblox -- node CHEMIN/packages/roblox-ultimate-mcp/dist/index.js
 ```
 
 **Claude Desktop / Cursor / Windsurf / Cline / LM Studio / tout client JSON**
@@ -83,7 +91,7 @@ claude mcp add roblox -- node CHEMIN/dist/index.js
   "mcpServers": {
     "roblox": {
       "command": "node",
-      "args": ["CHEMIN/dist/index.js"]
+      "args": ["CHEMIN/packages/roblox-ultimate-mcp/dist/index.js"]
     }
   }
 }
@@ -91,22 +99,22 @@ claude mcp add roblox -- node CHEMIN/dist/index.js
 
 **VS Code (Copilot)** — `.vscode/mcp.json`
 ```json
-{ "servers": { "roblox": { "type": "stdio", "command": "node", "args": ["CHEMIN/dist/index.js"] } } }
+{ "servers": { "roblox": { "type": "stdio", "command": "node", "args": ["CHEMIN/packages/roblox-ultimate-mcp/dist/index.js"] } } }
 ```
 
 **Gemini CLI**
 ```bash
-gemini mcp add roblox node CHEMIN/dist/index.js
+gemini mcp add roblox node CHEMIN/packages/roblox-ultimate-mcp/dist/index.js
 ```
 
 **Codex CLI** — `~/.codex/config.toml`
 ```toml
 [mcp_servers.roblox]
 command = "node"
-args = ["CHEMIN/dist/index.js"]
+args = ["CHEMIN/packages/roblox-ultimate-mcp/dist/index.js"]
 ```
 
-> Plus de variantes (Windows, ports…) : [docs/CLIENTS.md](docs/CLIENTS.md).
+> Plus de variantes (Windows, ports, clé Open Cloud, édition lecture seule…) : [docs/CLIENTS.md](docs/CLIENTS.md).
 
 ---
 
@@ -179,24 +187,27 @@ La référence complète (réglages, tags, attributs) est dans **[docs/GAMEKIT.m
 
 **Profils** (variable `ROBLOX_MCP_PROFILE` ou outil `set_tool_profile`) :
 
-| Profil | Outils listés | Pour qui |
+| Profil | Outils listés | Contenu |
 |---|---|---|
-| `starter` *(défaut)* | 25 : Game Kit + essentiels (lecture/édition de scripts, propriétés, objets, `execute_luau`) | Toutes les IA, surtout les petites |
-| `builder` | ~46 : + tags, attributs, opérations de masse, snapshots, playtest manuel | IA à l'aise |
-| `full` | 70+ : tout (uploads par morceaux, drift, diagnostics…) | Experts |
+| `starter` *(défaut)* | 27 | Game Kit + essentiels (lecture/édition de scripts, propriétés, objets, `execute_luau`, annuler, capture d'écran, doc Roblox) |
+| `builder` | 80 | + tags, attributs, opérations de masse, terrain, éclairage, assets, playtest manuel, logs par pair, runtime eval, navigation du personnage, multi-Studio |
+| `full` | 160 | Tout : animations, sons, particules, matériaux, profileurs, points d'arrêt, simulateur d'appareils/réseau, tests multijoueurs, `.rbxm`, synchro de fichiers, publication… |
 
 Même en `starter`, **tous** les outils restent utilisables : `find_tools` (recherche + schéma) puis `call_tool`.
 
 ```json
-{ "mcpServers": { "roblox": { "command": "node", "args": ["CHEMIN/dist/index.js"], "env": { "ROBLOX_MCP_PROFILE": "full" } } } }
+{ "mcpServers": { "roblox": { "command": "node", "args": ["CHEMIN/packages/roblox-ultimate-mcp/dist/index.js"], "env": { "ROBLOX_MCP_PROFILE": "full" } } } }
 ```
+
+**Édition lecture seule** : `packages/roblox-ultimate-mcp-inspector/dist/index.js` (inspection, guides, vérification
+Luau ; aucune écriture) — pratique pour faire relire un jeu sans risque.
 
 ---
 
 ## 🧠 Pourquoi ça marche même avec une petite IA
 
 1. **Moins de code à écrire** : un jeu complet = 1 appel ; une fonctionnalité = 1 système + un peu de config.
-2. **Moins de choix** : 25 outils au lieu de 70, avec des descriptions qui disent *quand* les utiliser.
+2. **Moins de choix** : 27 outils au lieu de 160, avec des descriptions qui disent *quand* les utiliser.
 3. **Instructions automatiques** : la méthode est envoyée à l'IA dès la connexion (champ `instructions` MCP).
 4. **Garde-fous** : `write_script` compile le Luau (vrai compilateur) et bloque les erreurs de débutant
    (`LocalPlayer` côté serveur, boucle infinie sans `task.wait`, argent modifié côté client, `!=` au lieu de `~=`…).
@@ -208,17 +219,18 @@ Même en `starter`, **tous** les outils restent utilisables : `find_tools` (rech
 ## 🧰 Développement
 
 ```bash
-npm run build            # intègre gamekit/*.luau dans le serveur puis compile TypeScript
-npm test                 # tests existants + tests Game Kit (syntaxe, linter, installateur, modèles, faux Studio)
-node scripts/gamekit-smoke.mjs          # test MCP de bout en bout (stdio)
+npm run build            # intègre gamekit/*.luau puis compile core + serveur + édition lecture seule
+npm test                 # 107 tests du serveur + 36 tests Game Kit
+npm run gamekit:smoke    # test MCP de bout en bout (stdio)
 npm run gamekit:verify   # syntaxe (WASM) + types Roblox (si luau-lsp est installé) de tout le Luau
+npm run build:plugin     # recompile le plugin Studio (roblox-ts) et l'installe (Windows/macOS)
 ```
 
 Validation avancée (optionnelle, nécessite [Lune](https://github.com/lune-org/lune)) :
 
 ```bash
 node scripts/dump-gamekit-cases.mjs /tmp/cases && lune run scripts/lune/validate-installers.luau /tmp/cases
-LUNE=lune node scripts/gamekit-integration.mjs   # MCP -> pont HTTP -> faux plugin Studio -> Luau
+LUNE=lune npm run gamekit:integration   # MCP -> pont HTTP -> faux plugin Studio (Lune) -> Luau
 ```
 
 La première commande exécute chaque installateur (76 cas, ~4000 instances) contre la base de données officielle des
@@ -229,14 +241,16 @@ classes Roblox : un mauvais nom de propriété ou un mauvais type est détecté 
 | Dossier | Contenu |
 |---|---|
 | `gamekit/` | **La bibliothèque Luau** : `shared/` (Net, Util, UIKit), `core/` (PlayerData…), `systems/<système>/`, `runtime/` (installateur, audit, test) |
-| `src/gamekit/` | Couche Game Kit du serveur : outils, catalogue, modèles, générateurs de mondes/UI/éclairage, linter, playtest |
-| `src/` | Serveur MCP + pont HTTP + outils bas niveau |
-| `studio-plugin/` | Plugin Studio (`MCPPlugin.rbxmx` prêt à l'emploi + sources) |
-| `docs/` | [GAMEKIT.md](docs/GAMEKIT.md) (référence), [CLIENTS.md](docs/CLIENTS.md), [BLUEPRINT_V1.md](docs/BLUEPRINT_V1.md) (workflow Rojo) |
-| `reference/` | Les autres serveurs MCP Roblox que tu avais importés (serveurs Rust officiels, copies), gardés pour référence — non utilisés par le build |
+| `packages/core/` | Le serveur : pont HTTP multi-Studio, 140+ outils (`src/tools/`), et la couche Game Kit (`src/gamekit/`) |
+| `packages/roblox-ultimate-mcp/` | Point d'entrée (commande `roblox-ultimate-mcp`, option `--install-plugin`) |
+| `packages/roblox-ultimate-mcp-inspector/` | Édition lecture seule |
+| `studio-plugin/` | Plugin Studio (`MCPPlugin.rbxmx` prêt à l'emploi + sources roblox-ts) |
+| `docs/` | [GAMEKIT.md](docs/GAMEKIT.md) (référence), [CLIENTS.md](docs/CLIENTS.md) |
+| `reference/` | Autres serveurs MCP Roblox importés (ancienne base, serveurs Rust officiels), non utilisés par le build |
 
 Ajouter un système : écrire les `.luau` dans `gamekit/systems/<id>/` (`.server.luau` → ServerScriptService,
-`.client.luau` → StarterPlayerScripts, sinon ModuleScript), l'ajouter dans `src/gamekit/catalog.ts`, puis `npm test`.
+`.client.luau` → StarterPlayerScripts, sinon ModuleScript), l'ajouter dans `packages/core/src/gamekit/catalog.ts`,
+puis `npm run build && npm test`.
 
 ---
 
@@ -244,17 +258,19 @@ Ajouter un système : écrire les `.luau` dans `gamekit/systems/<id>/` (`.server
 
 | Problème | Solution |
 |---|---|
-| `Roblox Studio is not connected` | Studio ouvert ? Plugin installé ? Requêtes HTTP autorisées ? Clique **Connect** dans l'onglet Plugins |
+| `Roblox Studio is not connected` | Studio ouvert ? Plugin installé (`npm run install-plugin`) ? Requêtes HTTP autorisées ? Clique **Connect** |
 | « Saving is OFF » dans la sortie | Normal en Studio non publié : publie puis active *Enable Studio Access to API Services* pour tester la sauvegarde |
 | L'IA ne voit pas un outil | Profil `starter` : `find_tools` puis `call_tool`, ou `set_tool_profile full` |
 | `test_game` ne s'arrête pas | Appuie sur **Stop** dans Studio puis relance ; `check_game` signale un reste de runner de test |
-| Port 3002 occupé | Un autre serveur tourne déjà ; ferme-le ou définis `ROBLOX_STUDIO_PORT` |
+| Deux IA en même temps | Supporté : la 2e instance passe en mode proxy et partage le même Studio |
+| `failed to connect to roblox studio: -32000` | Sans gravité : c'est le lien optionnel vers le MCP officiel de Studio. Pour le couper : `ROBLOX_MCP_HOOK=0` |
 | Un son/une animation ne se charge pas | L'asset est privé : utilise un asset public ou le tien |
 
 ---
 
 ## Crédits & licence
 
-MIT. Construit sur le serveur [roblox-mcp](https://github.com/aaronaalmendarez/roblox-mcp) (lui-même dérivé de
-[robloxstudio-mcp](https://github.com/boshyxd/robloxstudio-mcp)), avec [luau-web](https://github.com/xNasuni/luau-web)
-pour la compilation Luau hors-ligne.
+MIT. Serveur et plugin basés sur [6xvl/robloxstudio-mcp-server](https://github.com/6xvl/robloxstudio-mcp-server)
+(lui-même issu de [boshyxd/robloxstudio-mcp](https://github.com/boshyxd/robloxstudio-mcp) et
+[Chrrxs/robloxstudio-mcp](https://github.com/Chrrxs/robloxstudio-mcp)), avec [luau-web](https://github.com/xNasuni/luau-web)
+pour la compilation Luau hors-ligne. Détails : [NOTICE.md](NOTICE.md).

@@ -20,8 +20,8 @@ const version = rootPkg.version;
 // Sync version across all packages
 const packageDirs = [
   'packages/core',
-  'packages/robloxstudio-mcp',
-  'packages/robloxstudio-mcp-inspector',
+  'packages/roblox-ultimate-mcp',
+  'packages/roblox-ultimate-mcp-inspector',
 ];
 
 console.log(`Syncing version ${version} across all packages...`);
@@ -54,10 +54,10 @@ if (updatedReadme !== readme) {
 console.log('\nBuilding all packages...');
 run('npm run build:all');
 
-console.log('\nPublishing robloxstudio-mcp...');
-run('npm publish -w packages/robloxstudio-mcp');
+console.log('\nPublishing roblox-ultimate-mcp...');
+run('npm publish -w packages/roblox-ultimate-mcp');
 
-console.log('\nPublishing robloxstudio-mcp-inspector...');
-run('npm publish -w packages/robloxstudio-mcp-inspector');
+console.log('\nPublishing roblox-ultimate-mcp-inspector...');
+run('npm publish -w packages/roblox-ultimate-mcp-inspector');
 
 console.log('\nAll packages published successfully!');

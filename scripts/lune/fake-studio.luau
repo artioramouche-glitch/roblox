@@ -1,6 +1,6 @@
 --[[
 	A fake Roblox Studio plugin for integration tests. It speaks the real plugin protocol
-	(GET /poll, POST /response) and runs execute_luau requests inside a Lune DataModel
+	(POST /ready, GET /poll, POST /response) and runs execute_luau requests inside a Lune DataModel
 	built from Roblox's class database, so the whole chain MCP -> bridge -> plugin ->
 	Luau -> result can be exercised without Studio.
 	Usage: lune run scripts/lune/fake-studio.luau <port>
@@ -120,9 +120,19 @@ local function handle(endpoint: string, data: any): any
 	return { error = "fake studio does not implement " .. endpoint }
 end
 
+local INSTANCE_ID = "fake-studio"
 print("[fake-studio] polling " .. base)
+local registered = false
 while true do
-	local ok, response = pcall(net.request, { url = base .. "/poll?v=fake&sid=fake-studio", method = "GET" })
+	if not registered then
+		registered = pcall(net.request, {
+			url = base .. "/ready",
+			method = "POST",
+			headers = { ["Content-Type"] = "application/json" },
+			body = serde.encode("json", { instanceId = INSTANCE_ID, role = "edit" }),
+		})
+	end
+	local ok, response = pcall(net.request, { url = base .. "/poll?instanceId=" .. INSTANCE_ID, method = "GET" })
 	if ok and response.ok then
 		local body = serde.decode("json", response.body)
 		if body.request and body.requestId then

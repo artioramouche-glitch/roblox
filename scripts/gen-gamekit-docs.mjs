@@ -5,7 +5,7 @@
  */
 import { writeFileSync } from 'fs';
 
-const dist = new URL('../dist/gamekit/', import.meta.url);
+const dist = new URL('../packages/core/dist/gamekit/', import.meta.url);
 const { GUIDES, catalogText, systemDoc, templateDoc } = await import(new URL('knowledge.js', dist));
 const { SYSTEMS } = await import(new URL('catalog.js', dist));
 const { TEMPLATES } = await import(new URL('templates.js', dist));

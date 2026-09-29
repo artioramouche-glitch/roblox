@@ -11,20 +11,25 @@ cd roblox
 npm install            # also builds dist/ (prepare script)
 ```
 
+Install the Studio plugin (copies `studio-plugin/MCPPlugin.rbxmx` into the Roblox plugins folder):
+
+```bash
+npm run install-plugin
+```
+
 Then ask the human to:
-1. Copy `studio-plugin/MCPPlugin.rbxmx` to the Studio plugins folder
-   (Windows `%LOCALAPPDATA%\Roblox\Plugins\`, macOS `~/Documents/Roblox/Plugins/`) and restart Studio.
+1. Restart Studio and open a place.
 2. In Studio: Game Settings > Security > **Allow HTTP Requests** = ON.
 3. Plugins tab > **MCP Server** > **Connect**.
 
-Register the server in your client (replace PATH with the clone folder):
+Register the server in your client (replace PATH with the clone folder). The plugin talks to `localhost:58741`.
 
 ```bash
-claude mcp add roblox -- node PATH/dist/index.js          # Claude Code
-gemini mcp add roblox node PATH/dist/index.js             # Gemini CLI
+claude mcp add roblox -- node PATH/packages/roblox-ultimate-mcp/dist/index.js          # Claude Code
+gemini mcp add roblox node PATH/packages/roblox-ultimate-mcp/dist/index.js             # Gemini CLI
 ```
 ```json
-{ "mcpServers": { "roblox": { "command": "node", "args": ["PATH/dist/index.js"] } } }
+{ "mcpServers": { "roblox": { "command": "node", "args": ["PATH/packages/roblox-ultimate-mcp/dist/index.js"] } } }
 ```
 
 ## 2. How to build a game (the golden path)
@@ -51,10 +56,14 @@ gemini mcp add roblox node PATH/dist/index.js             # Gemini CLI
 - Anchor static parts. Positions are part centers, in studs, Y up.
 - Don't invent APIs; read `roblox_guide luau`, `client-server`, `errors` when unsure.
 
-## 4. Tool profiles
+## 4. Tool profiles and the 140+ Studio tools
 
-Default profile `starter` lists 25 tools. Need a low-level tool (tags, attributes, snapshots...)?
-`find_tools { query }` then `call_tool { name, arguments }`, or `set_tool_profile { profile: "full" }`.
+Default profile `starter` lists 27 of the 160 tools. Everything else is still callable:
+`find_tools { query }` then `call_tool { name, arguments }`, or `set_tool_profile { profile: "builder" | "full" }`.
+Useful families: terrain_*, lighting_*, animation_*, particle_*, sound_*, material_*, insert_asset / search_assets
+(needs an Open Cloud key), capture_screenshot, simulate_*_input, character_navigation, eval_server_runtime /
+eval_client_runtime (live game VM), get_runtime_logs, multiplayer_playtest, set_device_simulator, profilers,
+breakpoints, export_rbxm / import_rbxm, source_pull / source_push, get_roblox_docs.
 
 ## 5. Guides available through the server
 

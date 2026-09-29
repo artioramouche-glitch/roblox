@@ -9,7 +9,7 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 
 const transport = new StdioClientTransport({
   command: process.execPath,
-  args: ['dist/index.js'],
+  args: ['packages/roblox-ultimate-mcp/dist/index.js'],
   env: { ...process.env, ROBLOX_STUDIO_PORT: process.env.ROBLOX_STUDIO_PORT || '3910' },
   stderr: 'ignore',
 });
@@ -27,12 +27,12 @@ console.log(`starter profile: ${tools.length} tools`);
 for (const needed of ['roblox_start_here', 'create_game', 'test_game', 'write_script', 'find_tools', 'call_tool']) {
   if (!tools.includes(needed)) fail(`missing tool ${needed}`);
 }
-if (tools.includes('set_script_source_fast_gzip')) fail('advanced tool visible in starter profile');
+if (tools.includes('terrain_fill_block')) fail('advanced tool visible in starter profile');
 
 await client.callTool({ name: 'set_tool_profile', arguments: { profile: 'full' } });
 tools = (await client.listTools()).tools.map((t) => t.name);
 console.log(`full profile: ${tools.length} tools`);
-if (!tools.includes('set_script_source_fast_gzip')) fail('full profile incomplete');
+if (!tools.includes('terrain_fill_block')) fail('full profile incomplete');
 await client.callTool({ name: 'set_tool_profile', arguments: { profile: 'starter' } });
 
 const lint = await client.callTool({ name: 'check_luau', arguments: { source: 'if x != 1 then end', kind: 'server' } });

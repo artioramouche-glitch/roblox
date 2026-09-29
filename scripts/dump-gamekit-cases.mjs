@@ -12,7 +12,7 @@ const out = process.argv[2];
 if (!out) { console.error('usage: dump-gamekit-cases.mjs <outDir>'); process.exit(1); }
 mkdirSync(out, { recursive: true });
 
-const dist = new URL('../dist/gamekit/', import.meta.url);
+const dist = new URL('../packages/core/dist/gamekit/', import.meta.url);
 const { buildInstallerLuau } = await import(new URL('installer.js', dist));
 const { TEMPLATES } = await import(new URL('templates.js', dist));
 const { SYSTEMS, systemPlacements } = await import(new URL('catalog.js', dist));

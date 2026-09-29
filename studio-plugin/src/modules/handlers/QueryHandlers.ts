@@ -1,6 +1,6 @@
 import Utils from "../Utils";
 
-const { getInstancePath, getInstanceByPath, readScriptSource } = Utils;
+const { getInstancePath, getInstanceByPath, readScriptSource, forEachDescendant } = Utils;
 
 interface TreeNode {
 	name: string;
@@ -9,6 +9,7 @@ interface TreeNode {
 	children: TreeNode[];
 	hasSource?: boolean;
 	scriptType?: string;
+	enabled?: boolean;
 }
 
 function getFileTree(requestData: Record<string, unknown>) {
@@ -34,6 +35,9 @@ function getFileTree(requestData: Record<string, unknown>) {
 		if (instance.IsA("LuaSourceContainer")) {
 			node.hasSource = true;
 			node.scriptType = instance.ClassName;
+			if (instance.IsA("BaseScript")) {
+				node.enabled = instance.Enabled;
+			}
 		}
 
 		for (const child of instance.GetChildren()) {
@@ -55,9 +59,9 @@ function searchFiles(requestData: Record<string, unknown>) {
 
 	if (!query) return { error: "Query is required" };
 
-	const results: { name: string; className: string; path: string; hasSource: boolean }[] = [];
+	const results: { name: string; className: string; path: string; hasSource: boolean; enabled?: boolean }[] = [];
 
-	function searchRecursive(instance: Instance) {
+	forEachDescendant(game, (instance) => {
 		let match = false;
 
 		if (searchType === "name") {
@@ -69,20 +73,18 @@ function searchFiles(requestData: Record<string, unknown>) {
 		}
 
 		if (match) {
-			results.push({
+			const entry: { name: string; className: string; path: string; hasSource: boolean; enabled?: boolean } = {
 				name: instance.Name,
 				className: instance.ClassName,
 				path: getInstancePath(instance),
 				hasSource: instance.IsA("LuaSourceContainer"),
-			});
+			};
+			if (instance.IsA("BaseScript")) {
+				entry.enabled = instance.Enabled;
+			}
+			results.push(entry);
 		}
-
-		for (const child of instance.GetChildren()) {
-			searchRecursive(child);
-		}
-	}
-
-	searchRecursive(game);
+	});
 
 	return { results, query, searchType, count: results.size() };
 }
@@ -150,7 +152,7 @@ function searchObjects(requestData: Record<string, unknown>) {
 
 	const results: { name: string; className: string; path: string }[] = [];
 
-	function searchRecursive(instance: Instance) {
+	forEachDescendant(game, (instance) => {
 		let match = false;
 
 		if (searchType === "name") {
@@ -171,19 +173,14 @@ function searchObjects(requestData: Record<string, unknown>) {
 				path: getInstancePath(instance),
 			});
 		}
-
-		for (const child of instance.GetChildren()) {
-			searchRecursive(child);
-		}
-	}
-
-	searchRecursive(game);
+	});
 
 	return { results, query, searchType, count: results.size() };
 }
 
 function getInstanceProperties(requestData: Record<string, unknown>) {
 	const instancePath = requestData.instancePath as string;
+	const excludeSource = (requestData.excludeSource as boolean) ?? false;
 	if (!instancePath) return { error: "Instance path is required" };
 
 	const instance = getInstanceByPath(instancePath);
@@ -228,7 +225,13 @@ function getInstanceProperties(requestData: Record<string, unknown>) {
 		}
 
 		if (instance.IsA("LuaSourceContainer")) {
-			properties.Source = readScriptSource(instance);
+			if (!excludeSource) {
+				properties.Source = readScriptSource(instance);
+			} else {
+				const src = readScriptSource(instance);
+				properties.SourceLength = src.size();
+				properties.LineCount = Utils.splitLines(src)[0].size();
+			}
 			if (instance.IsA("BaseScript")) {
 				properties.Enabled = tostring(instance.Enabled);
 			}
@@ -293,15 +296,19 @@ function getInstanceChildren(requestData: Record<string, unknown>) {
 	const instance = getInstanceByPath(instancePath);
 	if (!instance) return { error: `Instance not found: ${instancePath}` };
 
-	const children: { name: string; className: string; path: string; hasChildren: boolean; hasSource: boolean }[] = [];
+	const children: { name: string; className: string; path: string; hasChildren: boolean; hasSource: boolean; enabled?: boolean }[] = [];
 	for (const child of instance.GetChildren()) {
-		children.push({
+		const entry: { name: string; className: string; path: string; hasChildren: boolean; hasSource: boolean; enabled?: boolean } = {
 			name: child.Name,
 			className: child.ClassName,
 			path: getInstancePath(child),
 			hasChildren: child.GetChildren().size() > 0,
 			hasSource: child.IsA("LuaSourceContainer"),
-		});
+		};
+		if (child.IsA("BaseScript")) {
+			entry.enabled = child.Enabled;
+		}
+		children.push(entry);
 	}
 
 	return { instancePath, children, count: children.size() };
@@ -317,7 +324,7 @@ function searchByProperty(requestData: Record<string, unknown>) {
 
 	const results: { name: string; className: string; path: string; propertyValue: string }[] = [];
 
-	function searchRecursive(instance: Instance) {
+	forEachDescendant(game, (instance) => {
 		const [success, value] = pcall(() => tostring((instance as unknown as Record<string, unknown>)[propertyName]));
 		if (success && (value as string).lower().find(propertyValue.lower())[0] !== undefined) {
 			results.push({
@@ -327,12 +334,8 @@ function searchByProperty(requestData: Record<string, unknown>) {
 				propertyValue: value as string,
 			});
 		}
-		for (const child of instance.GetChildren()) {
-			searchRecursive(child);
-		}
-	}
+	});
 
-	searchRecursive(game);
 	return { propertyName, propertyValue, results, count: results.size() };
 }
 
@@ -530,6 +533,266 @@ function getProjectStructure(requestData: Record<string, unknown>) {
 	return result;
 }
 
+function grepScripts(requestData: Record<string, unknown>) {
+	const pattern = requestData.pattern as string;
+	if (!pattern) return { error: "pattern is required" };
+
+	const caseSensitive = (requestData.caseSensitive as boolean) ?? false;
+	const contextLines = (requestData.contextLines as number) ?? 0;
+	const maxResults = (requestData.maxResults as number) ?? 100;
+	const maxResultsPerScript = (requestData.maxResultsPerScript as number) ?? 0;
+	const usePattern = (requestData.usePattern as boolean) ?? false;
+	const filesOnly = (requestData.filesOnly as boolean) ?? false;
+	const searchPath = (requestData.path as string) ?? "";
+	const classFilter = requestData.classFilter as string | undefined;
+
+	const startInstance = searchPath !== "" ? getInstanceByPath(searchPath) : game;
+	if (!startInstance) return { error: `Path not found: ${searchPath}` };
+
+	// Prepare pattern for matching
+	const searchPattern = caseSensitive ? pattern : pattern.lower();
+
+	interface LineMatch {
+		line: number;
+		column: number;
+		text: string;
+		before: string[];
+		after: string[];
+	}
+
+	interface ScriptResult {
+		instancePath: string;
+		name: string;
+		className: string;
+		enabled?: boolean;
+		matches: LineMatch[];
+	}
+
+	const results: ScriptResult[] = [];
+	let totalMatches = 0;
+	let scriptsSearched = 0;
+	let hitLimit = false;
+
+	function searchInstance(instance: Instance) {
+		if (hitLimit) return;
+
+		if (instance.IsA("LuaSourceContainer")) {
+			// Apply class filter
+			if (classFilter) {
+				if (!instance.ClassName.lower().find(classFilter.lower())[0]) return;
+			}
+
+			scriptsSearched++;
+			const source = readScriptSource(instance);
+			const [lines] = Utils.splitLines(source);
+			const scriptMatches: LineMatch[] = [];
+			let scriptMatchCount = 0;
+
+			for (let i = 0; i < lines.size(); i++) {
+				if (hitLimit) break;
+				if (maxResultsPerScript > 0 && scriptMatchCount >= maxResultsPerScript) break;
+
+				const line = lines[i];
+				const searchLine = caseSensitive ? line : line.lower();
+
+				let matchStart: number | undefined;
+				let matchEnd: number | undefined;
+
+				if (usePattern) {
+					[matchStart, matchEnd] = string.find(searchLine, searchPattern);
+				} else {
+					[matchStart, matchEnd] = string.find(searchLine, searchPattern, 1, true);
+				}
+
+				if (matchStart !== undefined) {
+					scriptMatchCount++;
+					totalMatches++;
+
+					if (totalMatches > maxResults) {
+						hitLimit = true;
+						break;
+					}
+
+					if (!filesOnly) {
+						// Gather context lines
+						const before: string[] = [];
+						const after: string[] = [];
+
+						if (contextLines > 0) {
+							const beforeStart = math.max(0, i - contextLines);
+							for (let j = beforeStart; j < i; j++) {
+								before.push(lines[j]);
+							}
+							const afterEnd = math.min(lines.size() - 1, i + contextLines);
+							for (let j = i + 1; j <= afterEnd; j++) {
+								after.push(lines[j]);
+							}
+						}
+
+						scriptMatches.push({
+							line: i + 1, // 1-indexed
+							column: matchStart,
+							text: line,
+							before,
+							after,
+						});
+					}
+				}
+			}
+
+			if (scriptMatchCount > 0) {
+				const scriptResult: ScriptResult = {
+					instancePath: getInstancePath(instance),
+					name: instance.Name,
+					className: instance.ClassName,
+					matches: scriptMatches,
+				};
+				if (instance.IsA("BaseScript")) {
+					scriptResult.enabled = instance.Enabled;
+				}
+				results.push(scriptResult);
+			}
+		}
+
+		for (const child of instance.GetChildren()) {
+			if (hitLimit) return;
+			searchInstance(child);
+		}
+	}
+
+	searchInstance(startInstance);
+
+	return {
+		results,
+		pattern,
+		totalMatches: hitLimit ? `>${maxResults}` : totalMatches,
+		scriptsSearched,
+		scriptsMatched: results.size(),
+		truncated: hitLimit,
+		options: { caseSensitive, contextLines, usePattern, filesOnly, maxResults, maxResultsPerScript },
+	};
+}
+
+function getDescendants(requestData: Record<string, unknown>) {
+	const instancePath = requestData.instancePath as string;
+	if (!instancePath) return { error: "Instance path is required" };
+
+	const maxDepth = (requestData.maxDepth as number) ?? 10;
+	const classFilter = requestData.classFilter as string | undefined;
+
+	const instance = getInstanceByPath(instancePath);
+	if (!instance) return { error: `Instance not found: ${instancePath}` };
+
+	const descendants: { name: string; className: string; path: string; depth: number }[] = [];
+
+	function collect(inst: Instance, depth: number) {
+		if (depth > maxDepth) return;
+		for (const child of inst.GetChildren()) {
+			if (classFilter && !child.IsA(classFilter as keyof Instances)) continue;
+			descendants.push({
+				name: child.Name,
+				className: child.ClassName,
+				path: getInstancePath(child),
+				depth,
+			});
+			collect(child, depth + 1);
+		}
+	}
+
+	collect(instance, 1);
+
+	return { instancePath, descendants, count: descendants.size(), maxDepth };
+}
+
+function compareInstances(requestData: Record<string, unknown>) {
+	const instancePathA = requestData.instancePathA as string;
+	const instancePathB = requestData.instancePathB as string;
+
+	if (!instancePathA || !instancePathB) {
+		return { error: "Both instancePathA and instancePathB are required" };
+	}
+
+	const instA = getInstanceByPath(instancePathA);
+	if (!instA) return { error: `Instance not found: ${instancePathA}` };
+
+	const instB = getInstanceByPath(instancePathB);
+	if (!instB) return { error: `Instance not found: ${instancePathB}` };
+
+	const commonProps = [
+		"Name", "ClassName",
+		"Size", "Position", "Rotation", "CFrame", "Anchored", "CanCollide",
+		"Transparency", "BrickColor", "Material", "Color", "Text", "TextColor3",
+		"BackgroundColor3", "Image", "ImageColor3", "Visible", "Active", "ZIndex",
+		"BorderSizePixel", "BackgroundTransparency", "ImageTransparency",
+		"TextTransparency", "Value", "Enabled", "Brightness", "Range", "Shadows",
+	];
+
+	const matching: Record<string, string> = {};
+	const differing: Record<string, { a: string; b: string }> = {};
+	const onlyA: string[] = [];
+	const onlyB: string[] = [];
+
+	for (const prop of commonProps) {
+		const [okA, valA] = pcall(() => tostring((instA as unknown as Record<string, unknown>)[prop]));
+		const [okB, valB] = pcall(() => tostring((instB as unknown as Record<string, unknown>)[prop]));
+
+		if (okA && okB) {
+			if (valA === valB) {
+				matching[prop] = valA as string;
+			} else {
+				differing[prop] = { a: valA as string, b: valB as string };
+			}
+		} else if (okA) {
+			onlyA.push(prop);
+		} else if (okB) {
+			onlyB.push(prop);
+		}
+	}
+
+	return {
+		instancePathA,
+		instancePathB,
+		classNameA: instA.ClassName,
+		classNameB: instB.ClassName,
+		matching,
+		differing,
+		onlyA,
+		onlyB,
+	};
+}
+
+function getOutputLog(requestData: Record<string, unknown>) {
+	const maxEntries = (requestData.maxEntries as number) ?? 100;
+	const messageTypeFilter = requestData.messageType as string | undefined;
+
+	const [success, result] = pcall(() => {
+		const LogService = game.GetService("LogService");
+		const history = LogService.GetLogHistory();
+		const allEntries: Record<string, unknown>[] = [];
+
+		for (const entry of history) {
+			const msgType = tostring(entry.messageType);
+			if (messageTypeFilter && msgType !== messageTypeFilter) continue;
+			allEntries.push({
+				message: entry.message,
+				messageType: msgType,
+				timestamp: entry.timestamp,
+			});
+		}
+
+		const startIdx = math.max(0, allEntries.size() - maxEntries);
+		const finalEntries: Record<string, unknown>[] = [];
+		for (let i = startIdx; i < allEntries.size(); i++) {
+			finalEntries.push(allEntries[i]);
+		}
+
+		return { entries: finalEntries, count: finalEntries.size(), totalAvailable: allEntries.size() };
+	});
+
+	if (success) return result;
+	return { error: `Failed to get output log: ${result}` };
+}
+
 export = {
 	getFileTree,
 	searchFiles,
@@ -541,4 +804,8 @@ export = {
 	searchByProperty,
 	getClassInfo,
 	getProjectStructure,
+	grepScripts,
+	getDescendants,
+	compareInstances,
+	getOutputLog,
 };

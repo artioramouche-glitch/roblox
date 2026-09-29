@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Embeds every gamekit/**\/*.luau file into src/gamekit/generated/luau-sources.ts so the
+ * Embeds every gamekit/**\/*.luau file into packages/core/src/gamekit/generated/luau-sources.ts so the
  * MCP server ships the Luau library inside its build (no runtime file lookups).
  * Run automatically by `npm run build`; `--check` exits 1 when the file is stale.
  */
@@ -10,7 +10,7 @@ import { fileURLToPath } from 'url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const libDir = join(root, 'gamekit');
-const outFile = join(root, 'src', 'gamekit', 'generated', 'luau-sources.ts');
+const outFile = join(root, 'packages', 'core', 'src', 'gamekit', 'generated', 'luau-sources.ts');
 
 function walk(dir) {
   const out = [];
@@ -39,7 +39,7 @@ ${entries.join('\n')}
 if (process.argv.includes('--check')) {
   const current = existsSync(outFile) ? readFileSync(outFile, 'utf8') : '';
   if (current !== content) {
-    console.error('src/gamekit/generated/luau-sources.ts is out of date. Run: node scripts/embed-gamekit.mjs');
+    console.error('packages/core/src/gamekit/generated/luau-sources.ts is out of date. Run: node scripts/embed-gamekit.mjs');
     process.exit(1);
   }
   console.log('[embed-gamekit] up to date');

@@ -10,7 +10,7 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 
 const port = process.env.ROBLOX_STUDIO_PORT || '3920';
 const lune = process.env.LUNE || 'lune';
-const transport = new StdioClientTransport({ command: process.execPath, args: ['dist/index.js'], env: { ...process.env, ROBLOX_STUDIO_PORT: port }, stderr: 'ignore' });
+const transport = new StdioClientTransport({ command: process.execPath, args: ['packages/roblox-ultimate-mcp/dist/index.js'], env: { ...process.env, ROBLOX_STUDIO_PORT: port }, stderr: 'ignore' });
 const client = new Client({ name: 'gamekit-integration', version: '1.0.0' });
 await client.connect(transport);
 const studio = spawn(lune, ['run', 'scripts/lune/fake-studio.luau', port], { stdio: ['ignore', 'pipe', 'inherit'] });

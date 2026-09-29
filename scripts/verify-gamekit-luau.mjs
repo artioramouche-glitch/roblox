@@ -79,7 +79,7 @@ const { tmpdir } = await import('os');
 const smapPath = join(mkdtempSync(join(tmpdir(), 'gk-')), 'sourcemap.json');
 writeFileSync(smapPath, JSON.stringify(sourcemap));
 
-const defs = process.env.ROBLOX_TYPES || join(root, 'reference', 'packages', 'core', 'assets', 'globalTypes.d.luau');
+const defs = process.env.ROBLOX_TYPES || join(root, 'packages', 'core', 'assets', 'globalTypes.d.luau');
 let typeErrors = 0;
 if (lsp && existsSync(defs)) {
   const res = spawnSync(lsp, ['analyze', `--definitions=@roblox=${defs}`, `--sourcemap=${smapPath}`, ...files.map(f => relative(root, f))], { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });

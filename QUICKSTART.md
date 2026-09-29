@@ -9,12 +9,12 @@
    cd roblox
    npm install
    ```
-3. Copie `studio-plugin/MCPPlugin.rbxmx` dans le dossier des plugins Roblox
-   (Windows : `%LOCALAPPDATA%\Roblox\Plugins\` — macOS : `~/Documents/Roblox/Plugins/`) et redémarre Studio.
+3. Installe le plugin Studio : `npm run install-plugin` (ou copie `studio-plugin/MCPPlugin.rbxmx` dans
+   `%LOCALAPPDATA%\Roblox\Plugins\` sous Windows, `~/Documents/Roblox/Plugins/` sous macOS), puis redémarre Studio.
 4. Dans Studio : **Paramètres du jeu → Sécurité → Autoriser les requêtes HTTP**.
 5. Ajoute le serveur à ton IA (voir [README](README.md#3-brancher-ton-ia)), ex. Claude Code :
    ```bash
-   claude mcp add roblox -- node CHEMIN/VERS/roblox/dist/index.js
+   claude mcp add roblox -- node CHEMIN/VERS/roblox/packages/roblox-ultimate-mcp/dist/index.js
    ```
 
 ## À chaque session

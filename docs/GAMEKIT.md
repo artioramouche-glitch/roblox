@@ -765,6 +765,8 @@ build_world "maze" builds a full escape maze with keys, exit and a monster spawn
    - level design: build_world (whole courses/maps or single pieces like jump_pad, coin, spinner)
    - screens: build_ui (JSON -> real UI, live stat text, buttons that open windows)
    - mood: set_environment (lighting preset + terrain)
+   - advanced (find_tools + call_tool): terrain_fill_*, lighting_*, particle_create, sound_*, animation_*,
+     insert_asset (Creator Store models), capture_screenshot to look at the result.
 5. **Only then write code**, with write_script (it refuses broken Luau and explains fixes).
 6. **check_game** before finishing: finds scripts in wrong places, syntax errors, loose parts, missing spawns.
 7. Polish (see guide "design"), then publish (guide "publishing").
@@ -975,6 +977,8 @@ Tips: keep buttons >= 48 px tall (mobile), use at most 2-3 colors, put important
 - Obstacles for obby_course: jumps, killbricks, zigzag, moving, disappearing, spinner, truss, lava_floor, falling, conveyor, jumppad, tightrope.
 - Single pieces: platform, spawn, checkpoint, finish_line, kill_brick, lava_floor, damage_part, heal_pad, jump_pad, speed_pad, boost_pad, moving_platform, spinner, disappearing_platform, falling_platform, conveyor, coin, shop_stand, leaderboard, enemy_spawner, sell_pad, zone_gate, teleporter, teleport_target, key, tree, rock, lamp, crate.
 - Everything goes to Workspace/GameKit/<name>; building again with the same name replaces it.
+- Need something else? find_tools "terrain" / "lighting" / "asset" / "build" lists the low-level world tools
+  (terrain_fill_block, lighting_set_preset, insert_asset, generate_build...).
 - Each gameplay piece carries the tag + attributes its system reads, e.g. a jump_pad has tag "JumpPad"
   and attribute Power. Change attributes in Studio's Properties panel to tune it.
 

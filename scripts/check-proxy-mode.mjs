@@ -16,7 +16,7 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const ENTRY = join(HERE, '..', 'packages', 'robloxstudio-mcp', 'dist', 'index.js');
+const ENTRY = join(HERE, '..', 'packages', 'roblox-ultimate-mcp', 'dist', 'index.js');
 const PORT = process.env.ROBLOX_STUDIO_PORT || '58741';
 const TIMEOUT_MS = 25_000;
 

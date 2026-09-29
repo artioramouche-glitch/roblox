@@ -12,3 +12,5 @@ studio-plugin/node_modules/
 .DS_Store
 Thumbs.db
 *.log
+studio-plugin/MCPInspectorPlugin.rbxmx
+packages/*/studio-plugin/
