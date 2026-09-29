@@ -2,7 +2,7 @@ import { Connection } from "../types";
 
 const CURRENT_VERSION = "__VERSION__";
 const MAX_CONNECTIONS = 5;
-const BASE_PORT = 58741;
+const BASE_PORT = 3002;
 let activeTabIndex = 0;
 
 function createConnection(port: number): Connection {
@@ -19,7 +19,6 @@ function createConnection(port: number): Connection {
 		maxRetryDelay: 5,
 		retryBackoffMultiplier: 1.2,
 		lastHttpOk: false,
-		lastMcpOk: false,
 		mcpWaitStartTime: undefined,
 		isPolling: false,
 		heartbeatConnection: undefined,
@@ -32,14 +31,8 @@ function addConnection(port?: number): number | undefined {
 	if (connections.size() >= MAX_CONNECTIONS) {
 		return undefined;
 	}
-	if (port === undefined) {
-		let maxPort = BASE_PORT - 1;
-		for (const conn of connections) {
-			if (conn.port > maxPort) maxPort = conn.port;
-		}
-		port = maxPort + 1;
-	}
-	const conn = createConnection(port);
+	const lastPort = connections[connections.size() - 1].port;
+	const conn = createConnection(port ?? lastPort + 1);
 	connections.push(conn);
 	return connections.size() - 1;
 }

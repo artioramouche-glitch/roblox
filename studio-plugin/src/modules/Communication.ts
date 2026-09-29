@@ -8,35 +8,7 @@ import InstanceHandlers from "./handlers/InstanceHandlers";
 import ScriptHandlers from "./handlers/ScriptHandlers";
 import MetadataHandlers from "./handlers/MetadataHandlers";
 import TestHandlers from "./handlers/TestHandlers";
-import BuildHandlers from "./handlers/BuildHandlers";
-import AssetHandlers from "./handlers/AssetHandlers";
-import CaptureHandlers from "./handlers/CaptureHandlers";
-import InputHandlers from "./handlers/InputHandlers";
-import EvalRuntimeHandlers from "./handlers/EvalRuntimeHandlers";
-import LogHandlers from "./handlers/LogHandlers";
-import SelectionHandlers from "./handlers/SelectionHandlers";
-import SerializationHandlers from "./handlers/SerializationHandlers";
-import GenerateModelHandlers from "./handlers/GenerateModelHandlers";
-import ScriptProfilerHandlers from "./handlers/ScriptProfilerHandlers";
-import MicroProfilerHandlers from "./handlers/MicroProfilerHandlers";
-import MemoryHandlers from "./handlers/MemoryHandlers";
-import SceneAnalysisHandlers from "./handlers/SceneAnalysisHandlers";
-import BreakpointHandlers from "./handlers/BreakpointHandlers";
-import DebuggerHandlers from "./handlers/DebuggerHandlers";
-import EditorHandlers from "./handlers/EditorHandlers";
-import ReloadHandlers from "./handlers/ReloadHandlers";
-import MultiplayerTestHandlers from "./handlers/MultiplayerTestHandlers";
-import { Connection, RequestPayload, PollResponse, ReadyResponse } from "../types";
-
-const instanceId = HttpService.GenerateGUID(false);
-let assignedRole: string | undefined;
-
-function detectRole(): string {
-	// IsRunMode is true only for a Run playtest, so Play-mode peers used to report as edit.
-	if (!RunService.IsRunning()) return "edit";
-	if (RunService.IsServer()) return "server";
-	return "client";
-}
+import { Connection, RequestPayload, PollResponse } from "../types";
 
 type Handler = (data: Record<string, unknown>) => unknown;
 
@@ -52,23 +24,19 @@ const routeMap: Record<string, Handler> = {
 	"/api/search-by-property": QueryHandlers.searchByProperty,
 	"/api/class-info": QueryHandlers.getClassInfo,
 	"/api/project-structure": QueryHandlers.getProjectStructure,
-	"/api/grep-scripts": QueryHandlers.grepScripts,
-	"/api/get-descendants": QueryHandlers.getDescendants,
-	"/api/compare-instances": QueryHandlers.compareInstances,
-	"/api/get-output-log": QueryHandlers.getOutputLog,
 
 	"/api/set-property": PropertyHandlers.setProperty,
-	"/api/set-properties": PropertyHandlers.setProperties,
 	"/api/mass-set-property": PropertyHandlers.massSetProperty,
 	"/api/mass-get-property": PropertyHandlers.massGetProperty,
+	"/api/set-calculated-property": PropertyHandlers.setCalculatedProperty,
+	"/api/set-relative-property": PropertyHandlers.setRelativeProperty,
+
 	"/api/create-object": InstanceHandlers.createObject,
 	"/api/mass-create-objects": InstanceHandlers.massCreateObjects,
-	// Back-compat alias: pre-2.7.0 servers split this endpoint when properties were present.
-	"/api/mass-create-objects-with-properties": InstanceHandlers.massCreateObjects,
+	"/api/mass-create-objects-with-properties": InstanceHandlers.massCreateObjectsWithProperties,
 	"/api/delete-object": InstanceHandlers.deleteObject,
 	"/api/smart-duplicate": InstanceHandlers.smartDuplicate,
 	"/api/mass-duplicate": InstanceHandlers.massDuplicate,
-	"/api/clone-object": InstanceHandlers.cloneObject,
 
 	"/api/get-script-source": ScriptHandlers.getScriptSource,
 	"/api/set-script-source": ScriptHandlers.setScriptSource,
@@ -76,6 +44,7 @@ const routeMap: Record<string, Handler> = {
 	"/api/insert-script-lines": ScriptHandlers.insertScriptLines,
 	"/api/delete-script-lines": ScriptHandlers.deleteScriptLines,
 
+	"/api/get-attribute": MetadataHandlers.getAttribute,
 	"/api/set-attribute": MetadataHandlers.setAttribute,
 	"/api/get-attributes": MetadataHandlers.getAttributes,
 	"/api/delete-attribute": MetadataHandlers.deleteAttribute,
@@ -85,70 +54,17 @@ const routeMap: Record<string, Handler> = {
 	"/api/get-tagged": MetadataHandlers.getTagged,
 	"/api/get-selection": MetadataHandlers.getSelection,
 	"/api/execute-luau": MetadataHandlers.executeLuau,
-	// Runs in the LIVE server or client VM, sharing that VM's require cache -- unlike
-	// execute-luau above, which is the plugin VM and gets a fresh copy of every module.
-	"/api/eval-runtime": EvalRuntimeHandlers.evalRuntime,
-	"/api/get-runtime-logs": LogHandlers.getRuntimeLogs,
-	"/api/set-selection": SelectionHandlers.setSelection,
-	"/api/focus-viewport": SelectionHandlers.focusViewport,
-	"/api/export-rbxm": SerializationHandlers.exportRbxm,
-	"/api/import-rbxm": SerializationHandlers.importRbxm,
-	"/api/generate-model": GenerateModelHandlers.generateModel,
-	"/api/capture-script-profiler": ScriptProfilerHandlers.captureScriptProfiler,
-	"/api/capture-micro-profiler": MicroProfilerHandlers.captureMicroProfiler,
-	"/api/get-memory-breakdown": MemoryHandlers.getMemoryBreakdown,
-	"/api/get-scene-analysis": SceneAnalysisHandlers.getSceneAnalysis,
-	"/api/breakpoints": BreakpointHandlers.breakpoints,
-	"/api/debugger": DebuggerHandlers.debuggerAction,
-	"/api/script-editor": EditorHandlers.scriptEditor,
-	"/api/studio-activity": EditorHandlers.studioActivity,
-	"/api/multiplayer-test-start": MultiplayerTestHandlers.multiplayerTestStart,
-	"/api/multiplayer-test-state": MultiplayerTestHandlers.multiplayerTestState,
-	"/api/multiplayer-test-add-players": MultiplayerTestHandlers.multiplayerTestAddPlayers,
-	"/api/multiplayer-test-leave-client": MultiplayerTestHandlers.multiplayerTestLeaveClient,
-	"/api/multiplayer-test-end": MultiplayerTestHandlers.multiplayerTestEnd,
-	"/api/undo": MetadataHandlers.undo,
-	"/api/redo": MetadataHandlers.redo,
-	"/api/bulk-set-attributes": MetadataHandlers.bulkSetAttributes,
 
 	"/api/start-playtest": TestHandlers.startPlaytest,
 	"/api/stop-playtest": TestHandlers.stopPlaytest,
-	"/api/end-test": TestHandlers.endTest,
 	"/api/get-playtest-output": TestHandlers.getPlaytestOutput,
-	"/api/character-navigation": TestHandlers.characterNavigation,
-
-	"/api/export-build": BuildHandlers.exportBuild,
-	"/api/import-build": BuildHandlers.importBuild,
-	"/api/import-scene": BuildHandlers.importScene,
-	"/api/search-materials": BuildHandlers.searchMaterials,
-
-	"/api/insert-asset": AssetHandlers.insertAsset,
-	"/api/preview-asset": AssetHandlers.previewAsset,
-
-	"/api/capture-screenshot": CaptureHandlers.captureScreenshot,
-	"/api/simulate-mouse-input": InputHandlers.simulateMouseInput,
-	"/api/simulate-keyboard-input": InputHandlers.simulateKeyboardInput,
-
-	"/api/find-and-replace-in-scripts": ScriptHandlers.findAndReplaceInScripts,
 };
-
-// Set by a hot reload: requests go to the freshly loaded handlers instead of this module's.
-let routeOverride: Record<string, Handler> | undefined;
-
-function setRouteOverride(routes: Record<string, Handler>) {
-	routeOverride = routes;
-}
 
 function processRequest(request: RequestPayload): unknown {
 	const endpoint = request.endpoint;
 	const data = request.data ?? {};
 
-	// Always served by this (the live poll loop's) copy, so every reload swaps the routes this
-	// loop actually uses, not those of a previously reloaded copy.
-	if (endpoint === "/api/reload-plugin") {
-		return ReloadHandlers.reloadPlugin(data as Record<string, unknown>, setRouteOverride);
-	}
-	const handler = (routeOverride ?? routeMap)[endpoint];
+	const handler = routeMap[endpoint];
 	if (handler) {
 		return handler(data as Record<string, unknown>);
 	} else {
@@ -184,7 +100,7 @@ function pollForRequests(connIndex: number) {
 
 	const [success, result] = pcall(() => {
 		return HttpService.RequestAsync({
-			Url: `${conn.serverUrl}/poll?instanceId=${instanceId}`,
+			Url: `${conn.serverUrl}/poll`,
 			Method: "GET",
 			Headers: { "Content-Type": "application/json" },
 		});
@@ -203,7 +119,6 @@ function pollForRequests(connIndex: number) {
 		const data = HttpService.JSONDecode(result.Body) as PollResponse;
 		const mcpConnected = data.mcpConnected === true;
 		conn.lastHttpOk = true;
-		conn.lastMcpOk = mcpConnected;
 
 		if (connIndex === State.getActiveTabIndex()) {
 			const el = ui;
@@ -242,6 +157,18 @@ function pollForRequests(connIndex: number) {
 				}
 				const elapsed = tick() - (conn.mcpWaitStartTime ?? tick());
 				el.troubleshootLabel.Visible = elapsed > 8;
+				if (elapsed > 3 && elapsed % 5 < conn.pollInterval) {
+					task.spawn(() => {
+						const discovered = discoverPort();
+						if (discovered !== undefined && discovered !== conn.port) {
+							conn.port = discovered;
+							conn.serverUrl = `http://localhost:${discovered}`;
+							if (connIndex === State.getActiveTabIndex()) {
+								UI.getElements().urlInput.Text = conn.serverUrl;
+							}
+						}
+					});
+				}
 				UI.startPulseAnimation();
 			}
 		}
@@ -257,13 +184,6 @@ function pollForRequests(connIndex: number) {
 			});
 		}
 	} else if (conn.isActive) {
-		// Once per connection: without this a peer that can never reach the MCP (seen with the
-		// Play-mode client copy) just shows "connecting" forever with no reason anywhere.
-		if (!conn.loggedPollFailure) {
-			conn.loggedPollFailure = true;
-			const reason = success ? `HTTP ${result.StatusCode} ${result.StatusMessage}` : tostring(result);
-			warn(`[MCP] ${detectRole()} peer cannot reach ${conn.serverUrl}: ${reason}`);
-		}
 		conn.consecutiveFailures++;
 
 		if (conn.consecutiveFailures > 1) {
@@ -273,6 +193,20 @@ function pollForRequests(connIndex: number) {
 			);
 		}
 
+		if (conn.consecutiveFailures === 5 || conn.consecutiveFailures % 20 === 0) {
+			task.spawn(() => {
+				const discovered = discoverPort();
+				if (discovered !== undefined && discovered !== conn.port) {
+					conn.port = discovered;
+					conn.serverUrl = `http://localhost:${discovered}`;
+					conn.consecutiveFailures = 0;
+					conn.currentRetryDelay = 0.5;
+					if (connIndex === State.getActiveTabIndex()) {
+						UI.getElements().urlInput.Text = conn.serverUrl;
+					}
+				}
+			});
+		}
 
 		if (connIndex === State.getActiveTabIndex()) {
 			const el = ui;
@@ -333,6 +267,30 @@ function pollForRequests(connIndex: number) {
 	}
 }
 
+function discoverPort(): number | undefined {
+	let firstActivePort: number | undefined;
+	for (let offset = 0; offset < 5; offset++) {
+		const port = State.BASE_PORT + offset;
+		const [success, result] = pcall(() => {
+			return HttpService.RequestAsync({
+				Url: `http://localhost:${port}/status`,
+				Method: "GET",
+				Headers: { "Content-Type": "application/json" },
+			});
+		});
+
+		if (success && result.Success) {
+			const [ok, data] = pcall(() =>
+				HttpService.JSONDecode(result.Body) as { mcpServerActive: boolean; pluginConnected: boolean },
+			);
+			if (ok && data.mcpServerActive) {
+				if (!data.pluginConnected) return port;
+				if (firstActivePort === undefined) firstActivePort = port;
+			}
+		}
+	}
+	return firstActivePort;
+}
 
 function activatePlugin(connIndex?: number) {
 	const idx = connIndex ?? State.getActiveTabIndex();
@@ -350,12 +308,20 @@ function activatePlugin(connIndex?: number) {
 		conn.serverUrl = ui.urlInput.Text;
 		const [portStr] = conn.serverUrl.match(":(%d+)$");
 		if (portStr) conn.port = tonumber(portStr) ?? conn.port;
-		UI.updateTabLabel(idx);
 		UI.updateUIState();
 	}
 	UI.updateTabDot(idx);
 
 	task.spawn(() => {
+		const discoveredPort = discoverPort();
+		if (discoveredPort !== undefined) {
+			conn.port = discoveredPort;
+			conn.serverUrl = `http://localhost:${discoveredPort}`;
+			if (idx === State.getActiveTabIndex()) {
+				ui.urlInput.Text = conn.serverUrl;
+			}
+		}
+
 		if (!conn.heartbeatConnection) {
 			conn.heartbeatConnection = RunService.Heartbeat.Connect(() => {
 				const now = tick();
@@ -367,20 +333,14 @@ function activatePlugin(connIndex?: number) {
 			});
 		}
 
-		const [readyOk, readyResult] = pcall(() => {
-			return HttpService.RequestAsync({
+		pcall(() => {
+			HttpService.RequestAsync({
 				Url: `${conn.serverUrl}/ready`,
 				Method: "POST",
 				Headers: { "Content-Type": "application/json" },
-				Body: HttpService.JSONEncode({ instanceId, role: detectRole(), pluginReady: true, timestamp: tick() }),
+				Body: HttpService.JSONEncode({ pluginReady: true, timestamp: tick() }),
 			});
 		});
-		if (readyOk && readyResult.Success) {
-			const [parseOk, readyData] = pcall(() => HttpService.JSONDecode(readyResult.Body) as ReadyResponse);
-			if (parseOk && readyData.assignedRole) {
-				assignedRole = readyData.assignedRole;
-			}
-		}
 	});
 }
 
@@ -390,7 +350,6 @@ function deactivatePlugin(connIndex?: number) {
 	if (!conn) return;
 
 	conn.isActive = false;
-	conn.lastMcpOk = false;
 
 	if (idx === State.getActiveTabIndex()) UI.updateUIState();
 	UI.updateTabDot(idx);
@@ -400,7 +359,7 @@ function deactivatePlugin(connIndex?: number) {
 			Url: `${conn.serverUrl}/disconnect`,
 			Method: "POST",
 			Headers: { "Content-Type": "application/json" },
-			Body: HttpService.JSONEncode({ instanceId, timestamp: tick() }),
+			Body: HttpService.JSONEncode({ timestamp: tick() }),
 		});
 	});
 
@@ -437,7 +396,7 @@ function checkForUpdates() {
 				const latestVersion = data.version;
 				if (Utils.compareVersions(State.CURRENT_VERSION, latestVersion) < 0) {
 					const ui = UI.getElements();
-					ui.updateBannerText.Text = `v${latestVersion} available - github.com/6xvl/robloxstudio-mcp`;
+					ui.updateBannerText.Text = `v${latestVersion} available - github.com/boshyxd/robloxstudio-mcp`;
 					ui.updateBanner.Visible = true;
 					ui.contentFrame.Position = new UDim2(0, 8, 0, 92);
 					ui.contentFrame.Size = new UDim2(1, -16, 1, -100);
@@ -448,7 +407,6 @@ function checkForUpdates() {
 }
 
 export = {
-	routes: routeMap,
 	getConnectionStatus,
 	activatePlugin,
 	deactivatePlugin,
