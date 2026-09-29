@@ -1,150 +1,110 @@
-# MCP Client Configurations
+# Brancher n'importe quel client MCP
 
-Roblox Studio MCP uses **stdio transport** and is provider-agnostic — it works with any MCP host that can launch a local command.
+Le serveur utilise le transport **stdio** : tout client MCP capable de lancer une commande locale fonctionne.
+Remplace `CHEMIN` par le dossier où tu as cloné le dépôt (après `npm install`).
 
----
-
-## Universal Command
-
-Use this in any client that accepts a command string:
+Commande universelle :
 
 ```
-npx -y robloxstudio-mcp@latest
+node CHEMIN/dist/index.js
 ```
 
-> **Windows note:** If `npx` fails to resolve, prefix with `cmd /c`:
-> ```
-> cmd /c npx -y robloxstudio-mcp@latest
-> ```
+Variables d'environnement utiles :
+
+| Variable | Effet |
+|---|---|
+| `ROBLOX_MCP_PROFILE` | `starter` (défaut, 25 outils), `builder` (~46), `full` (tous) |
+| `ROBLOX_STUDIO_PORT` | Port HTTP pour le plugin (défaut `3002`) |
 
 ---
 
 ## Claude Code
 
 ```bash
-claude mcp add robloxstudio -- npx robloxstudio-mcp
+claude mcp add roblox -- node CHEMIN/dist/index.js
+# profil complet :
+claude mcp add roblox -e ROBLOX_MCP_PROFILE=full -- node CHEMIN/dist/index.js
+```
+
+## Claude Desktop
+
+`claude_desktop_config.json` :
+
+```json
+{
+  "mcpServers": {
+    "roblox": {
+      "command": "node",
+      "args": ["CHEMIN/dist/index.js"]
+    }
+  }
+}
+```
+
+## Cursor / Windsurf / Cline / Roo Code / LM Studio / Jan
+
+Même bloc `mcpServers` que Claude Desktop (fichier `mcp.json` / réglages MCP du client).
+
+## VS Code (GitHub Copilot, mode Agent)
+
+`.vscode/mcp.json` :
+
+```json
+{
+  "servers": {
+    "roblox": { "type": "stdio", "command": "node", "args": ["CHEMIN/dist/index.js"] }
+  }
+}
 ```
 
 ## Gemini CLI
 
 ```bash
-gemini mcp add robloxstudio npx --trust -- -y robloxstudio-mcp
+gemini mcp add roblox node CHEMIN/dist/index.js
 ```
-
-## Claude Desktop
-
-Add to your `claude_desktop_config.json`:
-
-```json
-{
-  "mcpServers": {
-    "robloxstudio-mcp": {
-      "command": "npx",
-      "args": ["-y", "robloxstudio-mcp@latest"]
-    }
-  }
-}
-```
-
-<details>
-<summary>Windows fallback</summary>
-
-```json
-{
-  "mcpServers": {
-    "robloxstudio-mcp": {
-      "command": "cmd",
-      "args": ["/c", "npx", "-y", "robloxstudio-mcp@latest"]
-    }
-  }
-}
-```
-</details>
 
 ## Codex CLI
 
-Add to `~/.codex/config.toml`:
+`~/.codex/config.toml` :
 
 ```toml
-[mcp_servers.robloxstudio]
-command = "npx"
-args = ["-y", "robloxstudio-mcp@latest"]
+[mcp_servers.roblox]
+command = "node"
+args = ["CHEMIN/dist/index.js"]
 ```
-
-<details>
-<summary>Windows fallback</summary>
-
-```toml
-[mcp_servers.robloxstudio]
-command = "cmd"
-args = ["/c", "npx", "-y", "robloxstudio-mcp@latest"]
-```
-</details>
 
 ## OpenCode
 
-Add to `~/.config/opencode/opencode.json`:
+`~/.config/opencode/opencode.json` :
 
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
   "mcp": {
-    "robloxstudio": {
-      "type": "local",
-      "enabled": true,
-      "command": ["npx", "-y", "robloxstudio-mcp@latest"]
-    }
+    "roblox": { "type": "local", "enabled": true, "command": ["node", "CHEMIN/dist/index.js"] }
   }
 }
 ```
 
-<details>
-<summary>Windows fallback</summary>
+## Clients HTTP (sans stdio)
 
-```json
-{
-  "$schema": "https://opencode.ai/config.json",
-  "mcp": {
-    "robloxstudio": {
-      "type": "local",
-      "enabled": true,
-      "command": ["cmd", "/c", "npx", "-y", "robloxstudio-mcp@latest"]
-    }
-  }
-}
-```
-</details>
-
-## Other mcpServers JSON Clients
-
-Any client that reads a `mcpServers` JSON block (Cursor, Windsurf, etc.):
-
-```json
-{
-  "mcpServers": {
-    "robloxstudio-mcp": {
-      "command": "npx",
-      "args": ["-y", "robloxstudio-mcp@latest"]
-    }
-  }
-}
-```
+Les outils sont aussi exposés en HTTP local : `POST http://localhost:3002/mcp/<outil>` avec les arguments en JSON
+(ex. `/mcp/create_game` avec `{"template":"obby"}`), utile pour des scripts ou des agents maison.
 
 ---
 
-## Validation Checklist
+## Vérifier la connexion
 
-After setup, verify everything is connected:
-
-1. ✅ Roblox Studio is open and the plugin is active (green indicator)
-2. ✅ **Game Settings → Security → Allow HTTP Requests** is enabled
-3. ✅ MCP client shows the server as connected
-4. ✅ Calling `get_place_info` returns a valid response
-
-### Quick health check
+1. ✅ Studio ouvert, plugin **MCP Server → Connect** actif
+2. ✅ **Paramètres du jeu → Sécurité → Autoriser les requêtes HTTP**
+3. ✅ Le client affiche le serveur `roblox` comme connecté
+4. ✅ L'outil `roblox_start_here` renvoie `"connected": true`
 
 ```bash
 curl http://localhost:3002/health
 ```
 
-Expected: `pluginConnected: true`, `mcpServerActive: true`
+Attendu : `pluginConnected: true`, `mcpServerActive: true`.
+
+> Windows : si `node` n'est pas trouvé par le client, mets le chemin complet
+> (ex. `"command": "C:/Program Files/nodejs/node.exe"`).

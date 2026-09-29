@@ -1,4 +1,5 @@
 import express from 'express';
+import { GameKit, GAMEKIT_TOOLS } from './gamekit/tools.js';
 import cors from 'cors';
 import { RobloxStudioTools } from './tools/index.js';
 import { BridgeService } from './bridge-service.js';
@@ -1045,6 +1046,18 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
       res.status(500).json({ error: error instanceof Error ? error.message : 'Unknown error' });
     }
   });
+
+  // GameKit tools (create_game, add_system, test_game...) over plain HTTP too.
+  const gamekit = new GameKit(tools.gameKitHost());
+  for (const def of GAMEKIT_TOOLS) {
+    app.post(`/mcp/${def.name}`, async (req, res) => {
+      try {
+        res.json(await gamekit.call(def.name, req.body ?? {}));
+      } catch (error) {
+        res.status(500).json({ error: error instanceof Error ? error.message : 'Unknown error' });
+      }
+    });
+  }
 
   // Add methods to control and check server status
   (app as any).isPluginConnected = isPluginConnected;

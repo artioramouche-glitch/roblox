@@ -19,6 +19,8 @@ export default {
       }
     }],
   },
+  roots: ['<rootDir>/src'],
+  testPathIgnorePatterns: ['/node_modules/', '/src/gamekit/'],
   testMatch: [
     '**/__tests__/**/*.test.ts',
     '**/*.test.ts'

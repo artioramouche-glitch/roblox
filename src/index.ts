@@ -1,19 +1,16 @@
 #!/usr/bin/env node
 
 /**
- * Roblox Studio MCP Server
- * 
- * This server provides Model Context Protocol (MCP) tools for interacting with Roblox Studio.
- * It allows AI assistants to access Studio data, scripts, and objects through a bridge plugin.
- * 
- * Usage:
- *   npx robloxstudio-mcp
- * 
- * Or add to your MCP configuration:
- *   "robloxstudio": {
- *     "command": "npx",
- *     "args": ["-y", "robloxstudio-mcp"]
- *   }
+ * Roblox Ultimate MCP
+ *
+ * MCP server that lets any AI build complete Roblox games in Studio: the GameKit layer
+ * (templates, systems, world/UI generators, Luau validation, automatic playtests) on top
+ * of low-level Studio tools, talking to the Studio plugin over a local HTTP bridge.
+ *
+ * Usage (after `npm install`):
+ *   node dist/index.js
+ * MCP client configuration:
+ *   "roblox": { "command": "node", "args": ["/path/to/roblox/dist/index.js"] }
  */
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
@@ -24,10 +21,19 @@ import {
   ListToolsRequestSchema,
   McpError,
 } from '@modelcontextprotocol/sdk/types.js';
+import {
+  GetPromptRequestSchema,
+  ListPromptsRequestSchema,
+  ListResourcesRequestSchema,
+  ReadResourceRequestSchema,
+} from '@modelcontextprotocol/sdk/types.js';
 import { createRequire } from 'module';
 import { createHttpServer } from './http-server.js';
 import { RobloxStudioTools } from './tools/index.js';
 import { BridgeService } from './bridge-service.js';
+import { GameKit, GAMEKIT_TOOLS, GAMEKIT_TOOL_NAMES } from './gamekit/tools.js';
+import { SERVER_INSTRUCTIONS, PROMPTS, listResources } from './gamekit/mcp-extras.js';
+import { baseToolVisible, getProfile, onProfileChange, setProfile, PROFILES } from './gamekit/profiles.js';
 
 const require = createRequire(import.meta.url);
 const { version: VERSION } = require('../package.json');
@@ -36,29 +42,123 @@ class RobloxStudioMCPServer {
   private server: Server;
   private tools: RobloxStudioTools;
   private bridge: BridgeService;
+  private gamekit: GameKit;
 
   constructor() {
     this.server = new Server(
       {
-        name: 'robloxstudio-mcp',
+        name: 'roblox-ultimate-mcp',
         version: VERSION,
       },
       {
         capabilities: {
-          tools: {},
+          tools: { listChanged: true },
+          prompts: {},
+          resources: {},
         },
+        instructions: SERVER_INSTRUCTIONS,
       }
     );
 
     this.bridge = new BridgeService();
     this.tools = new RobloxStudioTools(this.bridge);
+    this.gamekit = new GameKit(this.tools.gameKitHost());
+    onProfileChange(() => {
+      this.server.sendToolListChanged().catch(() => {
+        // Not connected yet or the client does not care; call_tool still works.
+      });
+    });
     this.setupToolHandlers();
   }
 
   private setupToolHandlers() {
-    this.server.setRequestHandler(ListToolsRequestSchema, async () => {
+    this.server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: this.listedTools() }));
+    this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
+      const { name, arguments: args } = request.params;
+      return this.dispatch(name, (args ?? {}) as Record<string, any>);
+    });
+    this.setupPromptsAndResources();
+  }
+
+  /** Tools shown to the client: GameKit + profile tools always, low-level tools per profile. */
+  private listedTools(): any[] {
+    return [
+      ...GAMEKIT_TOOLS,
+      ...this.metaToolDefinitions(),
+      ...this.baseToolDefinitions().filter((t) => baseToolVisible(t.name)),
+    ];
+  }
+
+  private metaToolDefinitions(): any[] {
+    return [
+      {
+        name: 'set_tool_profile',
+        description: `Show more or fewer tools. starter = GameKit + essentials (default, best for most AIs), builder = + common editing tools, full = all ${this.baseToolDefinitions().length} low-level tools. Current: ${getProfile()}. If your client does not refresh its tool list, use find_tools + call_tool instead.`,
+        inputSchema: { type: 'object', properties: { profile: { type: 'string', enum: PROFILES } }, required: ['profile'] },
+      },
+      {
+        name: 'find_tools',
+        description: 'Search ALL tools (including hidden low-level ones) by keyword and get their input schema. Then run one with call_tool.',
+        inputSchema: { type: 'object', properties: { query: { type: 'string', description: 'Keyword, e.g. "attribute", "tag", "snapshot", "playtest"' } } },
+      },
+      {
+        name: 'call_tool',
+        description: 'Run any tool by name, even one hidden by the current profile (see find_tools).',
+        inputSchema: {
+          type: 'object',
+          properties: { name: { type: 'string' }, arguments: { type: 'object', description: 'The tool arguments' } },
+          required: ['name'],
+        },
+      },
+    ];
+  }
+
+  private async metaTool(name: string, args: Record<string, any>): Promise<any | null> {
+    const reply = (value: unknown) => ({ content: [{ type: 'text', text: JSON.stringify(value, null, 2) }] });
+    if (name === 'set_tool_profile') {
+      const profile = setProfile(String(args.profile ?? ''));
+      return reply({ profile, listedTools: this.listedTools().length, note: 'Tool list updated. If new tools do not show up, use find_tools + call_tool.' });
+    }
+    if (name === 'find_tools') {
+      const query = String(args.query ?? '').toLowerCase();
+      const all = [...GAMEKIT_TOOLS, ...this.baseToolDefinitions()];
+      const matches = all.filter((t) => !query || t.name.toLowerCase().includes(query) || String(t.description).toLowerCase().includes(query));
+      return reply({ count: matches.length, tools: matches.slice(0, 25).map((t) => ({ name: t.name, description: t.description, inputSchema: t.inputSchema })) });
+    }
+    if (name === 'call_tool') {
+      const target = String(args.name ?? '');
+      if (!target || target === 'call_tool') throw new McpError(ErrorCode.InvalidParams, 'call_tool needs the name of another tool');
+      return this.dispatch(target, (args.arguments ?? {}) as Record<string, any>);
+    }
+    return null;
+  }
+
+  private setupPromptsAndResources() {
+    this.server.setRequestHandler(ListPromptsRequestSchema, async () => ({
+      prompts: PROMPTS.map((p) => ({ name: p.name, description: p.description, arguments: p.arguments })),
+    }));
+    this.server.setRequestHandler(GetPromptRequestSchema, async (request) => {
+      const prompt = PROMPTS.find((p) => p.name === request.params.name);
+      if (!prompt) throw new McpError(ErrorCode.InvalidParams, `Unknown prompt: ${request.params.name}`);
+      const args = (request.params.arguments ?? {}) as Record<string, string>;
       return {
-        tools: [
+        description: prompt.description,
+        messages: [{ role: 'user', content: { type: 'text', text: prompt.build(args) } }],
+      };
+    });
+    this.server.setRequestHandler(ListResourcesRequestSchema, async () => ({
+      resources: listResources().map((r) => ({ uri: r.uri, name: r.name, description: r.description, mimeType: 'text/markdown' })),
+    }));
+    this.server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+      const resource = listResources().find((r) => r.uri === request.params.uri);
+      if (!resource) throw new McpError(ErrorCode.InvalidParams, `Unknown resource: ${request.params.uri}`);
+      return { contents: [{ uri: resource.uri, mimeType: 'text/markdown', text: resource.read() }] };
+    });
+  }
+
+  /** Low-level tools (Studio bridge). Filtered by the active profile when listed. */
+  private baseToolDefinitions(): any[] {
+    return [
           // Instance Hierarchy Tools (NOT local filesystem - these operate on Roblox Studio instances)
           {
             name: 'get_file_tree',
@@ -1299,12 +1399,23 @@ class RobloxStudioMCPServer {
               properties: {}
             }
           }
-        ]
-      };
-    });
+    ];
+  }
 
-    this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
-      const { name, arguments: args } = request.params;
+  private async dispatch(name: string, args: Record<string, any>): Promise<any> {
+      if (GAMEKIT_TOOL_NAMES.has(name)) {
+        try {
+          return await this.gamekit.call(name, args);
+        } catch (error) {
+          // Returned (not thrown) so the model reads the explanation and can react.
+          return {
+            content: [{ type: 'text', text: `Error: ${error instanceof Error ? error.message : String(error)}` }],
+            isError: true,
+          };
+        }
+      }
+      const meta = await this.metaTool(name, args);
+      if (meta) return meta;
 
       try {
         switch (name) {
@@ -1507,12 +1618,12 @@ class RobloxStudioMCPServer {
             );
         }
       } catch (error) {
+        if (error instanceof McpError) throw error;
         throw new McpError(
           ErrorCode.InternalError,
           `Tool execution failed: ${error instanceof Error ? error.message : String(error)}`
         );
       }
-    });
   }
 
   async run() {
@@ -1590,7 +1701,7 @@ class RobloxStudioMCPServer {
 
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
-    console.error('Roblox Studio MCP server running on stdio');
+    console.error(`Roblox Ultimate MCP running on stdio (tool profile: ${getProfile()})`);
     
     (httpServer as any).setMCPServerActive(true);
     console.error('MCP server marked as active');

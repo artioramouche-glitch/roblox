@@ -54,7 +54,15 @@ export class BridgeService {
     });
   }
 
+  private lastPollAt = 0;
+
+  /** Milliseconds since the Studio plugin last polled for work (Infinity if never). */
+  msSinceLastPoll(): number {
+    return this.lastPollAt ? Date.now() - this.lastPollAt : Infinity;
+  }
+
   getPendingRequest(): { requestId: string; request: { endpoint: string; data: any } } | null {
+    this.lastPollAt = Date.now();
     // Get oldest pending request
     let oldestRequest: PendingRequest | null = null;
     

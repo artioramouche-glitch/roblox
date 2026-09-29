@@ -13,8 +13,8 @@ This guide is for developers who want to run Roblox Studio MCP manually.
 ## 2) Clone and install
 
 ```powershell
-git clone https://github.com/aaronaalmendarez/roblox-mcp.git
-cd roblox-mcp
+git clone https://github.com/artioramouche-glitch/roblox.git
+cd roblox
 npm install
 ```
 

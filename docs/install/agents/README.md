@@ -14,8 +14,8 @@ Provide a reproducible local MCP environment where:
 ## 1) Bootstrap repo
 
 ```powershell
-git clone https://github.com/aaronaalmendarez/roblox-mcp.git
-cd roblox-mcp
+git clone https://github.com/artioramouche-glitch/roblox.git
+cd roblox
 npm install
 npm run build
 npm run build:plugin

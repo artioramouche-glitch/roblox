@@ -1,4 +1,5 @@
 import { StudioHttpClient } from './studio-client.js';
+import type { GameKitHost } from '../gamekit/tools.js';
 import { BridgeService } from '../bridge-service.js';
 import { createHash } from 'crypto';
 import { gunzipSync } from 'zlib';
@@ -83,9 +84,32 @@ export class RobloxStudioTools {
   private scriptUploadSeq = 0;
   private readonly maxScriptUploads = 64;
 
+  private bridge: BridgeService;
+
   constructor(bridge: BridgeService) {
     this.client = new StudioHttpClient(bridge);
+    this.bridge = bridge;
   }
+
+  /** Everything the GameKit layer needs from Studio: run Luau and drive playtests. */
+  gameKitHost(): GameKitHost {
+    return {
+      isStudioConnected: () => this.bridge.msSinceLastPoll() < 5000,
+      runLuau: async (code: string) => {
+        try {
+          return await this.client.request('/api/execute-luau', { code });
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          if (/connection timeout/i.test(message)) throw error;
+          return { success: false, error: message.replace(/^Studio endpoint \/api\/execute-luau failed: /, '') };
+        }
+      },
+      startPlaytest: (mode: 'play' | 'run') => this.client.request('/api/start-playtest', { mode }),
+      stopPlaytest: () => this.client.request('/api/stop-playtest', {}),
+      getPlaytestOutput: () => this.client.request('/api/get-playtest-output', {}),
+    };
+  }
+
 
   private hashSource(source: string) {
     return createHash('sha256').update(source, 'utf8').digest('hex');
