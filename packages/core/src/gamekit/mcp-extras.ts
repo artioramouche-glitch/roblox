@@ -16,8 +16,8 @@ import {
   McpError,
   ReadResourceRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
-import { GAMEKIT_TOOL_NAMES } from './tools.js';
-import { baseToolVisible, getProfile, PROFILES, setProfile } from './profiles.js';
+import { GAMEKIT_TOOLS, GAMEKIT_TOOL_NAMES } from './tools.js';
+import { baseToolVisible, getProfile, PROFILES, setProfile, tierVisible } from './profiles.js';
 
 export const SERVER_INSTRUCTIONS = `This server lets you build complete Roblox games in Roblox Studio.
 ALWAYS follow this path:
@@ -26,7 +26,9 @@ ALWAYS follow this path:
 3. Call test_game after every change and fix every error it reports until it says PASS.
 4. Customise with add_system (config), build_world, build_ui and set_environment -- they need no code.
 5. When you must write code, use write_script (it validates Luau and refuses broken code). Server logic in ServerScriptService, UI/input in LocalScripts.
-6. Before finishing, run check_game.
+6. Look at the result with look_at_game, decorate with populate_world, and run check_game before finishing.
+Save with backup_game before risky changes. Slow tools (blender_to_roblox, long test_game) can run through start_job while you keep working.
+Custom 3D models: blender_status, then model in Blender and send with blender_to_roblox. Several AIs on one game: team (plan, claim tasks, claim zones).
 Read roblox_guide (topics: workflow, design, luau, client-server, ui, errors) when unsure. Never invent Roblox APIs; never trust values sent by the client.
 For anything else (terrain, lighting, animations, particles, sounds, assets, profiling, multiplayer tests, screenshots...) many more tools exist: find_tools then call_tool.`;
 
@@ -51,8 +53,9 @@ Follow exactly:
 2. Choose the closest template${a.template ? ` (use "${a.template}")` : ` among: ${TEMPLATES.map((t) => `${t.id} = ${t.summary}`).join(' | ')}`}.
 3. Call create_game with fitting options (title, theme, difficulty, sizes).
 4. Call test_game. For each error: read the script (get_script_source), fix it with write_script or edit_script_lines, test again. Repeat until PASS.
-5. Customise to match the idea: add_system config (rewards, prices, texts), build_world pieces, build_ui screens, set_environment mood.
-6. test_game again, then check_game. Report what you built and how to play it.`,
+5. Customise to match the idea: add_system config (rewards, prices, texts), build_world pieces, build_ui screens, set_environment mood, populate_world scenery.
+6. look_at_game to check how it looks; fix what looks wrong.
+7. test_game again, then check_game. Report what you built and how to play it.`,
   },
   {
     name: 'fix_my_game',
@@ -78,11 +81,36 @@ Follow exactly:
     description: 'Make the game feel professional: juice, mood, onboarding, retention.',
     arguments: [],
     build: () => `Polish this Roblox game using roblox_guide design as a checklist:
-- set_environment with a preset that matches the theme; decor with build_world decor_scatter.
+- set_environment with a preset that matches the theme; scenery with populate_world { theme }; look_at_game to check.
+- Prices: balance_economy { fromGame: true } and apply the suggested prices.
 - Clear goal on join (Config.Core.WelcomeMessage), signs/billboards, status bar text.
 - Rewards feel good: HUD pop-ups (hud system), coins along paths, daily reward, leaderboard, cosmetics in the shop (trails, pets).
 - Check mobile: big buttons, readable text (build_ui sizes).
 Then test_game until PASS.`,
+  },
+  {
+    name: 'team_build',
+    description: 'Build one game with several AIs at the same time (shared task board and map zones).',
+    arguments: [
+      { name: 'agent', description: 'Your short unique name, e.g. "claude-1"', required: true },
+      { name: 'idea', description: 'The game idea (only needed by the first AI)' },
+    ],
+    build: (a) => `You are "${a.agent}", one of several AIs building the same Roblox game. Read roblox_guide team.
+1. team { "action": "list" }. If there are no tasks${a.idea ? `, create the plan: team { "action": "plan", "goal": "${a.idea}" }` : ', wait for the lead AI to create the plan (list again in a moment)'}.
+2. Loop: team { "action": "claim", "agent": "${a.agent}" } -> if the task has a zone, claim_zone first -> do the task with the GameKit tools -> team { "action": "done", "agent": "${a.agent}", "task": "<id>", "note": "<what you did>" }.
+3. Only build inside your zones (build_world / populate_world { zone }). Never delete what another agent built.
+4. Do not run test_game while other agents are editing; add bugs you find as tasks (team add) instead.`,
+  },
+  {
+    name: 'blender_prop',
+    description: 'Create a custom 3D prop in Blender and place it in the game.',
+    arguments: [{ name: 'prop', description: 'e.g. "a wooden treasure chest"', required: true }],
+    build: (a) => `Create "${a.prop}" for the Roblox game. Read roblox_guide blender.
+1. blender_status (must be connected).
+2. Try blender_assets search (polypizza, sketchfab) for a ready-made model; otherwise model it with blender_python in small steps (meters, base at Z = 0, one material per mesh, < 20k triangles).
+3. Check it with blender_scene { "screenshot": true }.
+4. start_job { "tool": "blender_to_roblox", "arguments": { "name": "<Name>", "position": [x, y, z] } }, keep working, then job_status { "id", "wait": 60 }.
+5. look_at_game { "target": "Workspace/GameKit/Props/<Name>" } to check size and placement, then test_game.`,
   },
 ];
 
@@ -117,9 +145,12 @@ export interface ListedTool {
 
 export const META_TOOL_NAMES = new Set(['set_tool_profile', 'find_tools', 'call_tool']);
 
-/** GameKit and meta tools are always listed; everything else depends on the profile. */
+const GAMEKIT_TIERS = new Map(GAMEKIT_TOOLS.map((t) => [t.name, t.tier]));
+
+/** Meta tools and starter GameKit tools are always listed; everything else depends on the profile. */
 export function toolVisible(name: string): boolean {
-  return GAMEKIT_TOOL_NAMES.has(name) || META_TOOL_NAMES.has(name) || baseToolVisible(name);
+  if (GAMEKIT_TOOL_NAMES.has(name)) return tierVisible(GAMEKIT_TIERS.get(name));
+  return META_TOOL_NAMES.has(name) || baseToolVisible(name);
 }
 
 export function metaToolDefinitions(totalTools: number): ListedTool[] {

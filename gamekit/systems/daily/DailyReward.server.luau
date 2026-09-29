@@ -9,6 +9,7 @@ local kit = ReplicatedStorage:WaitForChild("GameKit")
 local Util = require(kit:WaitForChild("Util"))
 local Net = require(kit:WaitForChild("Net"))
 local PlayerData = require(ServerScriptService:WaitForChild("GameKit"):WaitForChild("PlayerData"))
+local Analytics = require(ServerScriptService:WaitForChild("GameKit"):WaitForChild("Analytics"))
 
 local config = Util.config("DailyReward", {
 	Stat = "Coins",
@@ -45,7 +46,8 @@ Net.on("DailyClaim", function(player)
 	local amount = config.BaseAmount + (math.min(streak, config.MaxStreak) - 1) * config.StreakBonus
 	data.LastClaim = now
 	data.Streak = streak
-	PlayerData.add(player, config.Stat, amount)
+	local balance = PlayerData.add(player, config.Stat, amount)
+	Analytics.source(player, config.Stat, amount, balance, "TimedReward")
 	Net.notify(player, `🎁 Day {streak} reward: +{Util.formatNumber(amount)} {config.Stat}!`, "reward")
 	publish(player)
 end, 2)

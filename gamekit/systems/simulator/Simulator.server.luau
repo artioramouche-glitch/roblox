@@ -75,7 +75,7 @@ end, config.TrainsPerSecond)
 
 Net.on("SimRebirth", function(player)
 	local cost = rebirthCost(player)
-	if not PlayerData.spend(player, COINS, cost) then
+	if not PlayerData.spend(player, COINS, cost, "Rebirth", "Gameplay") then
 		Net.notify(player, `Rebirth costs {Util.formatNumber(cost)} {COINS}.`, "error")
 		return
 	end
@@ -125,7 +125,7 @@ Util.onTag("ZoneGate", function(instance)
 		if PlayerData.owns(player, id) then
 			return
 		end
-		if PlayerData.spend(player, COINS, price) then
+		if PlayerData.spend(player, COINS, price, id, "Shop") then
 			PlayerData.grant(player, id)
 			Net.notify(player, `🔓 {zone} unlocked!`, "success")
 		else

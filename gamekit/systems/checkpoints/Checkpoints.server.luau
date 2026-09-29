@@ -11,6 +11,7 @@ local kit = ReplicatedStorage:WaitForChild("GameKit")
 local Util = require(kit:WaitForChild("Util"))
 local Net = require(kit:WaitForChild("Net"))
 local PlayerData = require(ServerScriptService:WaitForChild("GameKit"):WaitForChild("PlayerData"))
+local Analytics = require(ServerScriptService:WaitForChild("GameKit"):WaitForChild("Analytics"))
 
 local config = Util.config("Checkpoints", {
 	StageStat = "Stage",
@@ -83,6 +84,11 @@ local function onCheckpointTouched(part: BasePart, hit: BasePart)
 	if allowed then
 		PlayerData.set(player, STAGE, stage)
 		Net.notify(player, `Stage {stage}!`, "success")
+		-- Dashboard: where do players stop? (Analytics > Funnels / Progression)
+		if stage <= 10 then
+			Analytics.onboarding(player, stage, `Stage {stage}`)
+		end
+		Analytics.progression(player, "Obby", stage, `Stage {stage}`)
 	elseif stage > current + 1 and config.RequireOrder then
 		Net.notify(player, `You skipped a checkpoint! Go back to stage {current + 1}.`, "error")
 	end
@@ -95,6 +101,7 @@ local function finishRun(player: Player)
 		table.insert(rewardText, `+{Util.formatNumber(given)} {stat}`)
 	end
 	Net.notify(player, "🏁 You finished! " .. table.concat(rewardText, "  "), "reward")
+	Analytics.custom(player, "ObbyFinished", 1)
 	if config.AnnounceFinish then
 		for _, other in game:GetService("Players"):GetPlayers() do
 			if other ~= player then

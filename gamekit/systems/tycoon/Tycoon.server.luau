@@ -165,7 +165,7 @@ local function onButton(plot: Plot, button: BasePart, hit: BasePart)
 		return
 	end
 	local price = attr(button, "Price", 0)
-	if not PlayerData.spend(player, CURRENCY, price) then
+	if not PlayerData.spend(player, CURRENCY, price, itemName, "Shop") then
 		Net.notify(player, `You need {Util.formatNumber(price)} {CURRENCY}!`, "error")
 		return
 	end

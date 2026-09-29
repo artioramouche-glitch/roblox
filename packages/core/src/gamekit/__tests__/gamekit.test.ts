@@ -340,11 +340,24 @@ describe('GameKit tools with a fake Studio', () => {
 
   test('create_game installs systems + world + lighting in two Studio calls', async () => {
     const host = fakeHost();
-    const result = parse(await new GameKit(host).call('create_game', { template: 'obby', options: { stages: 5 } }));
+    const result = parse(await new GameKit(host).call('create_game', { template: 'obby', options: { stages: 5 }, backup: false }));
     expect(result.ok).toBe(true);
     expect(result.systems).toEqual(expect.arrayContaining(['core', 'checkpoints', 'hud']));
     expect(host.calls).toHaveLength(2);
     expect(host.calls[0]).toContain('ObbyCourse');
+  });
+
+  test('create_game saves a backup first when the place has content', async () => {
+    const host = fakeHost();
+    const runLuau = host.runLuau;
+    host.runLuau = async (code: string) => {
+      if (code.includes('return tostring(n)')) return { success: true, returnValue: '12' };
+      if (code.includes('GameKitBackups')) return { success: true, returnValue: JSON.stringify({ ok: true, backup: { id: 'B42' } }) };
+      return runLuau(code);
+    };
+    const result = parse(await new GameKit(host).call('create_game', { template: 'tycoon' }));
+    expect(result.backup.id).toBe('B42');
+    expect(result.backup.restore).toContain('B42');
   });
 
   test('write_script refuses broken code before touching Studio', async () => {

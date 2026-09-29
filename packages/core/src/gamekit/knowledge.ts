@@ -16,8 +16,9 @@ export const GUIDES: Record<string, { title: string; body: string }> = {
 ## The golden path (follow in order)
 1. **roblox_start_here** -- checks Studio is connected and shows what is already installed.
 2. **Pick a template** that matches the idea (gamekit_catalog lists them):
-   obby, tycoon, simulator, arena (PvP), survival (zombie waves), horror_escape.
-   -> **create_game** { template, options }. This builds a COMPLETE playable game in one call.
+   obby, tycoon, simulator, arena (PvP), survival (zombie waves), horror_escape, tower_defense (co-op), farming (idle).
+   -> **create_game** { template, options }. This builds a COMPLETE playable game in one call
+   (and saves a backup of what was there before: backup_game).
    No template fits? Start from the closest one, or install systems one by one with add_system.
 3. **test_game** -- plays the game automatically for ~20 s and reports errors with fixes.
    Fix every error, then test again. Repeat until it says PASS.
@@ -26,11 +27,19 @@ export const GUIDES: Record<string, { title: string; body: string }> = {
    - level design: build_world (whole courses/maps or single pieces like jump_pad, coin, spinner)
    - screens: build_ui (JSON -> real UI, live stat text, buttons that open windows)
    - mood: set_environment (lighting preset + terrain)
+   - scenery: populate_world { theme: "forest" | "desert" | "snow" | "beach" | "fantasy" | "city" | "farm" | "spooky" | "garden" }
+   - custom 3D models: Blender (guide "blender") -> blender_to_roblox
+   - **look_at_game** to SEE the result from several angles; fix what looks wrong.
    - advanced (find_tools + call_tool): terrain_fill_*, lighting_*, particle_create, sound_*, animation_*,
-     insert_asset (Creator Store models), capture_screenshot to look at the result.
+     insert_asset (Creator Store models), capture_device_matrix (phone/tablet screenshots).
 5. **Only then write code**, with write_script (it refuses broken Luau and explains fixes).
 6. **check_game** before finishing: finds scripts in wrong places, syntax errors, loose parts, missing spawns.
-7. Polish (see guide "design"), then publish (guide "publishing").
+7. Polish (see guide "design"), balance prices (balance_economy), then publish (publish_checklist + guide "publishing").
+
+## Working faster
+- backup_game { action: "save" } before a risky change; { action: "restore" } if it breaks.
+- Slow tools (blender_to_roblox, long test_game, big populate_world) can run with start_job; get the result with job_status { id, wait: 30 }.
+- Several AIs on the same game: guide "team".
 
 ## Rules that prevent 90% of bugs
 - Server logic (money, damage, saving) goes in **Scripts** in ServerScriptService.
@@ -211,9 +220,59 @@ Reading errors: "ServerScriptService.Shop:42: attempt to index nil with 'Value'"
 - Unable to cast value to Object/Color3... -> wrong value type (Color3.fromRGB for colors, Vector3.new for sizes).
 `,
   },
+  blender: {
+    title: 'Custom 3D models with Blender (blender_* tools)',
+    body: `
+## Setup (once)
+1. Install Blender (3.0+, 4.x recommended). In the MCP folder: npm run install-blender-addon
+   (or Blender > Edit > Preferences > Add-ons > Install from disk > integrations/blender-mcp/addon.py, tick "MCP for Blender").
+2. In Blender's 3D view press N > tab "MCP for Blender" > "Connect to MCP server".
+3. blender_status -> connected: true. The other blender_* tools appear.
+## Make a prop
+- Ready-made: blender_assets { action: "search", source: "polypizza" | "sketchfab" | "polyhaven", query } then
+  { action: "download", source, id }. AI generation: { action: "generate", source: "hyper3d" | "hunyuan3d", query } then poll/import.
+- By code: blender_python with bpy, in small steps. Model in METERS (door 2 m, character 1.8 m), base at Z = 0,
+  one material per mesh, < 20k triangles per mesh, textures <= 1024 px.
+- Check it: blender_scene { screenshot: true }.
+## Send it to the game
+- blender_to_roblox { name, objects: ["MyProp"], position: [x, y, z] }: exports (auto-reduces heavy meshes),
+  uploads (needs ROBLOX_OPEN_CLOUD_API_KEY + ROBLOX_CREATOR_USER_ID), inserts at real size (1 m = 3.57 studs) on the ground.
+- It takes 30 s - 2 min: use start_job { tool: "blender_to_roblox", arguments: {...} } and keep working.
+- No API key: it exports the file; import it in Studio (Home > Import 3D) then blender_to_roblox { name, existing: "Workspace/<model>" }.
+- Many copies around the map: populate_world { items: [{ from: "Workspace/GameKit/Props/<name>", count: 10, size: [6, 10] }] }.
+`,
+  },
+  team: {
+    title: 'Several AIs building one game at the same time (team)',
+    body: `
+Every AI connects its own MCP client to the same Studio (the first MCP server owns the port, the others join it).
+The board lives inside the place (ServerStorage/GameKitTeam), so everyone sees the same tasks.
+1. ONE lead AI: team { action: "plan", template, goal } (default plan: core game, main area, scenery, 3D props,
+   UI & shop, economy, QA, publish). Then create_game.
+2. Every AI picks a short unique name (claude-1, gemini-1, local-1) and loops:
+   team { action: "claim", agent, role? } -> do the task -> team { action: "done", agent, task, note }.
+3. Before building, reserve space: team { action: "claim_zone", agent, zone, center: [x, y, z], size: [w, h, d] }.
+   Overlapping another agent's zone is refused. Build inside it: build_world { zone }, populate_world { zone }.
+4. Blocked? team { action: "block", agent, task, note }. Found a bug? team { action: "add", title, details, role: "qa" }.
+5. Studio does one thing at a time: do not run test_game while others edit; the QA agent tests between tasks.
+   Blender work runs in parallel (different app): artists can model while builders build.
+`,
+  },
+  localization: {
+    title: 'Reaching players in their language',
+    body: `
+- GameKit UI (HUD, shop, toasts, windows) is translated automatically into French, Spanish, Portuguese and German
+  (module ReplicatedStorage.GameKit.Lang, used by UIKit).
+- Your own texts: Config.Lang.Translations = { fr = { ["Buy sword"] = "Acheter l'épée", ["Level {1}"] = "Niveau {1}" } }.
+  In your scripts: local Lang = require(ReplicatedStorage.GameKit.Lang); label.Text = Lang.t("Buy sword").
+- Everything else: Creator Dashboard > Localization > turn on automatic text capture + automatic translation.
+- Keep texts short and avoid building sentences from pieces ("You have " .. n .. " coins"): use one text with a number instead.
+`,
+  },
   publishing: {
     title: 'Publishing checklist',
     body: `
+0. Run publish_checklist: it verifies what Studio can check and lists the manual steps.
 1. test_game passes with no errors; check_game shows no errors.
 2. File > Publish to Roblox. Then Game Settings > Security: enable Studio Access to API Services (to test saving).
 3. Create an icon (512x512) and thumbnails (1920x1080) on create.roblox.com.
@@ -221,6 +280,8 @@ Reading errors: "ServerScriptService.Shop:42: attempt to index nil with 'Value'"
 5. Monetization: create game passes/developer products, paste IDs in Config.Monetization.
 6. Test on mobile (Studio device emulator) and with 2+ players (Test > Clients and Servers).
 7. Make the experience Public. Update often; use the daily reward and events to bring players back.
+8. Watch Creator Dashboard > Analytics: GameKit already reports the economy (earned/spent per item), obby stage
+   funnel and progression (tower defense waves, farming unlocks). Fix the step where most players quit.
 `,
   },
   performance: {
@@ -303,8 +364,10 @@ export function guideText(topic: string): string {
   if (GUIDES[key]) return `# ${GUIDES[key].title}\n${GUIDES[key].body}`;
   if (key === 'catalog') return catalogText();
   const sys = systemDoc(key);
-  if (sys) return sys;
   const tpl = templateDoc(key);
+  // A template and a system can share an id (farming): show both.
+  if (sys && tpl) return `${tpl}\n\n${sys}`;
+  if (sys) return sys;
   if (tpl) return tpl;
   return `Unknown topic "${topic}". Topics: ${[...Object.keys(GUIDES), 'catalog', ...SYSTEMS.map((s) => s.id), ...TEMPLATES.map((t) => t.id)].join(', ')}`;
 }

@@ -267,7 +267,7 @@ Net.on("ShopBuy", function(player, itemId)
 	end
 	local currency = item.Currency or config.Currency
 	local price = priceOf(player, item)
-	if not PlayerData.spend(player, currency, price) then
+	if not PlayerData.spend(player, currency, price, item.Id, "Shop") then
 		Net.notify(player, `Not enough {currency}! You need {Util.formatNumber(price)}.`, "error")
 		return
 	end

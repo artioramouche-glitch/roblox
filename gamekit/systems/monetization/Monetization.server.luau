@@ -21,6 +21,7 @@ local kit = ReplicatedStorage:WaitForChild("GameKit")
 local Util = require(kit:WaitForChild("Util"))
 local Net = require(kit:WaitForChild("Net"))
 local PlayerData = require(ServerScriptService:WaitForChild("GameKit"):WaitForChild("PlayerData"))
+local Analytics = require(ServerScriptService:WaitForChild("GameKit"):WaitForChild("Analytics"))
 
 local config = Util.config("Monetization", {
 	Products = {},
@@ -100,7 +101,8 @@ end)
 local function grantProduct(player: Player, reward: { [string]: any }): boolean
 	if reward.Kind == "Stat" then
 		PlayerData.defineStat({ Name = reward.Stat, Default = 0 })
-		PlayerData.add(player, reward.Stat, reward.Amount or 0)
+		local balance = PlayerData.add(player, reward.Stat, reward.Amount or 0)
+		Analytics.source(player, reward.Stat, reward.Amount or 0, balance, "IAP")
 		Net.notify(player, `Thanks! +{Util.formatNumber(reward.Amount or 0)} {reward.Stat}`, "reward")
 	elseif reward.Kind == "SkipStage" then
 		local stage = PlayerData.get(player, "Stage")

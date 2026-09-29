@@ -28,6 +28,7 @@ local config = Util.config("Hud", {
 		Rebirths = "🔁",
 		Keys = "🔑",
 		Wave = "🌊",
+		Basket = "🧺",
 	},
 })
 

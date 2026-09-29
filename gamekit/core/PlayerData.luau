@@ -23,13 +23,20 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
 local Util = require(ReplicatedStorage:WaitForChild("GameKit"):WaitForChild("Util"))
+local Analytics = require(script.Parent:WaitForChild("Analytics"))
 
 local config = Util.config("PlayerData", {
 	DataStoreName = "GameKit_PlayerData_v1",
 	AutoSaveSeconds = 90,
 	Stats = {},
 	KickOnLoadFailure = true,
+	AnalyticsCurrencies = { "Coins", "Cash", "Gems" },
 })
+
+local analyticsCurrencies: { [string]: boolean } = {}
+for _, name in config.AnalyticsCurrencies do
+	analyticsCurrencies[name] = true
+end
 
 local LOCK_EXPIRY_SECONDS = 600
 local LOAD_ATTEMPTS = 6
@@ -296,6 +303,7 @@ local function onPlayerAdded(player: Player)
 end
 
 local function onPlayerRemoving(player: Player)
+	Analytics.flush(player)
 	local profile = profiles[player]
 	if not profile then
 		return
@@ -392,13 +400,18 @@ function PlayerData.getMultiplier(player: Player, stat: string): number
 end
 
 -- Adds `amount` x the player's multipliers for this stat. Returns the amount given.
-function PlayerData.reward(player: Player, stat: string, amount: number): number
+-- kind (optional) is the Analytics transaction type: "Gameplay" (default), "TimedReward",
+-- "Onboarding", "IAP"...
+function PlayerData.reward(player: Player, stat: string, amount: number, kind: string?): number
 	local given = amount * PlayerData.getMultiplier(player, stat)
 	if amount == math.floor(amount) then
 		-- Whole-number rewards stay whole numbers.
 		given = math.floor(given + 0.5)
 	end
-	PlayerData.add(player, stat, given)
+	local balance = PlayerData.add(player, stat, given)
+	if analyticsCurrencies[stat] then
+		Analytics.source(player, stat, given, balance, kind)
+	end
 	return given
 end
 
@@ -407,11 +420,15 @@ function PlayerData.canAfford(player: Player, stat: string, price: number): bool
 end
 
 -- Removes `price` if the player has enough. Returns true when paid.
-function PlayerData.spend(player: Player, stat: string, price: number): boolean
+-- itemSku / kind (optional) are reported to Analytics ("Sword", "Shop").
+function PlayerData.spend(player: Player, stat: string, price: number, itemSku: string?, kind: string?): boolean
 	if price < 0 or not PlayerData.canAfford(player, stat, price) then
 		return false
 	end
-	PlayerData.add(player, stat, -price)
+	local balance = PlayerData.add(player, stat, -price)
+	if analyticsCurrencies[stat] then
+		Analytics.sink(player, stat, price, balance, kind or "Shop", itemSku)
+	end
 	return true
 end
 

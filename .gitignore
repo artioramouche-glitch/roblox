@@ -14,3 +14,8 @@ Thumbs.db
 *.log
 studio-plugin/MCPInspectorPlugin.rbxmx
 packages/*/studio-plugin/
+
+# Python build artefacts (integrations/blender-mcp)
+__pycache__/
+*.egg-info/
+integrations/blender-mcp/build/

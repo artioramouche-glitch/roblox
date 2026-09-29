@@ -13,10 +13,14 @@ Variables d'environnement utiles :
 
 | Variable | Effet |
 |---|---|
-| `ROBLOX_MCP_PROFILE` | `starter` (défaut, 27 outils), `builder` (80), `full` (160) |
+| `ROBLOX_MCP_PROFILE` | `starter` (défaut, 35 outils), `builder` (94), `full` (174) |
 | `ROBLOX_STUDIO_PORT` | Port HTTP pour le plugin (défaut `58741`, secours `3002`) |
-| `ROBLOX_OPEN_CLOUD_API_KEY` | Clé Open Cloud pour `search_assets` / `upload_asset` (ou option `--open-cloud-key`) |
+| `ROBLOX_OPEN_CLOUD_API_KEY` | Clé Open Cloud pour `search_assets` / `upload_asset` / `blender_to_roblox` (droits *asset:read*, *asset:write*) |
+| `ROBLOX_CREATOR_USER_ID` / `ROBLOX_CREATOR_GROUP_ID` | Propriétaire des modèles envoyés (`upload_asset`, `blender_to_roblox`) |
 | `ROBLOX_MCP_HOOK` | `0` coupe le lien optionnel vers le MCP officiel intégré à Studio |
+| `BLENDER_HOST` / `BLENDER_PORT` | Adresse de l'addon Blender (défaut `127.0.0.1:9876`) |
+| `ROBLOX_MCP_BLENDER` | `1` liste les outils `blender_*` dès le démarrage (sinon dès que Blender répond, ou en `builder`) |
+| `BLENDER_MCP_SAFE_MODE` | `1` : chaque script `blender_python` est validé par `safe_mode.py` de blender-mcp (Python requis, `BLENDER_MCP_PYTHON` pour choisir l'exécutable) |
 
 ---
 
@@ -106,6 +110,30 @@ Pour inspecter un jeu sans risque de modification :
 
 Lance autant de clients que tu veux : la première instance possède le port, les suivantes passent en mode proxy et
 partagent le même Studio. Plusieurs Studio ouverts : `list_studios` puis `set_active_studio`.
+
+Pour qu'elles s'organisent : outil `team` (tâches + zones de carte, stockés dans le jeu) et prompt `team_build`.
+Les tâches de fond (`start_job` / `job_status`) restent propres à chaque client.
+
+## Blender
+
+Une seule entrée MCP suffit : ce serveur parle directement à l'addon « MCP for Blender »
+(`npm run install-blender-addon`, puis **N → MCP for Blender → Connect to MCP server** dans Blender).
+Tu n'as **pas** besoin d'ajouter le serveur Python `blender-mcp` à ton IA (s'il tourne aussi, les deux se partagent
+l'addon, une commande à la fois).
+
+Exemple avec envoi automatique des modèles vers Roblox :
+
+```json
+{
+  "mcpServers": {
+    "roblox": {
+      "command": "node",
+      "args": ["CHEMIN/packages/roblox-ultimate-mcp/dist/index.js"],
+      "env": { "ROBLOX_OPEN_CLOUD_API_KEY": "ta-cle", "ROBLOX_CREATOR_USER_ID": "123456" }
+    }
+  }
+}
+```
 
 ---
 

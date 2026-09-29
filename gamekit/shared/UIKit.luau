@@ -6,11 +6,13 @@
 --   UIKit.hudButton("Shop", "🛒", function() window.Visible = not window.Visible end)
 --   local window, body = UIKit.window("Shop", UDim2.fromScale(0.5, 0.6))
 --   UIKit.toast("You bought a sword!", "success")
+-- Every text goes through Lang.t (translated into the player's language when known).
 
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 
 local Util = require(script.Parent:WaitForChild("Util"))
+local Lang = require(script.Parent:WaitForChild("Lang"))
 
 local theme = Util.config("Theme", {
 	Background = "#16161F",
@@ -69,7 +71,7 @@ function UIKit.label(parent: Instance, text: string, size: UDim2, props: { [stri
 	local label = Instance.new("TextLabel")
 	label.BackgroundTransparency = 1
 	label.Size = size
-	label.Text = text
+	label.Text = Lang.t(text)
 	label.Font = UIKit.font()
 	label.TextColor3 = UIKit.color("Text")
 	label.TextScaled = true
@@ -89,7 +91,7 @@ function UIKit.button(parent: Instance, text: string, size: UDim2, onClick: () -
 	button.Size = size
 	button.AutoButtonColor = true
 	button.BackgroundColor3 = color or UIKit.color("Accent")
-	button.Text = text
+	button.Text = Lang.t(text)
 	button.Font = UIKit.font()
 	button.TextColor3 = if color then Color3.new(1, 1, 1) else Color3.fromRGB(30, 30, 30)
 	button.TextScaled = true

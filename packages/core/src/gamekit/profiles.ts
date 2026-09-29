@@ -82,6 +82,32 @@ export function onProfileChange(listener: (p: Profile) => void) {
   listeners.push(listener);
 }
 
+// Tool groups revealed at runtime (e.g. the blender_* tools once Blender answers).
+const revealed = new Set<string>();
+
+export function isRevealed(group: string): boolean {
+  return revealed.has(group) || (group === 'blender' && /^(1|true|yes|on)$/i.test(process.env.ROBLOX_MCP_BLENDER ?? ''));
+}
+
+/** Lists a hidden group of tools from now on (notifies like a profile change). */
+export function revealGroup(group: string) {
+  if (revealed.has(group)) return;
+  revealed.add(group);
+  for (const l of listeners) {
+    try {
+      l(getProfile());
+    } catch {
+      // a failing listener must not break the reveal
+    }
+  }
+}
+
+/** Whether a GameKit tool of this tier is listed. */
+export function tierVisible(tier: 'starter' | 'builder' | 'blender' | undefined, profile: Profile = getProfile()): boolean {
+  if (!tier || tier === 'starter' || profile !== 'starter') return true;
+  return tier === 'blender' && isRevealed('blender');
+}
+
 /** Whether a low-level (non-GameKit) tool is listed in the current profile. */
 export function baseToolVisible(name: string, profile: Profile = getProfile()): boolean {
   if (profile === 'full') return true;

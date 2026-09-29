@@ -45,7 +45,8 @@ for _, serviceName in ipairs(SERVICES) do
 	end)
 	if ok and service then
 		for _, instance in ipairs(service:GetDescendants()) do
-			if instance:IsA("LuaSourceContainer") then
+			-- backup_game snapshots are inert copies: never audit them.
+			if instance:IsA("LuaSourceContainer") and not instance:FindFirstAncestor("GameKitBackups") then
 				local okSource, source = pcall(function()
 					return (instance :: any).Source
 				end)

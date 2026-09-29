@@ -452,6 +452,92 @@ export function piece(kind: string, pos: Vec, o: Record<string, any> = {}): Inst
       return lamp(name, pos, !!o.flicker);
     case 'crate':
       return part(name, [pos[0], pos[1] + 2, pos[2]], [4, 4, 4], { color: [161, 120, 80], material: 'WoodPlanks' });
+    case 'pine_tree':
+      return pineTree(name, pos, rng(o.seed ?? Math.round(pos[0] * 11 + pos[2] * 5)), !!o.snow);
+    case 'palm_tree':
+      return palmTree(name, pos, rng(o.seed ?? Math.round(pos[0] * 3 + pos[2] * 17)));
+    case 'bush':
+      return model(name, [
+        part('Bush', [pos[0], pos[1] + 1.6, pos[2]], [5, 3.6, 5], { shape: 'Ball', color: rgbOf(o.color, [76, 140, 60]), material: 'Grass' }),
+        part('Bush2', [pos[0] + 1.6, pos[1] + 1.2, pos[2] + 0.8], [3.6, 2.8, 3.6], { shape: 'Ball', color: shade(rgbOf(o.color, [76, 140, 60]), 0.12), material: 'Grass' }),
+      ]);
+    case 'flowers': {
+      const r = rng(o.seed ?? Math.round(pos[0] * 13 + pos[2] * 7));
+      const petals: RGB[] = [[244, 67, 54], [255, 235, 59], [233, 30, 99], [156, 39, 176], [255, 255, 255], [3, 169, 244]];
+      const kids: InstanceNode[] = [];
+      for (let k = 0; k < 6; k++) {
+        const fx = pos[0] + (r() - 0.5) * 5;
+        const fz = pos[2] + (r() - 0.5) * 5;
+        kids.push(part(`Stem${k}`, [fx, pos[1] + 0.6, fz], [0.2, 1.2, 0.2], { color: [67, 160, 71], canCollide: false, castShadow: false }));
+        kids.push(part(`Flower${k}`, [fx, pos[1] + 1.3, fz], [0.8, 0.8, 0.8], { shape: 'Ball', color: petals[Math.floor(r() * petals.length)], material: 'SmoothPlastic', canCollide: false, castShadow: false }));
+      }
+      return model(name, kids);
+    }
+    case 'fence': {
+      const length = o.length ?? 16;
+      const yaw = o.yaw ?? 0;
+      const rad = (yaw * Math.PI) / 180;
+      const dx = Math.cos(rad);
+      const dz = -Math.sin(rad);
+      const kids: InstanceNode[] = [];
+      const posts = Math.max(2, Math.round(length / 4) + 1);
+      for (let k = 0; k < posts; k++) {
+        const t = k / (posts - 1) - 0.5;
+        kids.push(part(`Post${k}`, [pos[0] + dx * t * length, pos[1] + 2, pos[2] + dz * t * length], [0.6, 4, 0.6], { color: [141, 110, 99], material: 'Wood' }));
+      }
+      kids.push(part('RailTop', [pos[0], pos[1] + 3.2, pos[2]], [length, 0.4, 0.3], { color: [161, 128, 110], material: 'Wood', rot: [0, yaw, 0] }));
+      kids.push(part('RailLow', [pos[0], pos[1] + 1.6, pos[2]], [length, 0.4, 0.3], { color: [161, 128, 110], material: 'Wood', rot: [0, yaw, 0] }));
+      return model(name, kids);
+    }
+    case 'bench':
+      return model(name, [
+        part('Seat', [pos[0], pos[1] + 1.6, pos[2]], [6, 0.4, 2], { color: [161, 110, 70], material: 'WoodPlanks' }),
+        part('Back', [pos[0], pos[1] + 2.8, pos[2] - 0.85], [6, 2, 0.3], { color: [161, 110, 70], material: 'WoodPlanks' }),
+        part('LegL', [pos[0] - 2.4, pos[1] + 0.7, pos[2]], [0.4, 1.4, 1.8], { color: [60, 60, 65], material: 'Metal' }),
+        part('LegR', [pos[0] + 2.4, pos[1] + 0.7, pos[2]], [0.4, 1.4, 1.8], { color: [60, 60, 65], material: 'Metal' }),
+      ]);
+    case 'barrel':
+      return part(name, [pos[0], pos[1] + 2, pos[2]], [4, 3, 3], { shape: 'Cylinder', rot: [0, 0, 90], color: rgbOf(o.color, [121, 85, 72]), material: 'Wood' });
+    case 'crystal': {
+      const rgb2 = rgbOf(o.color, [124, 77, 255]);
+      return model(name, [
+        part('Crystal', [pos[0], pos[1] + 3, pos[2]], [2, 6, 2], { color: rgb2, material: 'Glass', transparency: 0.2, rot: [8, 20, 5], children: [light(12, 1, rgb2)] }),
+        part('Crystal2', [pos[0] + 1.4, pos[1] + 1.8, pos[2] + 0.6], [1.4, 3.6, 1.4], { color: shade(rgb2, 0.2), material: 'Glass', transparency: 0.2, rot: [-15, 40, 20] }),
+        part('Crystal3', [pos[0] - 1.2, pos[1] + 1.5, pos[2] - 0.8], [1.2, 3, 1.2], { color: shade(rgb2, -0.15), material: 'Glass', transparency: 0.2, rot: [18, -30, -12] }),
+      ]);
+    }
+    case 'mushroom': {
+      const cap = rgbOf(o.color, [229, 57, 53]);
+      return model(name, [
+        part('Stem', [pos[0], pos[1] + 1.5, pos[2]], [3, 1.2, 1.2], { shape: 'Cylinder', rot: [0, 0, 90], color: [245, 240, 225], material: 'SmoothPlastic' }),
+        part('Cap', [pos[0], pos[1] + 3.2, pos[2]], [4, 2, 4], { shape: 'Ball', color: cap, material: 'SmoothPlastic' }),
+      ]);
+    }
+    case 'cactus':
+      return model(name, [
+        part('Trunk', [pos[0], pos[1] + 3.5, pos[2]], [1.6, 7, 1.6], { color: [67, 160, 71], material: 'Grass' }),
+        part('ArmL', [pos[0] - 1.4, pos[1] + 4, pos[2]], [1.2, 1, 1], { color: [67, 160, 71], material: 'Grass' }),
+        part('ArmLUp', [pos[0] - 1.9, pos[1] + 5, pos[2]], [1, 2.4, 1], { color: [67, 160, 71], material: 'Grass' }),
+        part('ArmR', [pos[0] + 1.4, pos[1] + 3, pos[2]], [1.2, 1, 1], { color: [67, 160, 71], material: 'Grass' }),
+        part('ArmRUp', [pos[0] + 1.9, pos[1] + 3.8, pos[2]], [1, 2, 1], { color: [67, 160, 71], material: 'Grass' }),
+      ]);
+    case 'tower_pad':
+      return part(name, pos, [8, 1, 8], { color: [96, 125, 139], material: 'Slate', tags: ['TowerPad'], attrs: { Tower: o.tower ?? 'Archer' }, children: [billboard(`🛠 ${o.tower ?? 'Archer'}`, [255, 255, 255], 3, [6, 1.6])] });
+    case 'farm_plot':
+      return part(name, pos, o.size ?? [8, 1, 8], { color: [109, 76, 65], material: 'Ground', tags: ['FarmPlot'] });
+    case 'seed_stand':
+      return model(name, [
+        part('Table', [pos[0], pos[1] + 1.5, pos[2]], [6, 3, 3], { color: [161, 110, 70], material: 'WoodPlanks', tags: ['SeedStand'], attrs: { Crop: o.crop ?? 'Wheat' } }),
+        part('Sign', [pos[0], pos[1] + 5, pos[2]], [6, 2, 0.4], { color: [255, 248, 225], children: [surfaceText(`🌱 ${o.crop ?? 'Wheat'}`, [60, 40, 20], 'Front')] }),
+        part('Crate', [pos[0], pos[1] + 3.5, pos[2]], [2, 1, 2], { color: rgbOf(o.color, [244, 208, 63]), material: 'SmoothPlastic' }),
+      ]);
+    case 'market':
+      return model(name, [
+        part('Counter', [pos[0], pos[1] + 1.5, pos[2]], [12, 3, 4], { color: [141, 110, 99], material: 'WoodPlanks', tags: ['CropSell'] }),
+        part('Roof', [pos[0], pos[1] + 7, pos[2]], [14, 1, 7], { color: [67, 160, 71], children: [billboard('🧺 MARKET', [255, 255, 255], 2, [9, 2.5])] }),
+        part('PoleL', [pos[0] - 6, pos[1] + 4, pos[2]], [0.6, 5, 0.6], { color: [240, 240, 240] }),
+        part('PoleR', [pos[0] + 6, pos[1] + 4, pos[2]], [0.6, 5, 0.6], { color: [240, 240, 240] }),
+      ]);
     default:
       throw new Error(`Unknown piece "${kind}". Available: ${PIECES.join(', ')}`);
   }
@@ -462,7 +548,38 @@ export const PIECES = [
   'jump_pad', 'speed_pad', 'boost_pad', 'moving_platform', 'spinner', 'disappearing_platform',
   'falling_platform', 'conveyor', 'coin', 'shop_stand', 'leaderboard', 'enemy_spawner', 'sell_pad',
   'zone_gate', 'teleporter', 'teleport_target', 'key', 'tree', 'rock', 'lamp', 'crate',
+  'tower_pad', 'farm_plot', 'seed_stand', 'market',
+  // decoration (also used by populate_world)
+  'pine_tree', 'palm_tree', 'bush', 'flowers', 'fence', 'bench', 'barrel', 'crystal', 'mushroom', 'cactus',
 ];
+
+/** Decoration pieces: no gameplay tags, safe to scatter anywhere. */
+export const DECOR_PIECES = ['tree', 'rock', 'lamp', 'crate', 'pine_tree', 'palm_tree', 'bush', 'flowers', 'fence', 'bench', 'barrel', 'crystal', 'mushroom', 'cactus'] as const;
+
+function pineTree(name: string, pos: Vec, r: () => number, snow: boolean): InstanceNode {
+  const h = 10 + r() * 6;
+  const green: RGB = snow ? [200, 225, 230] : [46, 125, 50];
+  return model(name, [
+    part('Trunk', [pos[0], pos[1] + h / 4, pos[2]], [h / 2, 1.4, 1.4], { shape: 'Cylinder', rot: [0, 0, 90], color: [93, 64, 55], material: 'Wood' }),
+    part('Cone1', [pos[0], pos[1] + h * 0.45, pos[2]], [7, h * 0.35, 7], { color: green, material: snow ? 'Snow' : 'Grass', rot: [0, 45, 0] }),
+    part('Cone2', [pos[0], pos[1] + h * 0.7, pos[2]], [5, h * 0.3, 5], { color: shade(green, 0.08), material: snow ? 'Snow' : 'Grass', rot: [0, 20, 0] }),
+    part('Cone3', [pos[0], pos[1] + h * 0.92, pos[2]], [3, h * 0.25, 3], { color: shade(green, 0.16), material: snow ? 'Snow' : 'Grass', rot: [0, 65, 0] }),
+  ]);
+}
+
+function palmTree(name: string, pos: Vec, r: () => number): InstanceNode {
+  const h = 12 + r() * 5;
+  const kids: InstanceNode[] = [
+    part('Trunk', [pos[0], pos[1] + h / 2, pos[2]], [h, 1.3, 1.3], { shape: 'Cylinder', rot: [0, 0, 90], color: [161, 136, 127], material: 'Wood' }),
+  ];
+  for (let k = 0; k < 5; k++) {
+    const yaw = k * 72 + r() * 20;
+    const rad = (yaw * Math.PI) / 180;
+    kids.push(part(`Leaf${k}`, [pos[0] + Math.cos(rad) * 3, pos[1] + h - 0.5, pos[2] - Math.sin(rad) * 3], [7, 0.3, 2], { color: [56, 142, 60], material: 'Grass', rot: [0, yaw, -18] }));
+  }
+  kids.push(part('Coconuts', [pos[0], pos[1] + h - 1, pos[2]], [1.6, 1.6, 1.6], { shape: 'Ball', color: [109, 76, 65], material: 'Wood' }));
+  return model(name, kids);
+}
 
 function tree(name: string, pos: Vec, r: () => number): InstanceNode {
   const h = 8 + r() * 6;
@@ -776,7 +893,83 @@ export function decorScatter(o: { position?: Vec; radius?: number; count?: numbe
   return model('Decor', kids);
 }
 
-export const WORLDS = ['obby_course', 'lobby', 'arena', 'maze', 'tycoon_plots', 'simulator_world', 'decor_scatter'] as const;
+// --- Tower defense ----------------------------------------------------------------------------
+
+/** A grass field with a winding enemy path, tower pads along it, the base and a portal. */
+export function tdMap(o: { position?: Vec; theme?: string } = {}): InstanceNode {
+  const [x, y, z] = o.position ?? [0, 0, 0];
+  const route: Array<[number, number]> = [[-75, -55], [50, -55], [50, -15], [-50, -15], [-50, 25], [50, 25], [50, 62], [-62, 62]];
+  const kids: InstanceNode[] = [
+    part('Field', [x, y - 1, z], [180, 2, 180], { color: [106, 168, 79], material: 'Grass' }),
+    part('Spawn', [x, y + 0.5, z + 5], [10, 1, 10], { className: 'SpawnLocation', color: [255, 255, 255], tags: ['LobbySpawn'], props: { Neutral: true, Duration: 3 } }),
+  ];
+  const waypoints: InstanceNode[] = route.map(([wx, wz], i) => part(`WP${i + 1}`, [x + wx, y + 0.2, z + wz], [1, 1, 1], { transparency: 1, canCollide: false, attrs: { Order: i + 1 } }));
+  kids.push({ name: 'Path', className: 'Folder', tags: ['TDPath'], children: waypoints });
+  for (let i = 0; i < route.length - 1; i++) {
+    const [ax, az] = route[i];
+    const [bx, bz] = route[i + 1];
+    const length = Math.hypot(bx - ax, bz - az) + 10;
+    const horizontal = az === bz;
+    kids.push(part(`Road${i + 1}`, [x + (ax + bx) / 2, y + 0.05, z + (az + bz) / 2], horizontal ? [length, 0.2, 10] : [10, 0.2, length], { color: [215, 190, 140], material: 'Sand', canCollide: true }));
+  }
+  const pads: Array<[number, number, string]> = [
+    [-40, -35, 'Archer'], [-10, -35, 'Frost'], [20, -35, 'Archer'], [65, -35, 'Cannon'],
+    [-35, 5, 'Cannon'], [-20, 5, 'Archer'], [20, 5, 'Archer'], [35, 5, 'Frost'],
+    [-65, 5, 'Archer'], [65, 5, 'Cannon'],
+    [-30, 44, 'Frost'], [0, 44, 'Cannon'], [30, 44, 'Archer'], [-5, 78, 'Archer'], [25, 78, 'Frost'],
+  ];
+  pads.forEach(([px, pz, tower], i) => kids.push(piece('tower_pad', [x + px, y + 0.5, z + pz], { name: `Pad${i + 1}`, tower })));
+  const [sx, sz] = route[0];
+  kids.push(model('Portal', [
+    part('Ring', [x + sx, y + 6, z + sz], [1, 12, 12], { shape: 'Cylinder', color: [171, 71, 188], material: 'Neon', transparency: 0.3, canCollide: false, children: [sparkles([200, 120, 255], 20)] }),
+    part('Stone', [x + sx, y + 0.5, z + sz], [4, 1, 14], { color: [80, 80, 90], material: 'Slate' }),
+  ]));
+  const [ex, ez] = route[route.length - 1];
+  kids.push(model('Base', [
+    part('Keep', [x + ex - 6, y + 8, z + ez], [12, 16, 14], { color: [189, 189, 189], material: 'Brick', tags: ['TDBase'], children: [{ ...billboard('🏰 100 / 100', [255, 255, 255], 11, [12, 3]), name: 'GK_BaseLabel' }] }),
+    part('TowerL', [x + ex - 6, y + 11, z + ez - 8], [5, 22, 5], { color: [158, 158, 158], material: 'Brick' }),
+    part('TowerR', [x + ex - 6, y + 11, z + ez + 8], [5, 22, 5], { color: [158, 158, 158], material: 'Brick' }),
+    part('Flag', [x + ex - 6, y + 20, z + ez], [0.4, 4, 3], { color: [229, 57, 53], material: 'Fabric' }),
+  ]));
+  return model('TowerDefenseMap', kids);
+}
+
+// --- Farm --------------------------------------------------------------------------------------
+
+/** Fields of plots, seed stands for every crop, a market and a small barn. */
+export function farm(o: { position?: Vec; plots?: number; crops?: string[] } = {}): InstanceNode {
+  const [x, y, z] = o.position ?? [0, 0, 0];
+  const count = Math.max(4, Math.min(64, o.plots ?? 24));
+  const crops = o.crops ?? ['Wheat', 'Carrot', 'Tomato', 'Pumpkin', 'Crystal'];
+  const cropColors: RGB[] = [[244, 208, 63], [230, 126, 34], [231, 76, 60], [211, 84, 0], [142, 68, 173]];
+  const kids: InstanceNode[] = [
+    part('Ground', [x, y - 1, z], [200, 2, 160], { color: [124, 179, 66], material: 'Grass' }),
+    part('Spawn', [x, y + 0.5, z - 55], [10, 1, 10], { className: 'SpawnLocation', color: [255, 236, 179], tags: ['LobbySpawn'], props: { Neutral: true, Duration: 3 } }),
+    part('Lane', [x, y + 0.05, z - 30], [160, 0.2, 10], { color: [188, 170, 164], material: 'Pebble' }),
+  ];
+  const perRow = 8;
+  const plots: InstanceNode[] = [];
+  for (let i = 0; i < count; i++) {
+    const row = Math.floor(i / perRow);
+    const col = i % perRow;
+    plots.push(piece('farm_plot', [x - 49 + col * 14, y + 0.3, z - 12 + row * 14], { name: `Plot${i + 1}` }));
+  }
+  kids.push(folder('Plots', plots));
+  crops.forEach((crop, i) => kids.push(piece('seed_stand', [x - 60 + i * 16, y, z - 42], { name: `Seeds_${crop}`, crop, color: cropColors[i % cropColors.length] })));
+  kids.push(piece('market', [x + 60, y, z - 42], { name: 'Market' }));
+  kids.push(model('Barn', [
+    part('Walls', [x + 80, y + 7, z + 30], [22, 14, 30], { color: [183, 28, 28], material: 'WoodPlanks' }),
+    part('Roof', [x + 80, y + 16, z + 30], [24, 4, 32], { color: [66, 66, 66], material: 'Slate' }),
+    part('Door', [x + 68.9, y + 5, z + 30], [0.4, 10, 8], { color: [255, 255, 255], material: 'WoodPlanks' }),
+  ]));
+  for (let i = 0; i < 12; i++) {
+    const side = i < 6 ? -1 : 1;
+    kids.push(piece('fence', [x + side * 98, y, z - 60 + (i % 6) * 24], { name: `Fence${i + 1}`, yaw: 90, length: 24 }));
+  }
+  return model('Farm', kids);
+}
+
+export const WORLDS = ['obby_course', 'lobby', 'arena', 'maze', 'tycoon_plots', 'simulator_world', 'decor_scatter', 'td_map', 'farm'] as const;
 
 export function buildWorld(kind: string, options: Record<string, any> = {}): InstanceNode {
   switch (kind) {
@@ -787,6 +980,8 @@ export function buildWorld(kind: string, options: Record<string, any> = {}): Ins
     case 'tycoon_plots': return tycoonPlots(options);
     case 'simulator_world': return simulatorWorld(options);
     case 'decor_scatter': return decorScatter(options);
+    case 'td_map': return tdMap(options);
+    case 'farm': return farm(options);
     default: {
       const pos = (options.position as Vec) ?? [0, 5, 0];
       return piece(kind, pos, options);

@@ -35,18 +35,19 @@ export const SYSTEMS: SystemDef[] = [
     id: 'core',
     title: 'Core (always installed)',
     category: 'core',
-    summary: 'Saving/loading player data with DataStores, leaderstats, remotes (Net), shared helpers (Util), UI kit (UIKit) and the no-code UI binder.',
-    files: ['shared/Util.luau', 'shared/Net.luau', 'shared/UIKit.luau', 'core/PlayerData.luau', 'core/Core.server.luau', 'core/UIBinder.client.luau'],
+    summary: 'Saving/loading player data with DataStores, leaderstats, remotes (Net), shared helpers (Util), UI kit (UIKit) with automatic translation (Lang: fr/es/pt/de), the no-code UI binder and Creator Dashboard analytics (economy, funnels, progression).',
+    files: ['shared/Util.luau', 'shared/Net.luau', 'shared/Lang.luau', 'shared/UIKit.luau', 'core/Analytics.luau', 'core/PlayerData.luau', 'core/Core.server.luau', 'core/UIBinder.client.luau'],
     requires: [],
     configs: [
       {
         name: 'PlayerData',
-        defaults: { DataStoreName: 'GameKit_PlayerData_v1', AutoSaveSeconds: 90, Stats: [], KickOnLoadFailure: true },
+        defaults: { DataStoreName: 'GameKit_PlayerData_v1', AutoSaveSeconds: 90, Stats: [], KickOnLoadFailure: true, AnalyticsCurrencies: ['Coins', 'Cash', 'Gems'] },
         docs: {
           DataStoreName: 'Change this name to start everyone from zero (old saves are ignored).',
           AutoSaveSeconds: 'How often everyone is saved (also saved on leave and shutdown).',
           Stats: 'Extra stats: { { Name = "Gems", Default = 0, Leaderstat = true } }. Systems add their own stats automatically.',
           KickOnLoadFailure: 'Kick players whose data failed to load (protects their save). Never kicks in Studio.',
+          AnalyticsCurrencies: 'Stats reported as currencies to Creator Dashboard > Analytics > Economy (earned / spent, per item).',
         },
       },
       {
@@ -63,6 +64,15 @@ export const SYSTEMS: SystemDef[] = [
         docs: { Accent: 'Main button color of every GameKit window.', Font: 'Any Enum.Font name, e.g. "GothamBold", "Arcade", "Cartoon".' },
         intro: 'Colors used by every GameKit UI (HUD, shop, windows, toasts).',
       },
+      {
+        name: 'Lang',
+        defaults: { Enabled: true, Language: 'auto', Translations: {} },
+        docs: {
+          Language: '"auto" = the player\'s language; or force one: "fr", "es", "pt", "de"...',
+          Translations: 'Your own texts: { fr = { ["Buy sword"] = "Acheter l\'épée", ["Level {1}"] = "Niveau {1}" } }. {1} = first number of the text.',
+        },
+        intro: 'GameKit translates its UI into French, Spanish, Portuguese and German automatically. Add translations for your own texts here.',
+      },
     ],
     usage: 'Server scripts: local PlayerData = require(game.ServerScriptService.GameKit.PlayerData) then PlayerData.defineStat({Name="Coins", Default=0, Leaderstat=true}), PlayerData.reward(player, "Coins", 10), PlayerData.spend(player, "Coins", 50). Client scripts read any stat with player:GetAttribute("Coins"). Remotes: Net.on("Name", fn) on the server, Net.send("Name", ...) on the client.',
   },
@@ -77,7 +87,7 @@ export const SYSTEMS: SystemDef[] = [
       name: 'Hud',
       defaults: {
         ShowLeaderstats: true, ExtraStats: [], HiddenStats: [], ShowStatus: true,
-        Icons: { Coins: '💰', Cash: '💵', Gems: '💎', Wins: '🏆', Stage: '🚩', Kills: '⚔️', Level: '⭐', Power: '⚡', Rebirths: '🔁', Keys: '🔑', Wave: '🌊' },
+        Icons: { Coins: '💰', Cash: '💵', Gems: '💎', Wins: '🏆', Stage: '🚩', Kills: '⚔️', Level: '⭐', Power: '⚡', Rebirths: '🔁', Keys: '🔑', Wave: '🌊', Basket: '🧺' },
       },
       docs: {
         ExtraStats: 'Stats not on the leaderboard to show anyway, e.g. { "Power" }.',
@@ -381,6 +391,77 @@ export const SYSTEMS: SystemDef[] = [
     usage: 'build_world "maze" builds a full escape maze with keys, exit and a monster spawner.',
   },
 ];
+
+SYSTEMS.push(
+  {
+    id: 'towerdefense',
+    title: 'Tower defense',
+    category: 'genre',
+    summary: 'Co-op tower defense: enemies walk a path in waves (Basic, Fast, Tank, Boss), players build/upgrade/sell towers (Archer, Cannon splash, Frost slow) on pads with match cash, defend the base, win after the last wave.',
+    files: ['systems/towerdefense/TowerDefense.server.luau'],
+    requires: ['core', 'hud'],
+    configs: [{
+      name: 'TowerDefense',
+      defaults: {
+        CashStat: 'Cash', StartCash: 250, BaseHealth: 100, MinPlayers: 1, IntermissionSeconds: 12, TimeBetweenWaves: 6, MaxWaves: 15,
+        HealthScalePerWave: 0.18, WaveCashReward: 60, WinRewards: { Wins: 1, Coins: 150 }, SellRefund: 0.6, UpgradeDamage: 1.5, UpgradeRange: 1.12,
+        Waves: [
+          { Enemy: 'Basic', Count: 6, Interval: 1.4 }, { Enemy: 'Basic', Count: 10, Interval: 1.1 }, { Enemy: 'Fast', Count: 8, Interval: 0.9 },
+          { Enemy: 'Tank', Count: 3, Interval: 2.5 }, { Enemy: 'Basic', Count: 14, Interval: 0.8 }, { Enemy: 'Fast', Count: 14, Interval: 0.6 },
+          { Enemy: 'Tank', Count: 6, Interval: 1.8 }, { Enemy: 'Boss', Count: 1, Interval: 1 },
+        ],
+        Enemies: {
+          Basic: { Health: 12, Speed: 8, Reward: 6, Damage: 5, Color: '#8BC34A', Size: 2.6 },
+          Fast: { Health: 8, Speed: 15, Reward: 6, Damage: 4, Color: '#FFEB3B', Size: 2 },
+          Tank: { Health: 70, Speed: 5, Reward: 20, Damage: 15, Color: '#795548', Size: 4 },
+          Boss: { Health: 450, Speed: 4, Reward: 150, Damage: 60, Color: '#9C27B0', Size: 6.5 },
+        },
+        Towers: {
+          Archer: { Price: 100, Damage: 3, Range: 24, FireRate: 0.6, Color: '#4CAF50', UpgradePrice: 120, MaxLevel: 3, Icon: '🏹' },
+          Cannon: { Price: 200, Damage: 8, Range: 20, FireRate: 1.6, Splash: 9, Color: '#607D8B', UpgradePrice: 220, MaxLevel: 3, Icon: '💣' },
+          Frost: { Price: 150, Damage: 1, Range: 18, FireRate: 1, Slow: 0.5, SlowSeconds: 2, Color: '#4FC3F7', UpgradePrice: 160, MaxLevel: 3, Icon: '❄️' },
+        },
+      },
+      docs: {
+        CashStat: 'Match currency (reset every game, not saved).',
+        Waves: 'One entry per wave: Enemy type, Count, Interval (seconds between spawns). After the list, the last wave repeats with more enemies.',
+        HealthScalePerWave: 'Enemy health grows by this fraction every wave (0.18 = +18%).',
+        Towers: 'Price, Damage, Range (studs), FireRate (seconds between shots), Splash (radius), Slow (speed factor) + SlowSeconds, UpgradePrice (x current level), MaxLevel.',
+        WinRewards: REWARDS_DOC,
+      },
+    }],
+    tags: { TDPath: 'Folder of waypoint parts (Order attribute or WP1, WP2...)', TDBase: 'the base at the end of the path', TowerPad: 'attribute Tower = Archer | Cannon | Frost' },
+    usage: 'build_world "td_map" builds a full map (path, pads, base, spawn). Add pads with build_world piece "tower_pad" {tower: "Cannon"}; add tower types in Config.TowerDefense.Towers.',
+  },
+  {
+    id: 'farming',
+    title: 'Farming',
+    category: 'genre',
+    summary: 'Plant seeds on plots, wait for them to grow (3 visible stages), harvest, sell at the market, unlock better crops (Wheat -> Carrot -> Tomato -> Pumpkin -> Crystal). Relaxing idle-style progression, saved.',
+    files: ['systems/farming/Farming.server.luau'],
+    requires: ['core', 'hud'],
+    configs: [{
+      name: 'Farming',
+      defaults: {
+        Currency: 'Coins', MaxPlotsPerPlayer: 8, Yield: 1, RipeGraceSeconds: 90,
+        Crops: {
+          Wheat: { Order: 1, SeedPrice: 0, GrowSeconds: 15, SellPrice: 3, UnlockPrice: 0, Color: '#F4D03F', Icon: '🌾' },
+          Carrot: { Order: 2, SeedPrice: 5, GrowSeconds: 30, SellPrice: 15, UnlockPrice: 100, Color: '#E67E22', Icon: '🥕' },
+          Tomato: { Order: 3, SeedPrice: 15, GrowSeconds: 45, SellPrice: 45, UnlockPrice: 500, Color: '#E74C3C', Icon: '🍅' },
+          Pumpkin: { Order: 4, SeedPrice: 40, GrowSeconds: 75, SellPrice: 140, UnlockPrice: 2500, Color: '#D35400', Icon: '🎃' },
+          Crystal: { Order: 5, SeedPrice: 150, GrowSeconds: 120, SellPrice: 600, UnlockPrice: 9000, Color: '#8E44AD', Icon: '💎' },
+        },
+      },
+      docs: {
+        Crops: 'Each crop: Order, SeedPrice, GrowSeconds, SellPrice, UnlockPrice (0 = free), Color, Icon. Better crops must earn more per minute (balance_economy checks it).',
+        MaxPlotsPerPlayer: 'How many plots one player can farm at the same time.',
+        RipeGraceSeconds: 'After this long ripe, anyone can harvest a plot (so plots never stay blocked).',
+      },
+    }],
+    tags: { FarmPlot: 'soil part to plant on', SeedStand: 'attribute Crop: unlock/choose seeds', CropSell: 'market: sells the basket' },
+    usage: 'build_world "farm" builds fields, seed stands and the market. The HUD shows "Basket" when Config.Hud ExtraStats includes it.',
+  },
+);
 
 export function getSystem(id: string): SystemDef {
   const system = SYSTEMS.find((s) => s.id === id);

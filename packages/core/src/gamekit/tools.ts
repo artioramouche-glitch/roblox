@@ -16,16 +16,34 @@ import { getProfile } from './profiles.js';
 import { getTemplate, TEMPLATES } from './templates.js';
 import { buildScreenGui, missingActionTargets, type UiSpec } from './ui.js';
 import { buildWorld, countParts, OBSTACLES, PIECES, WORLDS, worldPlacement } from './world.js';
+import { BACKUP_TOOLS, handleBackup, placeHasContent, saveBackup } from './backup.js';
+import { BLENDER_TOOLS, BlenderTools } from './blender.js';
+import { ECONOMY_TOOLS, handleEconomy } from './economy.js';
+import { handleJobTool, JOB_TOOLS, JobRegistry } from './jobs.js';
+import { POPULATE_TOOLS, populateWorld } from './props.js';
+import { PUBLISH_TOOLS, publishChecklist } from './publish.js';
+import { errorMessage, type ToolResult } from './result.js';
+import { findZone, handleTeam, TEAM_TOOLS } from './team.js';
+import { lookAtGame, VISUAL_TOOLS } from './visual.js';
 
 export interface GameKitHost extends PlaytestBridge {
   /** True when the Studio plugin polled recently. */
   isStudioConnected(): boolean;
+  /** Runs any other tool of this server (upload_asset, capture_screenshot...). */
+  callTool?(name: string, args: Record<string, any>): Promise<any>;
+  /** Whether an Open Cloud API key is configured (uploads, Creator Store search). */
+  hasOpenCloudKey?(): boolean;
 }
 
 export interface ToolDef {
   name: string;
   /** "read" tools are also offered by the read-only inspector edition. */
   category: 'read' | 'write';
+  /**
+   * When the tool is listed: starter (default, always), builder (builder/full profiles),
+   * blender (builder/full, or as soon as Blender is connected). Always callable anyway.
+   */
+  tier?: 'starter' | 'builder' | 'blender';
   description: string;
   inputSchema: Record<string, unknown>;
 }
@@ -59,16 +77,17 @@ export const GAMEKIT_TOOLS: ToolDef[] = [
       template: { type: 'string', enum: TEMPLATES.map((t) => t.id), description: 'Which game to build' },
       options: {
         type: 'object',
-        description: 'Optional: title (text on signs), theme (rainbow|candy|neon|nature|space|lava|ice), difficulty (easy|medium|hard), stages (obby), plots (tycoon), zones (simulator), mazeSize & keys (horror_escape), seed, lighting (preset name), obstacles (obby: list of obstacle types)',
+        description: 'Optional: title (text on signs), theme (rainbow|candy|neon|nature|space|lava|ice), difficulty (easy|medium|hard), stages (obby), plots (tycoon, farming), zones (simulator), mazeSize & keys (horror_escape), waves (tower_defense), seed, lighting (preset name), obstacles (obby: list of obstacle types)',
         properties: {
           title: { type: 'string' }, theme: { type: 'string' }, difficulty: { type: 'string', enum: ['easy', 'medium', 'hard'] },
-          stages: { type: 'number' }, plots: { type: 'number' }, zones: { type: 'number' }, mazeSize: { type: 'number' },
+          stages: { type: 'number' }, plots: { type: 'number' }, zones: { type: 'number' }, mazeSize: { type: 'number' }, waves: { type: 'number' },
           keys: { type: 'number' }, seed: { type: 'number' }, lighting: { type: 'string' },
           obstacles: { type: 'array', items: { type: 'string', enum: [...OBSTACLES] } },
         },
       },
       config: { type: 'object', description: 'Optional config overrides per module, e.g. {"Shop": {"Currency": "Gems"}, "Checkpoints": {"FinishRewards": {"Wins": 1, "Coins": 100}}}' },
       fresh: { type: 'boolean', description: 'Remove previous GameKit world/scripts first (default true)' },
+      backup: { type: 'boolean', description: 'Save a backup_game snapshot first when the place is not empty (default true)' },
     }, ['template']),
   },
   {
@@ -88,9 +107,10 @@ export const GAMEKIT_TOOLS: ToolDef[] = [
     inputSchema: obj({
       kind: { type: 'string', description: `A world (${WORLDS.join(', ')}) or a piece (${PIECES.join(', ')})` },
       name: { type: 'string', description: 'Name of the created model/part (default: kind). Reuse a name to replace it.' },
+      zone: { type: 'string', description: 'Build at the center of a zone claimed with team (when options.position is not given)' },
       options: {
         type: 'object',
-        description: 'position [x,y,z]; obby_course: stages, difficulty, theme, coins, obstacles, title, seed; lobby: title, size, shop, leaderboardStat; arena: size, theme, spawns; maze: width, height, keys, ceiling, monster, seed; tycoon_plots: count; simulator_world: zones, basePrice; decor_scatter: radius, count, clear. Pieces: color, size [x,y,z], stage (checkpoint), power (jump_pad), speed, offset [x,y,z] & duration (moving_platform), stat & amount (coin), enemy & maxAlive (enemy_spawner), zone & price (zone_gate), target (teleporter), yaw (degrees), text...',
+        description: 'position [x,y,z]; obby_course: stages, difficulty, theme, coins, obstacles, title, seed; lobby: title, size, shop, leaderboardStat; arena: size, theme, spawns; maze: width, height, keys, ceiling, monster, seed; tycoon_plots: count; simulator_world: zones, basePrice; decor_scatter: radius, count, clear; td_map: position; farm: plots, crops. Pieces: color, size [x,y,z], stage (checkpoint), power (jump_pad), speed, offset [x,y,z] & duration (moving_platform), stat & amount (coin), enemy & maxAlive (enemy_spawner), zone & price (zone_gate), target (teleporter), tower (tower_pad: Archer|Cannon|Frost), crop (seed_stand), length (fence), yaw (degrees), text...',
       },
     }, ['kind']),
   },
@@ -158,9 +178,19 @@ export const GAMEKIT_TOOLS: ToolDef[] = [
       autoplay: { type: 'boolean', description: 'Walk through checkpoints/coins automatically (default true)' },
     }),
   },
+  ...POPULATE_TOOLS,
+  ...VISUAL_TOOLS,
+  ...BACKUP_TOOLS,
+  ...TEAM_TOOLS,
+  ...JOB_TOOLS,
+  ...BLENDER_TOOLS,
+  ...ECONOMY_TOOLS,
+  ...PUBLISH_TOOLS,
 ];
 
 export const GAMEKIT_TOOL_NAMES = new Set(GAMEKIT_TOOLS.map((t) => t.name));
+
+const BLENDER_NAMES = new Set(BLENDER_TOOLS.map((t) => t.name));
 
 function text(value: unknown) {
   return { content: [{ type: 'text', text: typeof value === 'string' ? value : JSON.stringify(value, null, 2) }] };
@@ -202,8 +232,19 @@ function summarizeInstall(report: InstallReport) {
   };
 }
 
+export interface GameKitOptions {
+  /** Called when Blender answers for the first time (to list the blender_* tools). */
+  onBlenderConnected?: () => void;
+}
+
 export class GameKit {
-  constructor(private host: GameKitHost) {}
+  readonly jobs = new JobRegistry();
+  readonly blender: BlenderTools;
+  private lastTest?: { verdict: string; at: number };
+
+  constructor(private host: GameKitHost, options: GameKitOptions = {}) {
+    this.blender = new BlenderTools(host, undefined, { onConnected: options.onBlenderConnected });
+  }
 
   private requireStudio() {
     if (!this.host.isStudioConnected()) {
@@ -235,7 +276,31 @@ export class GameKit {
       case 'check_luau': return this.checkLuau(args);
       case 'check_game': return this.checkGame(args);
       case 'test_game': return this.testGame(args);
-      default: throw new Error(`Unknown GameKit tool: ${name}`);
+      case 'populate_world': this.requireStudio(); return populateWorld(this.host, args);
+      case 'look_at_game': this.requireStudio(); return lookAtGame(this.host, args);
+      case 'backup_game': this.requireStudio(); return handleBackup(this.host, args);
+      case 'team': this.requireStudio(); return handleTeam(this.host, args);
+      case 'start_job':
+      case 'job_status':
+        return handleJobTool(this.jobs, name, args, (tool, toolArgs) => this.runAny(tool, toolArgs));
+      case 'balance_economy':
+        if (args.fromGame) this.requireStudio();
+        return handleEconomy(this.host, args);
+      case 'publish_checklist': this.requireStudio(); return publishChecklist(this.host, this.lastTest);
+      default:
+        if (BLENDER_NAMES.has(name)) return this.blender.call(name, args);
+        throw new Error(`Unknown GameKit tool: ${name}`);
+    }
+  }
+
+  /** Runs any tool (GameKit or not) for background jobs; errors become error results. */
+  private async runAny(tool: string, args: Record<string, any>): Promise<ToolResult> {
+    if (GAMEKIT_TOOL_NAMES.has(tool)) return (await this.run(tool, args)) as ToolResult;
+    if (!this.host.callTool) throw new Error(`Cannot run "${tool}" in the background here`);
+    try {
+      return (await this.host.callTool(tool, args)) as ToolResult;
+    } catch (error) {
+      return { content: [{ type: 'text', text: `Error: ${errorMessage(error)}` }], isError: true };
     }
   }
 
@@ -245,7 +310,9 @@ export class GameKit {
       'Call test_game; fix every error it reports; repeat until PASS.',
       'Customise with add_system {config}, build_world, build_ui, set_environment (no code).',
       'Write custom code only with write_script (it validates Luau first).',
-      'Finish with check_game, then polish using roblox_guide design.',
+      'Look at it with look_at_game, decorate with populate_world (themes), save with backup_game before big changes.',
+      'Finish with check_game, then polish using roblox_guide design; publish_checklist before publishing.',
+      'Custom 3D models: blender_status (Blender link) then blender_to_roblox. Several AIs at once: team {action: "plan"}, then each one claims tasks and zones.',
     ];
     const base = { profile: getProfile(), plan, guides: 'roblox_guide workflow | design | luau | client-server | ui | errors | publishing' };
     if (!this.host.isStudioConnected()) return text({ ...base, studio: NOT_CONNECTED });
@@ -261,7 +328,7 @@ if world then for _, c in world:GetChildren() do table.insert(pieces, c.Name) en
 for _, serviceName in { "Workspace", "ReplicatedStorage", "ReplicatedFirst", "ServerScriptService", "ServerStorage", "StarterGui", "StarterPack", "StarterPlayer" } do
   local ok, service = pcall(game.GetService, game, serviceName)
   if ok and service then
-    for _, d in service:GetDescendants() do if d:IsA("LuaSourceContainer") then scripts += 1 end end
+    for _, d in service:GetDescendants() do if d:IsA("LuaSourceContainer") and not d:FindFirstAncestor("GameKitBackups") then scripts += 1 end end
   end
 end
 for _, d in workspace:GetDescendants() do if d:IsA("BasePart") then parts += 1 end end
@@ -287,6 +354,17 @@ return HttpService:JSONEncode({ place = game.Name, placeId = game.PlaceId, gameK
     }
     const { placements, systems } = systemPlacements(plan.systems, { config, resetConfig: true });
     const fresh = args.fresh !== false;
+    let backup: any;
+    if (args.backup !== false) {
+      try {
+        if (await placeHasContent(this.host)) {
+          const saved = await saveBackup(this.host, `before create_game ${template.id}`);
+          backup = saved?.ok ? { id: saved.backup?.id, restore: `backup_game {"action": "restore", "id": "${saved.backup?.id}"}` } : { error: saved?.error };
+        }
+      } catch (err) {
+        backup = { error: err instanceof Error ? err.message : String(err) };
+      }
+    }
     const report = await install(this.host, {
       label: `GameKit: create ${template.id}`,
       deletes: fresh
@@ -307,6 +385,7 @@ return HttpService:JSONEncode({ place = game.Name, placeId = game.PlaceId, gameK
       systems,
       install: summarizeInstall(report),
       environment,
+      backup,
       whereThingsAre: {
         scripts: 'ServerScriptService/GameKit (server) and StarterPlayer/StarterPlayerScripts/GameKit (client)',
         settings: 'ReplicatedStorage/GameKit/Config/<System> (edit numbers/texts here)',
@@ -340,7 +419,13 @@ return HttpService:JSONEncode({ place = game.Name, placeId = game.PlaceId, gameK
   async buildWorld(args: Record<string, any>) {
     this.requireStudio();
     const kind = String(args.kind);
-    const node = buildWorld(kind, args.options ?? {});
+    const options = { ...(args.options ?? {}) };
+    if (args.zone && !options.position) {
+      const zone = await findZone(this.host, String(args.zone));
+      if (!zone) throw new Error(`Zone "${args.zone}" does not exist (team {"action": "zones"}).`);
+      options.position = [zone.center[0], zone.center[1] - zone.size[1] / 2, zone.center[2]];
+    }
+    const node = buildWorld(kind, options);
     const placement = worldPlacement(node, args.name);
     const report = await install(this.host, { label: `GameKit: build ${kind}`, items: [placement] });
     const neededSystems = new Set<string>();
@@ -462,6 +547,7 @@ return HttpService:JSONEncode({ place = game.Name, placeId = game.PlaceId, gameK
   async testGame(args: Record<string, any>) {
     this.requireStudio();
     const result = await runPlaytest(this.host, { seconds: args.seconds, autoplay: args.autoplay });
+    this.lastTest = { verdict: String(result.verdict), at: Date.now() };
     return text({
       ...result,
       next: result.verdict === 'PASS'

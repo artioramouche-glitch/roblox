@@ -74,7 +74,7 @@ local game = setmetatable({}, {
 			return function(_, name)
 				return dm:FindFirstChild(name)
 			end
-		elseif key == "PlaceId" then
+		elseif key == "PlaceId" or key == "GameId" then
 			return 0
 		elseif key == "Name" then
 			return "FakeStudio"

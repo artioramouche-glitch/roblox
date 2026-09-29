@@ -132,6 +132,40 @@ local function autoplayChecks(player: Player, character: Model)
 		probe("coin pickup", after > before, `{name}: {before} -> {after}`)
 	end
 
+	-- Genre systems expose a test hook (BindableFunction "__GameKitHook") to play their loop.
+	local serverKit = game:GetService("ServerScriptService"):FindFirstChild("GameKit")
+	local function hookOf(name: string): BindableFunction?
+		local system = serverKit and serverKit:FindFirstChild(name)
+		local hook = system and system:FindFirstChild("__GameKitHook")
+		return if hook and hook:IsA("BindableFunction") then hook else nil
+	end
+
+	-- Tower defense: building a tower on a pad must work.
+	local tdHook = hookOf("TowerDefense")
+	local pad = CollectionService:GetTagged("TowerPad")[1]
+	if tdHook and pad then
+		local ok, built = pcall(function()
+			return tdHook:Invoke("build", player, pad)
+		end)
+		local towers = tdHook:Invoke("towers")
+		probe("tower build", ok and built == true and type(towers) == "number" and towers >= 1, `build returned {tostring(built)}, towers: {tostring(towers)}`)
+	end
+
+	-- Farming: plant -> ripen -> harvest -> sell must earn money.
+	local farmHook = hookOf("Farming")
+	local plot = CollectionService:GetTagged("FarmPlot")[1]
+	if farmHook and plot then
+		local ok, result = pcall(function()
+			local planted = farmHook:Invoke("plant", player, plot)
+			farmHook:Invoke("ripen", player, plot)
+			local harvested = farmHook:Invoke("harvest", player, plot)
+			local earned = farmHook:Invoke("sell", player)
+			return { planted = planted, harvested = harvested, earned = earned }
+		end)
+		probe("farm loop", ok and result.planted == true and result.harvested == true and type(result.earned) == "number" and result.earned > 0,
+			if ok then `planted {tostring(result.planted)}, harvested {tostring(result.harvested)}, earned {tostring(result.earned)}` else tostring(result))
+	end
+
 	-- Kill parts: standing on one should kill (checked last; the character respawns).
 	local kill = CollectionService:GetTagged("KillPart")[1]
 	local humanoid = character:FindFirstChildOfClass("Humanoid")
@@ -184,6 +218,9 @@ task.spawn(function()
 		task.wait(remaining)
 	end
 	report.facts.playersAtEnd = #Players:GetPlayers()
+	if kit and kit:GetAttribute("Wave") ~= nil then
+		report.facts.towerDefense = { wave = kit:GetAttribute("Wave"), baseHealth = kit:GetAttribute("BaseHealth"), enemiesAlive = kit:GetAttribute("EnemiesAlive") }
+	end
 	local ok, encoded = pcall(HttpService.JSONEncode, HttpService, report)
 	game:GetService("StudioTestService"):EndTest(if ok then encoded else `\{"encodeError":"{encoded}"\}`)
 end)

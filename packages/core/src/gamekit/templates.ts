@@ -5,7 +5,7 @@
 
 import type { EnvironmentOptions } from './environment.js';
 import type { Placement } from './installer.js';
-import { arena, decorScatter, lobby, maze, obbyCourse, piece, simulatorWorld, tycoonPlots, worldPlacement, type ObstacleType } from './world.js';
+import { arena, decorScatter, farm, lobby, maze, obbyCourse, piece, simulatorWorld, tdMap, tycoonPlots, worldPlacement, type ObstacleType } from './world.js';
 
 export interface TemplateOptions {
   title?: string;
@@ -16,6 +16,7 @@ export interface TemplateOptions {
   zones?: number;
   mazeSize?: number;
   keys?: number;
+  waves?: number;
   seed?: number;
   lighting?: string;
   obstacles?: ObstacleType[];
@@ -235,6 +236,81 @@ export const TEMPLATES: TemplateDef[] = [
         ],
       };
     },
+  },
+  {
+    id: 'tower_defense',
+    title: 'Tower defense (co-op)',
+    genre: 'Tower defense',
+    summary: 'Enemies walk a winding path in waves (Basic, Fast, Tank, Boss); players build and upgrade Archer, Cannon (splash) and Frost (slow) towers on 15 pads with match cash and defend the castle together. Victory rewards Wins and Coins.',
+    options: { waves: '5-50 waves to win (default 15)', title: 'welcome text' },
+    plan: (o) => ({
+      systems: ['hud', 'towerdefense', 'shop', 'daily', 'leaderboard', 'movement', 'atmosphere', 'admin'],
+      config: {
+        Core: { WelcomeMessage: o.title ? `Welcome to ${o.title}! Build towers on the pads 🏹` : 'Build towers on the pads and protect the castle! 🏰' },
+        TowerDefense: { MaxWaves: Math.max(5, Math.min(50, o.waves ?? 15)) },
+        Movement: { DoubleJump: false },
+        Atmosphere: { DayNightCycle: false },
+        Shop: {
+          Title: 'Shop',
+          Currency: 'Coins',
+          Items: [
+            { Id: 'SpeedBoost', Name: 'Speed Boost', Description: 'Run between pads faster', Price: 150, Kind: 'WalkSpeed', Value: 24, Icon: '⚡' },
+            { Id: 'GoldTrail', Name: 'Gold Trail', Description: 'Show off your victories', Price: 300, Kind: 'Trail', Value: '#FFD700', Icon: '✨' },
+            { Id: 'DoubleCoins', Name: '2x Coins', Description: 'Double victory coins', Price: 2000, Kind: 'Multiplier', Stat: 'Coins', Value: 2, Icon: '💰' },
+          ],
+        },
+      },
+      world: [
+        worldPlacement(tdMap({ position: [0, 0.5, 0] })),
+        worldPlacement(piece('leaderboard', [-20, 0.5, -80], { name: 'WinsBoard', stat: 'Wins', title: 'Most Victories', yaw: 0 })),
+        worldPlacement(piece('shop_stand', [10, 0.5, -80], { name: 'ShopStand' })),
+        worldPlacement(decorScatter({ position: [0, 0, 0], radius: 190, clear: 135, count: 45, seed: o.seed })),
+      ],
+      environment: { preset: o.lighting ?? 'day' },
+      nextSteps: [
+        'Balance: balance_economy {fromGame: true} checks damage per coin; tune Config.TowerDefense (Towers, Enemies, Waves).',
+        'New tower type: add it to Config.TowerDefense.Towers, then build_world piece "tower_pad" {tower: "Laser"} next to the path.',
+        'Test with 2 players (Studio Test > Clients and Servers) - it is a co-op game.',
+        ...COMMON_NEXT,
+      ],
+    }),
+  },
+  {
+    id: 'farming',
+    title: 'Farming (idle)',
+    genre: 'Farming / Idle',
+    summary: 'Plant seeds on 24 plots, watch them grow, harvest, sell at the market and unlock better crops (Wheat -> Carrot -> Tomato -> Pumpkin -> Crystal). Calm, saved progression with a shop and daily rewards.',
+    options: { plots: '4-64 plots (default 24)', title: 'welcome text' },
+    plan: (o) => ({
+      systems: ['hud', 'farming', 'shop', 'daily', 'leaderboard', 'movement', 'atmosphere', 'admin'],
+      config: {
+        Core: { WelcomeMessage: o.title ? `Welcome to ${o.title}! 🌾` : 'Plant 🌱, harvest 🧺, sell 💰, unlock better crops!' },
+        Hud: { ExtraStats: ['Basket'] },
+        Movement: { DoubleJump: false },
+        DailyReward: { Stat: 'Coins', BaseAmount: 40 },
+        Shop: {
+          Title: 'Farm shop',
+          Items: [
+            { Id: 'SpeedBoost', Name: 'Running Boots', Description: 'Run between fields faster', Price: 120, Kind: 'WalkSpeed', Value: 24, Icon: '👢' },
+            { Id: 'DoubleCoins', Name: 'Golden Basket', Description: '2x coins when selling', Price: 5000, Kind: 'Multiplier', Stat: 'Coins', Value: 2, Icon: '🧺' },
+            { Id: 'PetChick', Name: 'Chick', Description: 'x1.25 coins', Price: 800, Kind: 'Pet', Stat: 'Coins', Value: 1.25, Color: '#FFEB3B', Icon: '🐤' },
+            { Id: 'GreenTrail', Name: 'Leaf Trail', Description: 'A trail of leaves', Price: 200, Kind: 'Trail', Value: '#7CB342', Icon: '🍃' },
+          ],
+        },
+      },
+      world: [
+        worldPlacement(farm({ position: [0, 0.5, 0], plots: o.plots ?? 24 })),
+        worldPlacement(piece('leaderboard', [-30, 0.5, -75], { name: 'CoinsBoard', stat: 'Coins', title: 'Richest Farmers', yaw: 0 })),
+        worldPlacement(piece('shop_stand', [30, 0.5, -60], { name: 'ShopStand' })),
+        worldPlacement(decorScatter({ position: [0, 0, 0], radius: 200, clear: 130, count: 40, seed: o.seed })),
+      ],
+      environment: { preset: o.lighting ?? 'day' },
+      nextSteps: [
+        'Balance: balance_economy {fromGame: true} shows coins per minute of each crop and unlock times; tune Config.Farming.Crops.',
+        'More plots: build_world farm {plots: 40} (replaces the farm) or add farm_plot pieces.',
+        ...COMMON_NEXT,
+      ],
+    }),
   },
 ];
 

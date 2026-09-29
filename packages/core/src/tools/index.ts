@@ -1,5 +1,6 @@
 import { StudioHttpClient } from './studio-client.js';
 import { GameKit, type GameKitHost } from '../gamekit/tools.js';
+import { revealGroup } from '../gamekit/profiles.js';
 import { findPluginOutDir, readPluginModules } from '../plugin-reload.js';
 import { BridgeService } from '../bridge-service.js';
 import { runBuildExecutor, computeBoundsFromParts } from './build-executor.js';
@@ -66,7 +67,7 @@ export class RobloxStudioTools {
 
   /** The GameKit layer (create_game, add_system, test_game...), built on this bridge. */
   gamekit(): GameKit {
-    if (!this.gameKitInstance) this.gameKitInstance = new GameKit(this.gameKitHost());
+    if (!this.gameKitInstance) this.gameKitInstance = new GameKit(this.gameKitHost(), { onBlenderConnected: () => revealGroup('blender') });
     return this.gameKitInstance;
   }
 
@@ -97,6 +98,14 @@ export class RobloxStudioTools {
         return this.client.request('/api/stop-playtest', { endRequested }, 'edit');
       },
       getPlaytestOutput: () => this.client.request('/api/get-playtest-output', {}, 'edit'),
+      hasOpenCloudKey: () => this.openCloudClient.hasApiKey(),
+      // Loaded lazily: http-server imports this module.
+      callTool: async (name: string, args: Record<string, any>) => {
+        const { TOOL_HANDLERS } = await import('../http-server.js');
+        const handler = TOOL_HANDLERS[name];
+        if (!handler) throw new Error(`Unknown tool "${name}"`);
+        return handler(this, args ?? {});
+      },
     };
   }
 
