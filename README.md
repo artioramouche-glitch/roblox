@@ -6,7 +6,7 @@
 
 **Claude · ChatGPT/Codex · Gemini · Cursor · Windsurf · Copilot · modèles locaux** — tout client MCP
 
-[Démarrage](#-démarrage-en-5-minutes) · [Premier jeu](#-ton-premier-jeu-en-une-phrase) · [Modèles](#-11-jeux-complets-prêts-à-lemploi) · [Systèmes](#-28-systèmes-plug-and-play) · [Qualité](#-qualité-avant-publication) · [Panneau Studio](#-le-panneau-ia-dans-studio) · [Blender](#-modèles-3d-avec-blender) · [Plusieurs IA](#-plusieurs-ia-sur-le-même-jeu) · [Outils](#-les-outils) · [Dev](#-développement)
+[Démarrage](#-démarrage-en-5-minutes) · [Premier jeu](#-ton-premier-jeu-en-une-phrase) · [Modèles](#-11-jeux-complets-prêts-à-lemploi) · [Systèmes](#-30-systèmes-plug-and-play) · [Qualité](#-qualité-avant-publication) · [Panneau Studio](#-le-panneau-ia-dans-studio) · [Blender](#-modèles-3d-avec-blender) · [Plusieurs IA](#-plusieurs-ia-sur-le-même-jeu) · [Outils](#-les-outils) · [Dev](#-développement)
 
 </div>
 
@@ -30,7 +30,7 @@ déjà testées** au lieu d'écrire 2000 lignes de Luau fragile.
  Ton IA ──stdio──► Roblox Ultimate MCP ──HTTP localhost:58741──► Plugin Studio ──► Ton jeu
   (1 ou plusieurs)  │                                              (édition + copies serveur/client
                     │                                               pendant les playtests)
-                    ├─ Game Kit : 11 jeux complets, 28 systèmes, mondes, décor, UI, ambiances
+                    ├─ Game Kit : 11 jeux complets, 30 systèmes, mondes, décor, UI, ambiances
                     ├─ Mémoire : game_notes (idée, décisions, fait / à faire) stockée dans le jeu
                     ├─ Garde-fous : compilateur Luau (WASM) + linter « erreurs de débutant »
                     ├─ Vérification : check_game, test_game (solo, 2 joueurs, téléphone), look_at_game
@@ -46,7 +46,7 @@ déjà testées** au lieu d'écrire 2000 lignes de Luau fragile.
 | | Fonction | Ce que ça change |
 |---|---|---|
 | 🏗️ | **`create_game`** — 11 jeux complets | Obby, Tycoon, Simulator, Arène PvP, Survie zombies, Horreur/évasion, Tower defense coop, Ferme (idle), **Course en karts**, **Pêche**, **Survie coop avec craft** : scripts serveur+client, config, monde, HUD et éclairage **en un seul appel** (avec sauvegarde automatique de l'existant) |
-| 🧩 | **`add_system`** — 28 systèmes | Sauvegarde, checkpoints, boutique, rounds, épée, ennemis avec pathfinding, tower defense, ferme, **inventaire**, **niveaux & XP**, **quêtes**, **œufs & familiers**, **course**, **pêche**, **récolte & craft**, récompense quotidienne, classement mondial, monétisation, **analytics** et **traduction** intégrées… |
+| 🧩 | **`add_system`** — 30 systèmes | Sauvegarde, checkpoints, boutique, rounds, épée, ennemis avec pathfinding, tower defense, ferme, **inventaire**, **niveaux & XP**, **quêtes avec flèche de guidage**, **œufs & familiers**, **course**, **pêche**, **récolte & craft**, **codes cadeaux**, **bonus entre amis & groupe**, récompense quotidienne, classement mondial, monétisation, **analytics** et **traduction** intégrées… |
 | 🧠 | **`game_notes`** — mémoire du projet | Idée, décisions, fait, à faire et historique des changements, **stockés dans le jeu** : une nouvelle conversation (ou une autre IA) reprend en un appel au lieu de tout relire |
 | 🌍 | **`build_world`** — mondes & pièces | Parcours d'obby progressif (12 types d'obstacles), labyrinthe, arène, tycoon, simulateur, tower defense, ferme, **circuit**, **lacs de pêche**, **camp de survie**, 53 pièces (jump pad, pièce, spinner, œuf, point de pêche, arbre à couper…) |
 | 🌳 | **`populate_world`** — décor en masse | Forêt, désert, neige, plage, fantasy, ville, ferme, spooky, jardin — ou tes modèles (Creator Store, Blender) ; posé au sol, sans jamais bloquer le gameplay |
@@ -225,7 +225,7 @@ Options courantes : `title`, `theme` (rainbow, candy, neon, nature, space, lava,
 `zones`, `mazeSize`, `keys`, `waves`, `laps`, `karts`, `seed`, `lighting`. Tout reste modifiable sans code dans
 `ReplicatedStorage/GameKit/Config/<Système>` (fichiers Luau commentés).
 
-## 🧩 28 systèmes plug-and-play
+## 🧩 30 systèmes plug-and-play
 
 | Système | Rôle |
 |---|---|
@@ -236,7 +236,8 @@ Options courantes : `title`, `theme` (rainbow, candy, neon, nature, space, lava,
 | `shop` · `daily` · `leaderboard` · `monetization` | Boutique validée par le serveur (boosts, outils, traînées, multiplicateurs, familiers, améliorations), récompense quotidienne avec série, classement mondial, produits/pass sans double attribution |
 | `movement` · `atmosphere` · `admin` | Sprint + double saut, cycle jour/nuit + musique + lumières qui clignotent, commandes `/give /tp /kick…` |
 | `tycoon` · `simulator` · `objectives` · `towerdefense` · `farming` | Mécaniques de genre complètes |
-| `inventory` · `levels` · `quests` · `pets` | **Rétention** : objets sauvegardés (fenêtre 🎒, vente), XP et niveaux (barre, récompenses), quêtes en chaîne qui servent de tutoriel, œufs à éclore et familiers qui multiplient les gains |
+| `inventory` · `levels` · `quests` · `pets` | **Rétention** : objets sauvegardés (fenêtre 🎒, vente), XP et niveaux (barre, récompenses), quêtes en chaîne qui servent de tutoriel (avec une **flèche lumineuse** qui montre où aller), œufs à éclore et familiers qui multiplient les gains |
+| `codes` · `social` | **Croissance** : codes cadeaux à saisir (🎟, une fois par joueur, date d'expiration), +10 % de gains par ami dans le serveur, bouton d'invitation 👥 récompensé, bonus pour les membres de ton groupe Roblox |
 | `racing` · `fishing` · `crafting` | Course (tours, points de passage, karts arcade), pêche (zones, raretés, canne), récolte + craft + constructions + faim (avec `enemies` en mode vagues jour/nuit) |
 
 La référence complète (réglages, tags, attributs) est dans **[docs/GAMEKIT.md](docs/GAMEKIT.md)**
@@ -297,6 +298,10 @@ Variables : `ROBLOX_MCP_COMPACT=0` (descriptions complètes), `ROBLOX_MCP_PRETTY
 | `check_assets` | Chaque son, animation et image du jeu (ou les ids donnés) **se charge-t-il vraiment ?** Les animations d'un autre créateur ne jouent pas dans un jeu publié : elles sont signalées |
 | `optimize_game` | Bilan vert / orange / rouge pour les téléphones d'entrée de gamme ; `optimize_game { apply: ["shadows", "lights", "particles", "streaming", "technology"] }` corrige sans risque (un seul Ctrl+Z) |
 | `publish_checklist` | Reprend tout : erreurs, playtests (solo, 2 joueurs, téléphone), performances, assets, monétisation, étapes manuelles |
+
+L'interface GameKit est pensée pour le téléphone : sur un petit écran, la colonne de boutons (🛒 🎁 🎒 🐾 🔨 🎟 👥…)
+réduit la taille des boutons et passe sur deux colonnes au lieu de sortir de l'écran. Tous les textes des systèmes
+sont traduits en français, espagnol, portugais et allemand selon la langue du joueur.
 
 ## 🖥️ Le panneau IA dans Studio
 
@@ -402,7 +407,7 @@ Luau ; aucune écriture) — pratique pour faire relire un jeu sans risque.
 
 ```bash
 npm run build            # intègre gamekit/*.luau puis compile core + serveur + édition lecture seule
-npm test                 # 107 tests du serveur + 89 tests Game Kit (faux addon Blender, multijoueur, téléphone, assets…)
+npm test                 # 107 tests du serveur + 90 tests Game Kit (faux addon Blender, multijoueur, téléphone, assets, flèches de quête…)
 npm run gamekit:smoke    # test MCP de bout en bout (stdio)
 npm run gamekit:verify   # syntaxe (WASM) + types Roblox (si luau-lsp est installé) de tout le Luau, recettes comprises
 npm run build:plugin     # recompile le plugin Studio (roblox-ts) et l'installe (Windows/macOS)
@@ -415,7 +420,7 @@ node scripts/dump-gamekit-cases.mjs /tmp/cases && lune run scripts/lune/validate
 LUNE=lune npm run gamekit:integration   # MCP -> pont HTTP -> faux plugin Studio (Lune) -> Luau
 ```
 
-La première commande exécute chaque installateur (119 cas, ~6 800 instances) contre la base de données officielle des
+La première commande exécute chaque installateur (121 cas, ~6 900 instances) contre la base de données officielle des
 classes Roblox : un mauvais nom de propriété ou un mauvais type est détecté sans ouvrir Studio. Le test d'intégration
 crée les 11 jeux, fait tourner le tableau d'équipe (réservations exclusives, zones qui se chevauchent refusées), les
 sauvegardes, le décor, une tâche de fond et la checklist de publication.

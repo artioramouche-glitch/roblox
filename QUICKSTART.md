@@ -58,6 +58,7 @@ Puis redémarre Studio et ton appli d'IA, et fais l'étape 4 ci-dessous (requêt
    - « Ajoute un PNJ qui explique le jeu, et une porte VIP à 500 pièces. » (recettes `npc_dialog`, `door`)
    - « Fais un jeu de course en karts » / « un jeu de pêche » / « une survie à plusieurs avec du craft ».
    - « Ajoute des quêtes pour guider les nouveaux joueurs, des niveaux et des œufs de familiers. »
+   - « Ajoute un code cadeau LANCEMENT qui donne 500 pièces, et un bonus quand on joue avec ses amis. »
    - « Vérifie que le jeu marche à 2 joueurs et sur téléphone, et qu'il ne rame pas. »
    - « Anime mon personnage Blender (marche et attaque) et mets-le dans le jeu. »
 

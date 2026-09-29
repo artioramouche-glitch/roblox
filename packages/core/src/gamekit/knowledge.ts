@@ -31,7 +31,8 @@ export const GUIDES: Record<string, { title: string; body: string }> = {
    - screens: build_ui (JSON -> real UI, live stat text, buttons that open windows)
    - mood: set_environment (lighting preset + terrain)
    - scenery: populate_world { theme: "forest" | "desert" | "snow" | "beach" | "fantasy" | "city" | "farm" | "spooky" | "garden" }
-   - retention: add_system inventory | levels | quests | pets (eggs) -- quests teach the game step by step
+   - retention: add_system inventory | levels | quests | pets (eggs) | codes | social -- quests teach the game
+     step by step (Target = guide arrow), codes reward returning players, social boosts playing with friends
    - custom 3D models: Blender (guide "blender") -> blender_to_roblox (characters: + blender_animation)
    - **look_at_game** to SEE the result from several angles; fix what looks wrong.
    - advanced (find_tools + call_tool): terrain_fill_*, lighting_*, particle_create, sound_*, animation_*,
@@ -77,7 +78,9 @@ Action -> reward -> upgrade -> bigger action. Examples:
 ## Social & retention
 - Global leaderboard (leaderboard system), daily reward with streak (daily system),
   visible cosmetics (trails, pets) so players show off.
-- Long-term goals: levels (XP bar), quests (chain mode = tutorial), eggs & pets (collection), inventory items to sell.
+- Long-term goals: levels (XP bar), quests (chain mode = tutorial, guide arrow), eggs & pets (collection), inventory items to sell.
+- Growth: codes system (announce a new code with each update), social system (+10% per friend in the server,
+  invite button, group bonus with Config.Social.GroupId).
 ## Onboarding
 - Welcome toast explaining the goal (Config.Core.WelcomeMessage). Signs/billboards in the world.
 - The first 2 minutes must be easy. Difficulty ramps slowly (obby_course does this).

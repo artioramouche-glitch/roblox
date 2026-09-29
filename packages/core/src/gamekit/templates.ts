@@ -60,7 +60,7 @@ export const TEMPLATES: TemplateDef[] = [
       const base: [number, number, number] = [0, 50, 0];
       const theme = o.theme ?? 'rainbow';
       return {
-        systems: ['hud', 'checkpoints', 'hazards', 'movers', 'collectibles', 'shop', 'daily', 'leaderboard', 'movement', 'atmosphere', 'admin'],
+        systems: ['hud', 'checkpoints', 'hazards', 'movers', 'collectibles', 'shop', 'daily', 'codes', 'social', 'leaderboard', 'movement', 'atmosphere', 'admin'],
         config: {
           Core: { WelcomeMessage: 'Reach the end of the obby! 🏁' },
           Movement: { DoubleJump: false },
@@ -113,7 +113,7 @@ export const TEMPLATES: TemplateDef[] = [
     summary: 'Train to fill your backpack with Power, sell for Coins, buy upgrades and pets, unlock zones with bigger orbs, rebirth for a permanent multiplier.',
     options: { zones: '1-6 (default 3)' },
     plan: (o) => ({
-      systems: ['hud', 'simulator', 'collectibles', 'shop', 'daily', 'leaderboard', 'movement', 'atmosphere', 'admin'],
+      systems: ['hud', 'simulator', 'collectibles', 'shop', 'daily', 'codes', 'social', 'leaderboard', 'movement', 'atmosphere', 'admin'],
       config: {
         Core: { WelcomeMessage: 'Train 💪, sell 💰, rebirth 🔁!' },
         Hud: { ExtraStats: ['Power'] },
@@ -147,7 +147,7 @@ export const TEMPLATES: TemplateDef[] = [
     summary: 'Lobby + arena with cover, round loop (intermission, last one standing wins), swords given during rounds, kill and win rewards, shop with trails and boosts.',
     options: { title: 'lobby sign text', theme: 'arena theme' },
     plan: (o) => ({
-      systems: ['hud', 'rounds', 'combat', 'shop', 'daily', 'leaderboard', 'movement', 'atmosphere', 'admin'],
+      systems: ['hud', 'rounds', 'combat', 'shop', 'daily', 'codes', 'social', 'leaderboard', 'movement', 'atmosphere', 'admin'],
       config: {
         Core: { WelcomeMessage: 'Last one standing wins! ⚔️' },
         Combat: { GiveSword: 'InRound' },
@@ -176,7 +176,7 @@ export const TEMPLATES: TemplateDef[] = [
       const s = 120;
       const corner = s / 2 - 10;
       return {
-        systems: ['hud', 'enemies', 'combat', 'shop', 'daily', 'leaderboard', 'movement', 'atmosphere', 'admin'],
+        systems: ['hud', 'enemies', 'combat', 'shop', 'daily', 'codes', 'social', 'leaderboard', 'movement', 'atmosphere', 'admin'],
         config: {
           Core: { WelcomeMessage: 'Survive the zombie waves! 🧟' },
           Combat: { GiveSword: 'Always' },
@@ -246,7 +246,7 @@ export const TEMPLATES: TemplateDef[] = [
     summary: 'Enemies walk a winding path in waves (Basic, Fast, Tank, Boss); players build and upgrade Archer, Cannon (splash) and Frost (slow) towers on 15 pads with match cash and defend the castle together. Victory rewards Wins and Coins.',
     options: { waves: '5-50 waves to win (default 15)', title: 'welcome text' },
     plan: (o) => ({
-      systems: ['hud', 'towerdefense', 'shop', 'daily', 'leaderboard', 'movement', 'atmosphere', 'admin'],
+      systems: ['hud', 'towerdefense', 'shop', 'daily', 'codes', 'social', 'leaderboard', 'movement', 'atmosphere', 'admin'],
       config: {
         Core: { WelcomeMessage: o.title ? `Welcome to ${o.title}! Build towers on the pads 🏹` : 'Build towers on the pads and protect the castle! 🏰' },
         TowerDefense: { MaxWaves: Math.max(5, Math.min(50, o.waves ?? 15)) },
@@ -284,7 +284,7 @@ export const TEMPLATES: TemplateDef[] = [
     summary: 'Plant seeds on 24 plots, watch them grow, harvest, sell at the market and unlock better crops (Wheat -> Carrot -> Tomato -> Pumpkin -> Crystal). Calm, saved progression with a shop and daily rewards.',
     options: { plots: '4-64 plots (default 24)', title: 'welcome text' },
     plan: (o) => ({
-      systems: ['hud', 'farming', 'shop', 'daily', 'leaderboard', 'movement', 'atmosphere', 'admin'],
+      systems: ['hud', 'farming', 'shop', 'daily', 'codes', 'social', 'leaderboard', 'movement', 'atmosphere', 'admin'],
       config: {
         Core: { WelcomeMessage: o.title ? `Welcome to ${o.title}! 🌾` : 'Plant 🌱, harvest 🧺, sell 💰, unlock better crops!' },
         Hud: { ExtraStats: ['Basket'] },
@@ -321,7 +321,7 @@ export const TEMPLATES: TemplateDef[] = [
     summary: 'Kart races on an oval track: starting grid, 3-2-1-GO, laps through checkpoints, live positions, best lap saved, podium rewards, quests and levels. Works on keyboard, gamepad and mobile.',
     options: { laps: 'laps per race (default 3)', karts: 'false = running race instead of karts', title: 'welcome text' },
     plan: (o) => ({
-      systems: ['hud', 'racing', 'levels', 'quests', 'shop', 'daily', 'leaderboard', 'atmosphere', 'admin'],
+      systems: ['hud', 'racing', 'levels', 'quests', 'shop', 'daily', 'codes', 'social', 'leaderboard', 'atmosphere', 'admin'],
       config: {
         Core: { WelcomeMessage: o.title ? `Welcome to ${o.title}! 🏎` : 'Race 🏎, win 🏆, beat your best lap ⏱!' },
         Racing: { Laps: o.laps ?? 3, UseKarts: o.karts ?? true },
@@ -360,7 +360,7 @@ export const TEMPLATES: TemplateDef[] = [
     summary: 'Cast, wait for the bite, reel in time: 6 fish in 2 zones (pond, ocean) with rarities, sell at the fish market, upgrade your rod to fish faster, catch rarer fish and unlock the ocean. Quests, levels, eggs and pets.',
     options: { title: 'welcome text' },
     plan: (o) => ({
-      systems: ['hud', 'inventory', 'fishing', 'levels', 'quests', 'pets', 'shop', 'daily', 'leaderboard', 'movement', 'atmosphere', 'admin'],
+      systems: ['hud', 'inventory', 'fishing', 'levels', 'quests', 'pets', 'shop', 'daily', 'codes', 'social', 'leaderboard', 'movement', 'atmosphere', 'admin'],
       config: {
         Core: { WelcomeMessage: o.title ? `Welcome to ${o.title}! 🎣` : 'Fish 🎣, sell 💰, upgrade your rod, catch the legendary Golden Koi ✨!' },
         Movement: { DoubleJump: false },
@@ -376,13 +376,13 @@ export const TEMPLATES: TemplateDef[] = [
         Quests: {
           Mode: 'Chain',
           List: [
-            { Id: 'FirstFish', Title: 'Catch a fish', Type: 'Earn', Stat: 'Fish', Amount: 1, Rewards: { XP: 20, Coins: 10 } },
-            { Id: 'FirstSale', Title: 'Sell fish for 30 coins', Type: 'Earn', Stat: 'Coins', Amount: 30, Rewards: { XP: 40 } },
-            { Id: 'BetterRod', Title: 'Buy a better rod', Type: 'Reach', Stat: 'RodLevel', Amount: 1, Rewards: { XP: 60 } },
-            { Id: 'Salmon', Title: 'Catch a salmon', Type: 'Have', Item: 'Salmon', Amount: 1, Rewards: { Coins: 50 } },
-            { Id: 'Ocean', Title: 'Unlock the ocean (rod level 2)', Type: 'Reach', Stat: 'RodLevel', Amount: 2, Rewards: { XP: 150 } },
+            { Id: 'FirstFish', Title: 'Catch a fish', Type: 'Earn', Stat: 'Fish', Amount: 1, Rewards: { XP: 20, Coins: 10 }, Target: 'tag:FishingSpot' },
+            { Id: 'FirstSale', Title: 'Sell fish for 30 coins', Type: 'Earn', Stat: 'Coins', Amount: 30, Rewards: { XP: 40 }, Target: 'tag:ItemSell' },
+            { Id: 'BetterRod', Title: 'Buy a better rod', Type: 'Reach', Stat: 'RodLevel', Amount: 1, Rewards: { XP: 60 }, Target: 'tag:ShopStand' },
+            { Id: 'Salmon', Title: 'Catch a salmon', Type: 'Have', Item: 'Salmon', Amount: 1, Rewards: { Coins: 50 }, Target: 'tag:FishingSpot/Zone=Pond' },
+            { Id: 'Ocean', Title: 'Unlock the ocean (rod level 2)', Type: 'Reach', Stat: 'RodLevel', Amount: 2, Rewards: { XP: 150 }, Target: 'tag:ShopStand' },
             { Id: 'SecretCove', Title: 'Find the secret cove', Type: 'Touch', Amount: 1, Rewards: { Coins: 150 } },
-            { Id: 'Shark', Title: 'Catch a shark', Type: 'Have', Item: 'Shark', Amount: 1, Rewards: { Coins: 500, XP: 300 } },
+            { Id: 'Shark', Title: 'Catch a shark', Type: 'Have', Item: 'Shark', Amount: 1, Rewards: { Coins: 500, XP: 300 }, Target: 'tag:FishingSpot/Zone=Ocean' },
             { Id: 'HundredFish', Title: 'Catch 100 fish', Type: 'Earn', Stat: 'Fish', Amount: 100, Rewards: { Coins: 1000, XP: 800 } },
           ],
         },
@@ -419,7 +419,7 @@ export const TEMPLATES: TemplateDef[] = [
     summary: 'Gather wood, stone and berries by day, craft axes, swords, walls, spikes and campfires, keep your hunger up, and defend the camp together against zombie waves every night.',
     options: { title: 'welcome text', seed: 'forest layout seed' },
     plan: (o) => ({
-      systems: ['hud', 'inventory', 'crafting', 'enemies', 'combat', 'levels', 'quests', 'shop', 'daily', 'leaderboard', 'movement', 'atmosphere', 'admin'],
+      systems: ['hud', 'inventory', 'crafting', 'enemies', 'combat', 'levels', 'quests', 'shop', 'daily', 'codes', 'social', 'leaderboard', 'movement', 'atmosphere', 'admin'],
       config: {
         Core: { WelcomeMessage: o.title ? `Welcome to ${o.title}! 🔥` : 'Gather 🪵, craft 🔨, survive the night together 🧟!' },
         Combat: { GiveSword: 'Never', KillRewards: { Kills: 1, Coins: 5 } },
@@ -434,9 +434,9 @@ export const TEMPLATES: TemplateDef[] = [
         Quests: {
           Mode: 'Chain',
           List: [
-            { Id: 'Wood', Title: 'Chop 6 wood', Type: 'Have', Item: 'Wood', Amount: 6, Rewards: { XP: 20 } },
-            { Id: 'Stone', Title: 'Mine 4 stone', Type: 'Have', Item: 'Stone', Amount: 4, Rewards: { XP: 20 } },
-            { Id: 'Planks', Title: 'Craft planks', Type: 'Have', Item: 'Planks', Amount: 3, Rewards: { XP: 30 } },
+            { Id: 'Wood', Title: 'Chop 6 wood', Type: 'Have', Item: 'Wood', Amount: 6, Rewards: { XP: 20 }, Target: 'tag:ResourceNode/Node=Tree' },
+            { Id: 'Stone', Title: 'Mine 4 stone', Type: 'Have', Item: 'Stone', Amount: 4, Rewards: { XP: 20 }, Target: 'tag:ResourceNode/Node=Rock' },
+            { Id: 'Planks', Title: 'Craft planks', Type: 'Have', Item: 'Planks', Amount: 3, Rewards: { XP: 30 }, Target: 'tag:CraftingTable' },
             { Id: 'Survive', Title: 'Defeat 5 zombies', Type: 'Earn', Stat: 'Kills', Amount: 5, Rewards: { Coins: 50, XP: 100 } },
             { Id: 'Level3', Title: 'Reach level 3', Type: 'Reach', Stat: 'Level', Amount: 3, Rewards: { Coins: 100 } },
             { Id: 'Hunter', Title: 'Defeat 50 zombies', Type: 'Earn', Stat: 'Kills', Amount: 50, Rewards: { Coins: 500, XP: 800 } },

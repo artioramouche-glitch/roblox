@@ -49,7 +49,8 @@ gemini mcp add roblox node PATH/packages/roblox-ultimate-mcp/dist/index.js      
    `edit_script`), then run it again until `PASS`.
 4. Customise **without code**:
    - `add_system { system, config }` — settings live in `ReplicatedStorage/GameKit/Config/<System>`.
-     Retention systems: `inventory`, `levels`, `quests` (chain = tutorial), `pets` (eggs).
+     Retention systems: `inventory`, `levels`, `quests` (chain = tutorial; `Target` = guide arrow), `pets` (eggs).
+     Growth systems: `codes` (redeem codes), `social` (friend boost, invite button, group bonus).
    - `build_world { kind, options }` — whole worlds (`obby_course`, `maze`, `arena`...) or pieces (`jump_pad`, `coin`, `spinner`...).
    - `build_ui { spec }` — JSON UI with `bind` / `bar` / `showIf` / `action` (no Luau).
    - `set_environment { preset, terrain }` — lighting mood and terrain.

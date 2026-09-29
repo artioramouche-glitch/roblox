@@ -234,6 +234,25 @@ describe('World generators', () => {
     }
   });
 
+  test('quest guide arrows point at something that exists in the template world', () => {
+    for (const t of TEMPLATES) {
+      const plan = t.plan({});
+      const nodes = plan.world.flatMap((p) => collect(p.node));
+      const quests = (plan.config.Quests?.List ?? []) as Array<{ Id: string; Type: string; Target?: string }>;
+      for (const q of quests) {
+        const spec = q.Type === 'Touch' ? `quest:${q.Id}` : q.Target;
+        if (!spec) continue;
+        const m = /^(?:quest:(.+)|tag:([^/]+)(?:\/([^=]+)=(.+))?)$/.exec(spec);
+        expect({ template: t.id, quest: q.Id, valid: !!m }).toEqual({ template: t.id, quest: q.Id, valid: true });
+        const [, questId, tag, key, value] = m!;
+        const found = nodes.some((n) => questId
+          ? n.tags?.includes('QuestTarget') && n.attrs?.Quest === questId
+          : n.tags?.includes(tag) && (!key || String(n.attrs?.[key]) === value));
+        expect({ template: t.id, quest: q.Id, target: spec, found }).toEqual({ template: t.id, quest: q.Id, target: spec, found: true });
+      }
+    }
+  });
+
   test('tycoon buttons reference existing items', () => {
     const plots = collect(buildWorld('tycoon_plots', { count: 2 })).filter((n) => n.tags?.includes('TycoonPlot'));
     expect(plots).toHaveLength(2);

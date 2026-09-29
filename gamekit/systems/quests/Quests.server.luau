@@ -6,6 +6,9 @@
 --   Touch -- touch a part tagged "QuestTarget" whose attribute Quest = the quest Id ("Find the secret cave")
 -- Mode "Chain": one quest at a time, in order (great for onboarding). Mode "All": all at once.
 -- Rewards are stats, e.g. { Coins = 100, XP = 50 }. The tracker panel shows progress.
+-- Guide arrow (ShowArrow): a beam from the player to where the quest happens. Touch quests
+-- point at their QuestTarget; others use Target = "tag:FishingSpot" (nearest tagged part),
+-- "tag:ResourceNode/Node=Tree" (nearest with that attribute) or a path like "Workspace/GameKit/Shop".
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerScriptService = game:GetService("ServerScriptService")
@@ -23,9 +26,10 @@ local config = Util.config("Quests", {
 		{ Id = "MoreCoins", Title = "Collect 200 coins", Type = "Earn", Stat = "Coins", Amount = 200, Rewards = { XP = 150, Coins = 50 } },
 	},
 	ShowTracker = true,
+	ShowArrow = true,
 })
 
-type Quest = { Id: string, Title: string?, Type: string?, Stat: string?, Item: string?, Amount: number?, Rewards: { [string]: number }? }
+type Quest = { Id: string, Title: string?, Type: string?, Stat: string?, Item: string?, Amount: number?, Rewards: { [string]: number }?, Target: string? }
 
 local quests: { Quest } = {}
 for _, quest in config.List do
@@ -75,7 +79,14 @@ end
 local function publish(player: Player)
 	local rows = {}
 	for _, quest in active(player) do
-		table.insert(rows, { id = quest.Id, title = quest.Title or quest.Id, progress = math.min(progressOf(player, quest), quest.Amount or 1), goal = quest.Amount or 1 })
+		local target = if quest.Type == "Touch" then `quest:{quest.Id}` else quest.Target
+		table.insert(rows, {
+			id = quest.Id,
+			title = quest.Title or quest.Id,
+			progress = math.min(progressOf(player, quest), quest.Amount or 1),
+			goal = quest.Amount or 1,
+			target = if config.ShowArrow ~= false then target else nil,
+		})
 	end
 	local data = state(player)
 	local done = 0
@@ -125,26 +136,22 @@ local function evaluate(player: Player)
 	publish(player)
 end
 
--- "Earn" quests count gains made while they are active.
+-- One listener per stat: "Earn" quests count gains made while they are active, and any
+-- change can complete a "Reach" quest. (A stat can be used by both kinds.)
 local watched: { [string]: boolean } = {}
 for _, quest in quests do
-	if quest.Type == "Earn" and quest.Stat and not watched[quest.Stat] then
-		watched[quest.Stat] = true
-		PlayerData.onChanged(quest.Stat, function(player, new, old)
-			if new <= old then
-				return
-			end
-			local data = state(player)
-			for _, q in active(player) do
-				if q.Type == "Earn" and q.Stat == quest.Stat then
-					data.Progress[q.Id] = (data.Progress[q.Id] or 0) + (new - old)
+	local stat = quest.Stat
+	if (quest.Type == "Earn" or quest.Type == "Reach") and stat and not watched[stat] then
+		watched[stat] = true
+		PlayerData.onChanged(stat, function(player, new, old)
+			if new > old then
+				local data = state(player)
+				for _, q in active(player) do
+					if q.Type == "Earn" and q.Stat == stat then
+						data.Progress[q.Id] = (data.Progress[q.Id] or 0) + (new - old)
+					end
 				end
 			end
-			evaluate(player)
-		end)
-	elseif quest.Type == "Reach" and quest.Stat and not watched[quest.Stat] then
-		watched[quest.Stat] = true
-		PlayerData.onChanged(quest.Stat, function(player)
 			evaluate(player)
 		end)
 	end

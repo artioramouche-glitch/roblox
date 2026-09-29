@@ -250,6 +250,28 @@ local function autoplayChecks(player: Player, character: Model)
 		end
 	end
 
+	-- Codes: the first code works once, not twice.
+	local codesHook = hookOf("Codes")
+	if codesHook then
+		local ok, result = pcall(function()
+			return codesHook:Invoke("redeemFirst", player)
+		end)
+		if ok and type(result) == "table" then
+			probe("redeem code", result.ok == true and result.twice == false, `{tostring(result.code)}: first {tostring(result.ok)}, second {tostring(result.twice)}`)
+		elseif not ok then
+			probe("redeem code", false, tostring(result))
+		end
+	end
+
+	-- Social: the boost multiplier is sane (1 = no friends here).
+	local socialHook = hookOf("Social")
+	if socialHook then
+		local ok, result = pcall(function()
+			return socialHook:Invoke("boost", player)
+		end)
+		probe("social boost", ok and type(result) == "number" and result >= 1 and result <= 3, if ok then `boost x{tostring(result)}` else tostring(result))
+	end
+
 	-- Kill parts: standing on one should kill (checked last; the character respawns).
 	local kill = CollectionService:GetTagged("KillPart")[1]
 	local humanoid = character:FindFirstChildOfClass("Humanoid")

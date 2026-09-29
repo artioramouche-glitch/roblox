@@ -105,12 +105,47 @@ Ce fichier dit ce qui est fait, ce qui reste et comment reprendre. Il sert à co
 ## 👉 Prochaine étape possible
 - Publier le paquet sur npm, pour que `npx roblox-ultimate-mcp setup` marche pour tout le monde. Il faut ajouter le secret `NPM_TOKEN` dans GitHub, puis lancer Actions > Publish to npm.
 
+## ✅ Round 4 (fait) : corrections, traductions, codes, social, flèche de quête
+
+1. **Relecture du code du round 3.** Un bug corrigé dans les quêtes : quand une même stat servait à une quête
+   « Gagner N » et à une quête « Atteindre N », une seule écoute était enregistrée. Selon l'ordre de la liste, la
+   progression de « Gagner » pouvait alors ne jamais être comptée.
+2. **Traductions FR/ES/PT/DE** des textes des nouveaux systèmes : quêtes, XP, course, pêche, craft, noms des
+   objets et des poissons, titres des quêtes des modèles, codes, invitations. La file des quêtes, la barre d'XP et
+   le panneau de course passent maintenant par le traducteur. Des cas ont été ajoutés au test Lune `test-lang`.
+3. **Système `codes`** : fenêtre 🎟 où le joueur saisit un code cadeau.
+   - Chaque joueur ne peut utiliser un code qu'une fois (c'est sauvegardé).
+   - La casse ne compte pas, une date d'expiration et un niveau minimum sont possibles.
+   - Un seul essai par seconde, pour empêcher de deviner les codes.
+4. **Système `social`** :
+   - +10 % de gains par ami présent dans le serveur (jusqu'à +50 %) ;
+   - bouton 👥 d'invitation, récompensé une fois par jour ;
+   - bonus pour les membres de ton groupe Roblox (`Config.Social.GroupId`) ;
+   - le bonus en cours s'affiche sur le bouton.
+5. **Flèche de guidage des quêtes** : un rayon lumineux et un 📍 montrent où aller pour la quête en cours.
+   - Les quêtes « Toucher » pointent vers leur QuestTarget.
+   - Les autres utilisent `Target`, par exemple `"tag:FishingSpot"`, `"tag:ResourceNode/Node=Tree"` ou un chemin.
+   - Les quêtes des modèles pêche et survie ont reçu leurs cibles, et un test vérifie qu'elles existent dans le monde.
+6. **Boutons du HUD adaptés aux téléphones** : sur un petit écran, les boutons rapetissent et passent sur deux
+   colonnes. Avant, une seule colonne de 68 px sortait de l'écran d'un téléphone dès 5 boutons.
+7. `codes` et `social` sont ajoutés à 9 modèles sur 11 (pas tycoon, qui utilise Cash, ni horror_escape).
+8. **Vérification** :
+   - build OK ;
+   - 107 tests serveur et 90 tests Game Kit, tous verts ;
+   - smoke OK, intégration Lune OK (check_game CLEAN) ;
+   - 121 installateurs validés (6 906 instances) ;
+   - luau-lsp : 0 diagnostic ;
+   - lint : toujours les 3 erreurs dans le code 6xvl, que ce round n'a pas touché.
+
 ## ⚠️ À tester par toi dans le vrai Studio et le vrai Blender
 
 Ces points ne peuvent pas être vérifiés ici :
 
 - **Karts :** la conduite (vitesse, virages, stabilité), sur PC et sur mobile.
 - **Pêche :** le bouton REEL au bon moment, sur téléphone.
+- **Codes et invitations :** saisir `WELCOME` dans la fenêtre 🎟 ; le bouton 👥 (les invitations ne marchent que dans le jeu publié).
+- **Flèche de quête :** dans le modèle `fishing`, la flèche doit mener au point de pêche, puis au marché, puis à la boutique.
+- **Boutons sur téléphone :** avec `test_game {device: "phone"}`, aucun bouton ne doit sortir de l'écran.
 - **Craft :** les constructions posées devant le joueur, et la faim.
 - **Test à 2 joueurs :** il faut un Studio récent (`ExecuteMultiplayerTestAsync`).
 - **Test téléphone :** vérifier que le simulateur d'appareil s'applique bien pendant le Play.

@@ -80,6 +80,8 @@
 - levels: XP and levels with a growing curve, an XP bar, level-up toast + sparkles and rewards.
 - quests: Missions with rewards and a tracker panel: earn a stat, reach a value, own items, or touch a secret place.
 - pets: Hatch eggs for random pets (chances, rarities), equip the best ones to multiply rewards, pets follow you, 🐾 window, hatch animation.
+- codes: Codes players type in a 🎟 window for rewards (share them on socials / in the description), once per player, optional expiry date.
+- social: Growth levers: +10% for each friend in the server (max +50%), a 👥 invite button (daily reward), and a group bonus (multiplier + one-time…
 - racing: Race rounds on a track: grid, 3-2-1-GO, laps through checkpoints in order, positions, best lap saved, place rewards.
 - fishing: Cast at fishing spots, wait for the bite, press REEL in time.
 - crafting: Gather wood, stone and berries from resource nodes, craft items, tools (weapons, better axes), builds (campfire heals, walls, spikes vs…
@@ -98,7 +100,7 @@
 
 A floating parkour course over a lava sea: saved checkpoints, 12 obstacle types with rising difficulty, coins, finish rewards, shop with trails, global Wins board, daily reward.
 
-Systems: hud, checkpoints, hazards, movers, collectibles, shop, daily, leaderboard, movement, atmosphere, admin
+Systems: hud, checkpoints, hazards, movers, collectibles, shop, daily, codes, social, leaderboard, movement, atmosphere, admin
 Lighting: day
 Options: title = sign text; stages = 2-60 (default 12); difficulty = easy | medium | hard; theme = rainbow | candy | neon | nature | space | lava | ice; obstacles = optional list of obstacle types to cycle
 
@@ -126,7 +128,7 @@ Options: title = welcome text; plots = 1-8 (default 4)
 
 Train to fill your backpack with Power, sell for Coins, buy upgrades and pets, unlock zones with bigger orbs, rebirth for a permanent multiplier.
 
-Systems: hud, simulator, collectibles, shop, daily, leaderboard, movement, atmosphere, admin
+Systems: hud, simulator, collectibles, shop, daily, codes, social, leaderboard, movement, atmosphere, admin
 Lighting: day
 Options: zones = 1-6 (default 3)
 
@@ -140,7 +142,7 @@ Options: zones = 1-6 (default 3)
 
 Lobby + arena with cover, round loop (intermission, last one standing wins), swords given during rounds, kill and win rewards, shop with trails and boosts.
 
-Systems: hud, rounds, combat, shop, daily, leaderboard, movement, atmosphere, admin
+Systems: hud, rounds, combat, shop, daily, codes, social, leaderboard, movement, atmosphere, admin
 Lighting: sunset
 Options: title = lobby sign text; theme = arena theme
 
@@ -154,7 +156,7 @@ Options: title = lobby sign text; theme = arena theme
 
 Survive growing waves of zombies (normal, fast, brute) with a sword; earn coins per kill and per wave; spend them in the shop.
 
-Systems: hud, enemies, combat, shop, daily, leaderboard, movement, atmosphere, admin
+Systems: hud, enemies, combat, shop, daily, codes, social, leaderboard, movement, atmosphere, admin
 Lighting: night
 Options: title = unused; seed = layout seed
 
@@ -182,7 +184,7 @@ Options: mazeSize = 6-20 cells (default 10); keys = keys to find (default 3); se
 
 Enemies walk a winding path in waves (Basic, Fast, Tank, Boss); players build and upgrade Archer, Cannon (splash) and Frost (slow) towers on 15 pads with match cash and defend the castle together. Victory rewards Wins and Coins.
 
-Systems: hud, towerdefense, shop, daily, leaderboard, movement, atmosphere, admin
+Systems: hud, towerdefense, shop, daily, codes, social, leaderboard, movement, atmosphere, admin
 Lighting: day
 Options: waves = 5-50 waves to win (default 15); title = welcome text
 
@@ -197,7 +199,7 @@ Options: waves = 5-50 waves to win (default 15); title = welcome text
 
 Plant seeds on 24 plots, watch them grow, harvest, sell at the market and unlock better crops (Wheat -> Carrot -> Tomato -> Pumpkin -> Crystal). Calm, saved progression with a shop and daily rewards.
 
-Systems: hud, farming, shop, daily, leaderboard, movement, atmosphere, admin
+Systems: hud, farming, shop, daily, codes, social, leaderboard, movement, atmosphere, admin
 Lighting: day
 Options: plots = 4-64 plots (default 24); title = welcome text
 
@@ -211,7 +213,7 @@ Options: plots = 4-64 plots (default 24); title = welcome text
 
 Kart races on an oval track: starting grid, 3-2-1-GO, laps through checkpoints, live positions, best lap saved, podium rewards, quests and levels. Works on keyboard, gamepad and mobile.
 
-Systems: hud, racing, levels, quests, shop, daily, leaderboard, atmosphere, admin
+Systems: hud, racing, levels, quests, shop, daily, codes, social, leaderboard, atmosphere, admin
 Lighting: day
 Options: laps = laps per race (default 3); karts = false = running race instead of karts; title = welcome text
 
@@ -225,7 +227,7 @@ Options: laps = laps per race (default 3); karts = false = running race instead 
 
 Cast, wait for the bite, reel in time: 6 fish in 2 zones (pond, ocean) with rarities, sell at the fish market, upgrade your rod to fish faster, catch rarer fish and unlock the ocean. Quests, levels, eggs and pets.
 
-Systems: hud, inventory, fishing, levels, quests, pets, shop, daily, leaderboard, movement, atmosphere, admin
+Systems: hud, inventory, fishing, levels, quests, pets, shop, daily, codes, social, leaderboard, movement, atmosphere, admin
 Lighting: day
 Options: title = welcome text
 
@@ -239,7 +241,7 @@ Options: title = welcome text
 
 Gather wood, stone and berries by day, craft axes, swords, walls, spikes and campfires, keep your hunger up, and defend the camp together against zombie waves every night.
 
-Systems: hud, inventory, crafting, enemies, combat, levels, quests, shop, daily, leaderboard, movement, atmosphere, admin
+Systems: hud, inventory, crafting, enemies, combat, levels, quests, shop, daily, codes, social, leaderboard, movement, atmosphere, admin
 Lighting: day
 Options: title = welcome text; seed = forest layout seed
 
@@ -1231,11 +1233,13 @@ Scripts: systems/quests/Quests.server.luau, systems/quests/Quests.client.luau
       }
     }
   ],
-  "ShowTracker": true
+  "ShowTracker": true,
+  "ShowArrow": true
 }
 ```
 - Mode: "Chain" = one quest at a time in order, "All" = all at once.
-- List: Each quest: Id, Title, Type (Earn | Reach | Have | Touch), Stat or Item, Amount, Rewards. Touch quests: tag a part "QuestTarget" with attribute Quest = Id.
+- List: Each quest: Id, Title, Type (Earn | Reach | Have | Touch), Stat or Item, Amount, Rewards, Target. Touch quests: tag a part "QuestTarget" with attribute Quest = Id.
+- ShowArrow: Guide arrow to the first quest: Touch quests point at their QuestTarget; others at Target = "tag:FishingSpot", "tag:ResourceNode/Node=Tree" (nearest) or a path "Workspace/GameKit/Shop".
 
 #### How to use
 Write quests that teach the game in order (Chain): first action, first purchase, first zone... Rewards can include XP (levels system).
@@ -1301,6 +1305,61 @@ Scripts: systems/pets/Pets.server.luau, systems/pets/Pets.client.luau
 
 #### How to use
 build_world piece "egg_stand" {egg: "Basic"}. Put better eggs in later zones with higher prices.
+### System: Redeem codes (codes)
+
+Codes players type in a 🎟 window for rewards (share them on socials / in the description), once per player, optional expiry date. Not case sensitive, brute force blocked.
+
+Requires: core, hud
+Scripts: systems/codes/Codes.server.luau, systems/codes/Codes.client.luau
+
+#### Config.Codes
+```json
+{
+  "List": {
+    "WELCOME": {
+      "Rewards": {
+        "Coins": 100
+      }
+    }
+  },
+  "ShowButton": true
+}
+```
+- List: CODE = { Rewards = { Coins = 100 }, Expires = "2026-12-31" (optional, UTC), MinLevel = 5 (optional, levels system) }.
+
+#### How to use
+Add a code for each update or milestone ("100KVISITS") and announce it: players come back to redeem it.
+### System: Friends & group boosts (social)
+
+Growth levers: +10% for each friend in the server (max +50%), a 👥 invite button (daily reward), and a group bonus (multiplier + one-time reward) when Config.Social.GroupId is set.
+
+Requires: core, hud
+Scripts: systems/social/Social.server.luau, systems/social/Social.client.luau
+
+#### Config.Social
+```json
+{
+  "Stat": "Coins",
+  "FriendBoost": 0.1,
+  "MaxFriendBoost": 0.5,
+  "InviteButton": true,
+  "InviteReward": {
+    "Coins": 50
+  },
+  "GroupId": 0,
+  "GroupBoost": 0.1,
+  "GroupReward": {
+    "Coins": 250
+  }
+}
+```
+- Stat: Stat boosted by friends and the group.
+- FriendBoost: Bonus per friend playing in the same server (0.1 = +10%), up to MaxFriendBoost.
+- InviteReward: Given once a day when the player opens the invite window.
+- GroupId: Your Roblox group id (0 = off). Members get GroupBoost and GroupReward once.
+
+#### How to use
+Mention the boosts in the game description and welcome message: "Play with friends for +10% coins each!".
 ### System: Racing (racing)
 
 Race rounds on a track: grid, 3-2-1-GO, laps through checkpoints in order, positions, best lap saved, place rewards. Arcade karts (keyboard, gamepad, mobile) or running races.
@@ -1609,7 +1668,8 @@ build_world survival_camp makes a camp + forest of resources + enemy spawners. C
    - screens: build_ui (JSON -> real UI, live stat text, buttons that open windows)
    - mood: set_environment (lighting preset + terrain)
    - scenery: populate_world { theme: "forest" | "desert" | "snow" | "beach" | "fantasy" | "city" | "farm" | "spooky" | "garden" }
-   - retention: add_system inventory | levels | quests | pets (eggs) -- quests teach the game step by step
+   - retention: add_system inventory | levels | quests | pets (eggs) | codes | social -- quests teach the game
+     step by step (Target = guide arrow), codes reward returning players, social boosts playing with friends
    - custom 3D models: Blender (guide "blender") -> blender_to_roblox (characters: + blender_animation)
    - **look_at_game** to SEE the result from several angles; fix what looks wrong.
    - advanced (find_tools + call_tool): terrain_fill_*, lighting_*, particle_create, sound_*, animation_*,
@@ -1653,7 +1713,9 @@ Action -> reward -> upgrade -> bigger action. Examples:
 #### Social & retention
 - Global leaderboard (leaderboard system), daily reward with streak (daily system),
   visible cosmetics (trails, pets) so players show off.
-- Long-term goals: levels (XP bar), quests (chain mode = tutorial), eggs & pets (collection), inventory items to sell.
+- Long-term goals: levels (XP bar), quests (chain mode = tutorial, guide arrow), eggs & pets (collection), inventory items to sell.
+- Growth: codes system (announce a new code with each update), social system (+10% per friend in the server,
+  invite button, group bonus with Config.Social.GroupId).
 #### Onboarding
 - Welcome toast explaining the goal (Config.Core.WelcomeMessage). Signs/billboards in the world.
 - The first 2 minutes must be easy. Difficulty ramps slowly (obby_course does this).

@@ -1,6 +1,9 @@
 -- GameKit Quests client (StarterPlayerScripts.GameKit.QuestsClient)
--- The quest tracker: active quests with a progress bar, on the right of the screen.
+-- The quest tracker: active quests with a progress bar, on the right of the screen, and the
+-- guide arrow: a beam from the player to where the first quest happens.
 
+local CollectionService = game:GetService("CollectionService")
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 
@@ -8,6 +11,7 @@ local kit = ReplicatedStorage:WaitForChild("GameKit")
 local Util = require(kit:WaitForChild("Util"))
 local Net = require(kit:WaitForChild("Net"))
 local UIKit = require(kit:WaitForChild("UIKit"))
+local Lang = require(kit:WaitForChild("Lang"))
 
 local config = Util.config("Quests", {
 	ShowTracker = true,
@@ -60,13 +64,105 @@ local function row(order: number, text: string, progress: number, goal: number)
 	frame.Parent = panel
 end
 
+-- Guide arrow ---------------------------------------------------------------------------------
+local player = Players.LocalPlayer
+local currentTarget: string? = nil
+local goal = Instance.new("Attachment")
+goal.Name = "GK_QuestGoal"
+local marker = Instance.new("BillboardGui")
+marker.Name = "GK_QuestMarker"
+marker.Size = UDim2.fromOffset(60, 60)
+marker.AlwaysOnTop = true
+marker.StudsOffsetWorldSpace = Vector3.new(0, 4, 0)
+marker.Adornee = goal
+local pin = Instance.new("TextLabel")
+pin.Size = UDim2.fromScale(1, 1)
+pin.BackgroundTransparency = 1
+pin.Text = "📍"
+pin.TextScaled = true
+pin.Parent = marker
+local beam = Instance.new("Beam")
+beam.Name = "GK_QuestBeam"
+beam.Color = ColorSequence.new(Color3.fromRGB(255, 214, 64))
+beam.Transparency = NumberSequence.new(0.2, 0.6)
+beam.Width0 = 0.6
+beam.Width1 = 0.6
+beam.FaceCamera = true
+beam.Segments = 1
+
+local function positionOf(instance: Instance): Vector3?
+	if instance:IsA("BasePart") then
+		return instance.Position
+	elseif instance:IsA("Model") then
+		return instance:GetPivot().Position
+	end
+	return nil
+end
+
+-- "quest:<Id>" (its QuestTarget), "tag:<Tag>" or "tag:<Tag>/<Attribute>=<Value>" (nearest tagged
+-- thing, e.g. "tag:ResourceNode/Node=Tree"), or a path like "Workspace/GameKit/Shop".
+local function resolve(target: string, from: Vector3): Vector3?
+	local questId = string.match(target, "^quest:(.+)$")
+	local tagSpec = string.match(target, "^tag:(.+)$")
+	if questId or tagSpec then
+		local tag, key, value = "QuestTarget", "Quest", questId
+		if tagSpec then
+			local t, k, v = string.match(tagSpec, "^([^/]+)/([^=]+)=(.+)$")
+			tag, key, value = t or tagSpec, k, v
+		end
+		local best, bestDistance = nil, math.huge
+		for _, instance in CollectionService:GetTagged(tag) do
+			if instance:IsDescendantOf(workspace) and (not key or tostring(instance:GetAttribute(key)) == value) then
+				local position = positionOf(instance)
+				if position and (position - from).Magnitude < bestDistance then
+					best, bestDistance = position, (position - from).Magnitude
+				end
+			end
+		end
+		return best
+	end
+	local node: Instance? = game
+	for segment in string.gmatch(target, "[^/%.]+") do
+		if node == game then
+			node = if segment == "Workspace" or segment == "workspace" then workspace else game:FindFirstChild(segment)
+		elseif node then
+			node = node:FindFirstChild(segment)
+		end
+	end
+	return if node and node ~= game then positionOf(node) else nil
+end
+
+task.spawn(function()
+	while true do
+		local character = player.Character
+		local root = character and character:FindFirstChild("HumanoidRootPart")
+		local position = if currentTarget and root and root:IsA("BasePart") then resolve(currentTarget, root.Position) else nil
+		if position and root and (position - (root :: BasePart).Position).Magnitude > 12 then
+			goal.WorldPosition = position
+			goal.Parent = workspace.Terrain
+			local start = root:FindFirstChild("GK_QuestStart") or Instance.new("Attachment")
+			start.Name = "GK_QuestStart"
+			start.Parent = root
+			beam.Attachment0 = start :: Attachment
+			beam.Attachment1 = goal
+			beam.Parent = workspace.Terrain
+			marker.Parent = player:WaitForChild("PlayerGui")
+		else
+			beam.Parent = nil
+			marker.Parent = nil
+		end
+		task.wait(0.5)
+	end
+end)
+
 Net.listen("QuestsUpdate", function(rows: { any }, done: number, total: number)
+	currentTarget = if rows[1] and type(rows[1].target) == "string" then rows[1].target else nil
 	for _, child in panel:GetChildren() do
 		if child:IsA("Frame") then
 			child:Destroy()
 		end
 	end
-	title.Text = `📜 Quests  {done}/{total}`
+	title.Text = Lang.t(`📜 Quests  {done}/{total}`)
 	for index, quest in rows do
 		row(index, quest.title, quest.progress, quest.goal)
 	end

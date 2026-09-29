@@ -138,18 +138,28 @@ function UIKit.buttonColumn(): Frame
 	if column and column:IsA("Frame") then
 		return column
 	end
+	-- A grid that fills top to bottom, then starts a second column: on a phone in landscape
+	-- (~375 px high) a single column of 68 px buttons runs off the screen after 5 buttons.
 	local frame = Instance.new("Frame")
 	frame.Name = "Buttons"
 	frame.BackgroundTransparency = 1
 	frame.AnchorPoint = Vector2.new(0, 0.5)
 	frame.Position = UDim2.new(0, 12, 0.5, 0)
-	frame.Size = UDim2.new(0, 72, 0.5, 0)
-	local list = Instance.new("UIListLayout")
-	list.Padding = UDim.new(0, 10)
-	list.VerticalAlignment = Enum.VerticalAlignment.Center
-	list.SortOrder = Enum.SortOrder.LayoutOrder
-	list.Parent = frame
+	frame.Size = UDim2.new(0, 160, 0.7, 0)
+	local grid = Instance.new("UIGridLayout")
+	grid.CellPadding = UDim2.fromOffset(8, 8)
+	grid.FillDirection = Enum.FillDirection.Vertical
+	grid.VerticalAlignment = Enum.VerticalAlignment.Center
+	grid.SortOrder = Enum.SortOrder.LayoutOrder
+	grid.Parent = frame
+	local function fit()
+		local cell = if hud.AbsoluteSize.Y > 0 and hud.AbsoluteSize.Y < 500 then 54 else 68
+		grid.CellSize = UDim2.fromOffset(cell, cell)
+		grid.FillDirectionMaxCells = math.max(1, math.floor((frame.AbsoluteSize.Y + 8) / (cell + 8)))
+	end
+	frame:GetPropertyChangedSignal("AbsoluteSize"):Connect(fit)
 	frame.Parent = hud
+	fit()
 	return frame
 end
 

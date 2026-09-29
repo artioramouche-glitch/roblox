@@ -8,6 +8,7 @@ local TweenService = game:GetService("TweenService")
 local kit = ReplicatedStorage:WaitForChild("GameKit")
 local Util = require(kit:WaitForChild("Util"))
 local UIKit = require(kit:WaitForChild("UIKit"))
+local Lang = require(kit:WaitForChild("Lang"))
 
 local config = Util.config("Levels", {
 	XPStat = "XP",
@@ -52,7 +53,7 @@ local function refresh()
 	local span = math.max(1, nextLevel - start)
 	local progress = math.clamp((xp - start) / span, 0, 1)
 	TweenService:Create(fill, TweenInfo.new(0.3), { Size = UDim2.fromScale(progress, 1) }):Play()
-	label.Text = `⭐ Level {level}  •  {Util.formatNumber(xp - start)} / {Util.formatNumber(span)} XP`
+	label.Text = Lang.t(`⭐ Level {level}  •  {Util.formatNumber(xp - start)} / {Util.formatNumber(span)} XP`)
 end
 
 for _, name in { Util.attrName(config.LevelStat), Util.attrName(config.XPStat), "XPLevelStart", "XPNextLevel" } do
