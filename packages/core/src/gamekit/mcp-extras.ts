@@ -29,7 +29,8 @@ ALWAYS follow this path:
 3. Call test_game after every change and fix every error it reports until it says PASS.
 4. Customise with add_system (config), build_world, build_ui and set_environment -- they need no code.
 5. Before writing code, try code_recipe (verified scripts). Otherwise write_script for new scripts and edit_script for changes: both auto-fix and refuse broken code. Server logic in ServerScriptService, UI/input in LocalScripts.
-6. Look at the result with look_at_game, decorate with populate_world, and run check_game before finishing.
+6. Look at the result with look_at_game, decorate with populate_world, and run check_game before finishing. Keep the project memory in game_notes.
+Before publishing: test_game {players: 2}, test_game {device: "phone"}, check_assets, optimize_game, publish_checklist.
 Save with backup_game before risky changes. Slow tools (blender_to_roblox, long test_game) can run through start_job while you keep working.
 Custom 3D models: blender_status, then model in Blender and send with blender_to_roblox. Several AIs on one game: team (plan, claim tasks, claim zones).
 Read roblox_guide (topics: workflow, coding, design, luau, client-server, ui, errors) when unsure. Understand existing code with code_outline and read_script { path, find }. Never invent Roblox APIs; never trust values sent by the client.

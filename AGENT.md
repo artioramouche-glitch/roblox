@@ -5,6 +5,10 @@
 
 ## 1. Install for the user (once)
 
+Fastest (once the package is published on npm): `npx roblox-ultimate-mcp setup` installs the Studio plugin and
+registers the server in Claude Desktop / Cursor / Windsurf (`--blender` also installs the Blender addon). It prints
+the line for other clients. Otherwise, from the repository:
+
 ```bash
 git clone https://github.com/artioramouche-glitch/roblox.git
 cd roblox
@@ -37,13 +41,15 @@ gemini mcp add roblox node PATH/packages/roblox-ultimate-mcp/dist/index.js      
 
 ## 2. How to build a game (the golden path)
 
-1. `roblox_start_here` — connection check + what is already installed.
+1. `roblox_start_here` — connection check, what is already installed, and the project memory (`game_notes`).
+   Keep `game_notes` up to date (idea, decisions, todo, done): the next conversation resumes from it.
 2. `create_game { template, options }` — templates: `obby`, `tycoon`, `simulator`, `arena`, `survival`, `horror_escape`,
-   `tower_defense`, `farming`. Builds scripts, config, world, HUD and lighting in one call (and backs up the previous place).
+   `tower_defense`, `farming`, `racing`, `fishing`, `craft_survival`. Builds scripts, config, world, HUD and lighting in one call (and backs up the previous place).
 3. `test_game` — automatic playtest. Fix **every** error it reports (script + line + code + hint, fix with
    `edit_script`), then run it again until `PASS`.
 4. Customise **without code**:
    - `add_system { system, config }` — settings live in `ReplicatedStorage/GameKit/Config/<System>`.
+     Retention systems: `inventory`, `levels`, `quests` (chain = tutorial), `pets` (eggs).
    - `build_world { kind, options }` — whole worlds (`obby_course`, `maze`, `arena`...) or pieces (`jump_pad`, `coin`, `spinner`...).
    - `build_ui { spec }` — JSON UI with `bind` / `bar` / `showIf` / `action` (no Luau).
    - `set_environment { preset, terrain }` — lighting mood and terrain.
@@ -57,7 +63,12 @@ gemini mcp add roblox node PATH/packages/roblox-ultimate-mcp/dist/index.js      
      Both auto-fix JS/Python habits and refuse broken code or invented Roblox APIs (they suggest the right name).
    - Understand existing code: `code_outline`, then `read_script { path, find }` (only the lines you need).
    - Reuse PlayerData / Net / Util / UIKit (`roblox_guide gamekit-api`).
-6. Finish with `check_game` (static audit) and a last `test_game`; `publish_checklist` before publishing.
+6. Finish with `check_game` (static audit) and a last `test_game`. Before publishing: `test_game { players: 2 }`
+   (multiplayer), `test_game { device: "phone" }` (phone screen + UI checks), `check_assets` (sounds/animations really
+   load), `optimize_game` (low-end phones; `apply` for safe fixes), then `publish_checklist`.
+
+Every GameKit change is one undo step named "MCP: AI <tool>": the human can revert your last action from the
+plugin's AI panel.
 
 Safety and speed: `backup_game { action: "save" }` before risky changes (`restore` to undo). Slow tools run in the
 background with `start_job { tool, arguments }` + `job_status { id, wait: 30 }`.
@@ -69,6 +80,11 @@ model with `blender_assets` (Poly Pizza, Sketchfab, Poly Haven, Hyper3D/Hunyuan3
 { screenshot: true }` → `blender_to_roblox { name, position }` (needs ROBLOX_OPEN_CLOUD_API_KEY + ROBLOX_CREATOR_USER_ID;
 without them it exports the file for a manual Import 3D, then `blender_to_roblox { name, existing }`). Read
 `roblox_guide blender`.
+
+Rigged characters: `blender_to_roblox` exports the armature with the mesh (max 4 weights per vertex, < 100 bones) and
+adds an Animator. Then `blender_animation { rig: "<model path>", action: "Walk", priority: "Movement" }` for each
+Blender action: KeyframeSequence in `ServerStorage/GameKit/Animations`, temporary id to test in Studio, animated FBX
+as a fallback (Animation Editor > Import > From FBX Animation).
 
 ## 2c. Several AIs on one game
 
@@ -87,7 +103,7 @@ Read `roblox_guide team`. Lead: `team { action: "plan", goal }`. Everyone: pick 
 
 ## 4. Tool profiles and the 140+ Studio tools
 
-Default profile `starter` lists 37 of the 178 tools (`builder` 98). Everything else is still callable:
+Default profile `starter` lists 38 of the 182 tools (`builder` 102). Everything else is still callable:
 `find_tools { query }` then `call_tool { name, arguments }`, or `set_tool_profile { profile: "builder" | "full" }`.
 Useful families: terrain_*, lighting_*, animation_*, particle_*, sound_*, material_*, insert_asset / search_assets
 (needs an Open Cloud key), capture_screenshot, simulate_*_input, character_navigation, eval_server_runtime /

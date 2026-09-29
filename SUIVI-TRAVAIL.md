@@ -6,7 +6,7 @@ Ce fichier dit ce qui est fait, ce qui reste et comment reprendre. Il sert à co
 - **Branche :** `claude/charming-johnson-0o1yse`
 - **PR :** https://github.com/artioramouche-glitch/roblox/pull/1 (on met à jour cette PR, on n'en crée pas d'autre)
 - **Derniers commits déjà poussés :** `b248f1f` (économie de tokens et aide au code), `69836d4` (Blender, travail en équipe, tower defense et farming)
-- **État du round 3 :** le code décrit ci-dessous est commité et poussé sur la branche, en commit « travail en cours ». Les étapes de la partie « Reste à faire » ne sont pas encore faites.
+- **État du round 3 :** terminé. Le code, les guides de l'IA, la doc en français et la vérification complète sont faits, commités et poussés. Il ne reste que les tests dans le vrai Studio et le vrai Blender (voir plus bas).
 
 ## Ta demande pour ce round
 
@@ -84,24 +84,26 @@ Ce fichier dit ce qui est fait, ce qui reste et comment reprendre. Il sert à co
 - Intégration dans le faux Studio (Lune) : les 11 modèles, y compris racing, fishing et craft_survival, s'installent **sans avertissement**. `check_game` est CLEAN.
 - `tsc` : OK. Le plugin se compile avec `rbxtsc` sans erreur.
 
-## ⏳ Reste à faire (tâche 21)
+## ✅ Finition du round 3 (faite)
 
-1. **Mettre à jour les guides que lit l'IA** :
-   - dans `packages/core/src/gamekit/knowledge.ts`, `tools.ts` (le plan de `roblox_start_here`) et `mcp-extras.ts` ;
-   - y mentionner `test_game {players:2}`, `{device:"phone"}`, `check_assets`, `optimize_game`, `blender_animation` et les 3 nouveaux modèles ;
-   - rester court, pour économiser les tokens.
-2. **Vérification complète**, depuis la racine du dépôt :
-   ```bash
-   npm run build
-   npm test                      # jest core + gamekit
-   npm run lint
-   npm run gamekit:smoke
-   LUNE=<chemin lune> npm run gamekit:integration
-   LUAU_LSP=<chemin luau-lsp> npm run gamekit:verify
-   ```
-   Problèmes connus qui existaient avant ce round et ne viennent pas de nous : un handle ouvert dans `bridge-service.test`, et 2 erreurs de lint dans `packages/core/src/tools/index.ts`.
-3. **Documentation en français** : README, AGENT.md, QUICKSTART.md, docs/CLIENTS et doc GameKit à régénérer avec `npm run gamekit:docs`. On y met les nouveaux systèmes, modèles et outils, `npx ... setup`, le panneau Studio et Blender riggé.
-4. **Commit et push** sur `claude/charming-johnson-0o1yse`, puis **mise à jour de la description de la PR #1**.
+1. **Guides lus par l'IA** mis à jour : `knowledge.ts` (workflow, testing, blender, publishing, design), le plan de
+   `roblox_start_here` et les instructions du serveur (`mcp-extras.ts`). Ils couvrent les 3 nouveaux modèles, les
+   systèmes de rétention, `game_notes`, `test_game {players, device}`, `check_assets`, `optimize_game` et
+   `blender_animation`.
+2. **Vérification complète :**
+   - `npm run build` : OK.
+   - `npm test` : 107 tests serveur et 89 tests Game Kit, tous verts.
+   - `npm run gamekit:smoke` : SMOKE OK.
+   - Intégration Lune (faux Studio) : les 11 jeux s'installent sans avertissement, `check_game` est CLEAN.
+   - Validation des installateurs contre la base de classes Roblox : 119 cas, 0 échec, 6 796 instances.
+   - Test de traduction : LANG OK.
+   - luau-lsp : 0 diagnostic.
+   - `npm run lint` : 3 erreurs, toutes dans du code importé de 6xvl que ce round n'a pas touché (`bridge-service.test.ts` et `tools/index.ts`). Il y a aussi des avertissements `any` qui existaient déjà.
+3. **Doc en français :** README (nouvelles sections Qualité, Panneau IA, Publier sur npm, chiffres à jour : 11 jeux, 28 systèmes, 53 pièces, profils 38 / 102 / 182 outils), QUICKSTART, docs/CLIENTS. AGENT.md est en anglais parce qu'il est destiné aux IA. `docs/GAMEKIT.md` est régénéré depuis le code.
+4. Commit, push et mise à jour de la description de la PR #1.
+
+## 👉 Prochaine étape possible
+- Publier le paquet sur npm, pour que `npx roblox-ultimate-mcp setup` marche pour tout le monde. Il faut ajouter le secret `NPM_TOKEN` dans GitHub, puis lancer Actions > Publish to npm.
 
 ## ⚠️ À tester par toi dans le vrai Studio et le vrai Blender
 
@@ -123,4 +125,6 @@ Ces points ne peuvent pas être vérifiés ici :
 
 Dis à l'IA :
 
-> « Lis SUIVI-TRAVAIL.md, puis termine la partie "Reste à faire" : guides, vérification complète, docs en français, commit, push et mise à jour de la PR #1. »
+> « Lis SUIVI-TRAVAIL.md pour savoir où en est le projet. »
+
+Puis donne-lui la suite : tes retours de test dans Studio, ou de nouvelles idées.

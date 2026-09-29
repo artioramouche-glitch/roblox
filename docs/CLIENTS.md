@@ -1,9 +1,15 @@
 # Brancher n'importe quel client MCP
 
 Le serveur utilise le transport **stdio** : tout client MCP capable de lancer une commande locale fonctionne.
-Remplace `CHEMIN` par le dossier où tu as cloné le dépôt (après `npm install`).
 
-Commande universelle :
+**Le plus simple** (une fois le paquet publié sur npm) : `npx roblox-ultimate-mcp setup` configure tout seul Claude
+Desktop, Cursor et Windsurf, et affiche la ligne pour les autres. La commande à donner à un client est alors :
+
+```
+npx -y roblox-ultimate-mcp@latest          (Windows : "command": "cmd", "args": ["/c", "npx", "-y", "roblox-ultimate-mcp@latest"])
+```
+
+**Depuis le dépôt** : remplace `CHEMIN` par le dossier où tu as cloné le dépôt (après `npm install`). Commande universelle :
 
 ```
 node CHEMIN/packages/roblox-ultimate-mcp/dist/index.js
@@ -13,9 +19,10 @@ Variables d'environnement utiles :
 
 | Variable | Effet |
 |---|---|
-| `ROBLOX_MCP_PROFILE` | `starter` (défaut, 37 outils), `builder` (98), `full` (178) |
+| `ROBLOX_MCP_PROFILE` | `starter` (défaut, 38 outils), `builder` (102), `full` (182) |
 | `ROBLOX_MCP_COMPACT` | `0` : descriptions d'outils complètes (par défaut, version courte pour économiser les tokens) |
 | `ROBLOX_MCP_PRETTY` | `1` : réponses JSON indentées (par défaut compactes) |
+| `ROBLOX_MCP_HISTORY` | `0` : ne pas noter les changements de l'IA dans l'historique de `game_notes` |
 | `ROBLOX_STUDIO_PORT` | Port HTTP pour le plugin (défaut `58741`, secours `3002`) |
 | `ROBLOX_OPEN_CLOUD_API_KEY` | Clé Open Cloud pour `search_assets` / `upload_asset` / `blender_to_roblox` (droits *asset:read*, *asset:write*) |
 | `ROBLOX_CREATOR_USER_ID` / `ROBLOX_CREATOR_GROUP_ID` | Propriétaire des modèles envoyés (`upload_asset`, `blender_to_roblox`) |
@@ -119,7 +126,8 @@ Les tâches de fond (`start_job` / `job_status`) restent propres à chaque clien
 ## Blender
 
 Une seule entrée MCP suffit : ce serveur parle directement à l'addon « MCP for Blender »
-(`npm run install-blender-addon`, puis **N → MCP for Blender → Connect to MCP server** dans Blender).
+(`npx roblox-ultimate-mcp setup --blender` ou `npm run install-blender-addon`, puis **N → MCP for Blender → Connect
+to MCP server** dans Blender).
 Tu n'as **pas** besoin d'ajouter le serveur Python `blender-mcp` à ton IA (s'il tourne aussi, les deux se partagent
 l'addon, une commande à la fois).
 
@@ -141,7 +149,7 @@ Exemple avec envoi automatique des modèles vers Roblox :
 
 ## Vérifier la connexion
 
-1. ✅ Studio ouvert, plugin **MCP Server → Connect** actif
+1. ✅ Studio ouvert, plugin **MCP Server → Connect** actif (le bouton **AI Panel** montre ensuite ce que fait l'IA)
 2. ✅ **Paramètres du jeu → Sécurité → Autoriser les requêtes HTTP**
 3. ✅ Le client affiche le serveur `roblox` comme connecté
 4. ✅ L'outil `roblox_start_here` renvoie `"connected": true`

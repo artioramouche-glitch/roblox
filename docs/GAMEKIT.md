@@ -10,13 +10,16 @@
 - **gamekit_catalog** — Everything installable without code: templates, systems, world pieces, lighting presets, code recipes.
 - **create_game** — Build a COMPLETE playable game in one call (scripts, config, world, UI, lighting; backs up the old place). Then test_game.
 - **add_system** — Install a tested game system (+ what it needs). Its settings: roblox_guide <system>.
-- **build_world** — Build anchored, tagged geometry in Workspace/GameKit: worlds (obby_course, lobby, arena, maze, tycoon_plots, simulator_world, decor_scatter, td_map, farm) or one of 43 pieces (jump_pad, coin, checkpoint, spinner, tower_pad...: roblox_guide building). Same name = replaced. [x,y,z] studs, y up.
+- **build_world** — Build anchored, tagged geometry in Workspace/GameKit: worlds (obby_course, lobby, arena, maze, tycoon_plots, simulator_world, decor_scatter, td_map, farm, race_track, fishing_lake, survival_camp) or one of 53 pieces (jump_pad, coin, checkpoint, spinner, tower_pad...: roblox_guide building). Same name = replaced. [x,y,z] studs, y up.
 - **build_ui** — Screen UI from JSON, no Luau: frame/label/button/image/textbox/scroll/bar; bind "stat:Coins", bar, showIf, action "toggle:Window". See roblox_guide ui.
 - **set_environment** — Mood: lighting preset, time of day, terrain, remove the Baseplate.
 - **write_script** — The SAFE way to create/replace a whole script: auto-fixes JS-style mistakes, then checks with the Luau compiler, a beginner linter and the Roblox API list; refuses broken code. For small changes use edit_script.
 - **check_luau** — Check Luau without writing it (compiler, beginner linter, Roblox API names) and get an auto-fixed version. Works offline.
 - **check_game** — Audit the place without playing: script errors, wrong script locations, bad API names, missing spawn, loose parts, pieces without their system.
-- **test_game** — Automatic playtest: plays the game, reports server+client errors with script, line and fix, then stops. Repeat after every change until PASS.
+- **test_game** — Automatic playtest: plays the game, reports server+client errors with script, line and fix, then stops. Repeat after every change until PASS. players: 2 = multiplayer test; device: "phone" = mobile screen + UI checks.
+- **game_notes** — Project memory saved in the place: idea, decisions, todo, done, notes (+ automatic history of code changes). Read it when you start; add to it as you go so the next session resumes in one call.
+- **check_assets** — Checks that sounds, animations and images really load (and that animations belong to the game owner) before players hear silence. Scans the whole game, or tests the ids you give.
+- **optimize_game** — Performance report for entry-level phones (parts, physics, shadows, lights, particles, streaming, heavy scripts) with safe fixes: apply ["shadows","lights","particles","streaming","technology"].
 - **read_script** — Read a script with line numbers: whole (up to 200 lines), a range (from/to), or only the lines around a word (find). Cheaper than get_script_source.
 - **edit_script** — Change part of a script by find/replace (old lines copied from read_script; indentation may differ). Auto-fixed and checked before writing: never leaves a broken script.
 - **code_outline** — Map of the game's code in a few lines: every script with its purpose, functions, remotes, tags and requires. Read it before changing code you did not write.
@@ -29,6 +32,7 @@
 - **job_status** — Result of a start_job job (wait up to 60 s with wait). Without id: list jobs.
 - **blender_status** — Blender link for custom 3D models: checks the connection, lists the scene, explains the addon setup. When connected, more blender_* tools appear.
 - **blender_to_roblox** — Send a Blender model into the game: export (<= 20k triangles/mesh), upload (Open Cloud key), insert at real size on the ground. Without a key: exported file + manual import. Slow: use start_job. roblox_guide blender.
+- **blender_animation** — Blender action (animation of an armature) -> Roblox KeyframeSequence in ServerStorage/GameKit/Animations, testable at once (temporary id), + an animated FBX for Animation Editor import. Import the rigged model first with blender_to_roblox.
 - **blender_python** — Run Python (bpy) in Blender, in small steps; print() what you need. Model in meters, base at Z=0, < 20k triangles, 1 material per mesh.
 - **blender_scene** — Blender scene: objects (meters, triangles, materials), one object in detail, and/or a viewport screenshot.
 - **blender_assets** — Ready-made 3D content into Blender: search/download (polyhaven, sketchfab, polypizza) or AI generation (hyper3d, hunyuan3d: generate, poll, import). Enable sources in the addon panel.
@@ -47,6 +51,9 @@
 - horror_escape: Dark generated maze with flickering lights: find the keys, open the exit and escape before the monster catches you.
 - tower_defense: Enemies walk a winding path in waves (Basic, Fast, Tank, Boss); players build and upgrade Archer, Cannon (splash) and Frost (slow) towers…
 - farming: Plant seeds on 24 plots, watch them grow, harvest, sell at the market and unlock better crops (Wheat -> Carrot -> Tomato -> Pumpkin ->…
+- racing: Kart races on an oval track: starting grid, 3-2-1-GO, laps through checkpoints, live positions, best lap saved, podium rewards, quests and…
+- fishing: Cast, wait for the bite, reel in time: 6 fish in 2 zones (pond, ocean) with rarities, sell at the fish market, upgrade your rod to fish…
+- craft_survival: Gather wood, stone and berries by day, craft axes, swords, walls, spikes and campfires, keep your hunger up, and defend the camp together…
 
 ## Systems (add_system)
 - hud: Stats panel with +N pop-ups, status/timer bar, toast notifications, and the left column of HUD buttons used by other systems.
@@ -69,10 +76,17 @@
 - objectives: Find keys, open the exit door, escape; the run resets automatically.
 - towerdefense: Co-op tower defense: enemies walk a path in waves (Basic, Fast, Tank, Boss), players build/upgrade/sell towers (Archer, Cannon splash,…
 - farming: Plant seeds on plots, wait for them to grow (3 visible stages), harvest, sell at the market, unlock better crops (Wheat -> Carrot ->…
+- inventory: Saved item counts (wood, fish, potions...) with a 🎒 window, selling (buttons or "ItemSell" parts) and a server API used by fishing,…
+- levels: XP and levels with a growing curve, an XP bar, level-up toast + sparkles and rewards.
+- quests: Missions with rewards and a tracker panel: earn a stat, reach a value, own items, or touch a secret place.
+- pets: Hatch eggs for random pets (chances, rarities), equip the best ones to multiply rewards, pets follow you, 🐾 window, hatch animation.
+- racing: Race rounds on a track: grid, 3-2-1-GO, laps through checkpoints in order, positions, best lap saved, place rewards.
+- fishing: Cast at fishing spots, wait for the bite, press REEL in time.
+- crafting: Gather wood, stone and berries from resource nodes, craft items, tools (weapons, better axes), builds (campfire heals, walls, spikes vs…
 
 ## World (build_world, populate_world)
-- worlds: obby_course, lobby, arena, maze, tycoon_plots, simulator_world, decor_scatter, td_map, farm
-- pieces: platform, spawn, checkpoint, finish_line, kill_brick, lava_floor, damage_part, heal_pad, jump_pad, speed_pad, boost_pad, moving_platform, spinner, disappearing_platform, falling_platform, conveyor, coin, shop_stand, leaderboard, enemy_spawner, sell_pad, zone_gate, teleporter, teleport_target, key, tree, rock, lamp, crate, tower_pad, farm_plot, seed_stand, market, pine_tree, palm_tree, bush, flowers, fence, bench, barrel, crystal, mushroom, cactus
+- worlds: obby_course, lobby, arena, maze, tycoon_plots, simulator_world, decor_scatter, td_map, farm, race_track, fishing_lake, survival_camp
+- pieces: platform, spawn, checkpoint, finish_line, kill_brick, lava_floor, damage_part, heal_pad, jump_pad, speed_pad, boost_pad, moving_platform, spinner, disappearing_platform, falling_platform, conveyor, coin, shop_stand, leaderboard, enemy_spawner, sell_pad, zone_gate, teleporter, teleport_target, key, tree, rock, lamp, crate, tower_pad, farm_plot, seed_stand, market, egg_stand, item_sell, quest_target, race_checkpoint, race_finish, race_grid, fishing_spot, resource_node, crafting_table, campfire, pine_tree, palm_tree, bush, flowers, fence, bench, barrel, crystal, mushroom, cactus
 - obby obstacles: jumps, killbricks, zigzag, moving, disappearing, spinner, truss, lava_floor, falling, conveyor, jumppad, tightrope
 
 ## Lighting presets (set_environment): day, sunset, night, horror, fantasy, neon, winter, desert, space, underwater
@@ -190,6 +204,48 @@ Options: plots = 4-64 plots (default 24); title = welcome text
 ## After creating it
 - Balance: balance_economy {fromGame: true} shows coins per minute of each crop and unlock times; tune Config.Farming.Crops.
 - More plots: build_world farm {plots: 40} (replaces the farm) or add farm_plot pieces.
+- Run test_game to play-test automatically and fix any error it reports.
+- Open ReplicatedStorage > GameKit > Config to tune numbers (rewards, prices, speeds) -- no code needed.
+- Use build_ui for extra screens and set_environment to change the mood.
+### Template: Kart racing (racing)
+
+Kart races on an oval track: starting grid, 3-2-1-GO, laps through checkpoints, live positions, best lap saved, podium rewards, quests and levels. Works on keyboard, gamepad and mobile.
+
+Systems: hud, racing, levels, quests, shop, daily, leaderboard, atmosphere, admin
+Lighting: day
+Options: laps = laps per race (default 3); karts = false = running race instead of karts; title = welcome text
+
+## After creating it
+- Tune Config.Racing (Laps, KartSpeed, KartTurnSpeed, PlaceRewards). Test with 2 players: test_game {players: 2}.
+- Longer track: build_world race_track {length: 260, radius: 70} (replaces it), or add RaceCheckpoint parts (Order) for a custom layout.
+- Run test_game to play-test automatically and fix any error it reports.
+- Open ReplicatedStorage > GameKit > Config to tune numbers (rewards, prices, speeds) -- no code needed.
+- Use build_ui for extra screens and set_environment to change the mood.
+### Template: Fishing (fishing)
+
+Cast, wait for the bite, reel in time: 6 fish in 2 zones (pond, ocean) with rarities, sell at the fish market, upgrade your rod to fish faster, catch rarer fish and unlock the ocean. Quests, levels, eggs and pets.
+
+Systems: hud, inventory, fishing, levels, quests, pets, shop, daily, leaderboard, movement, atmosphere, admin
+Lighting: day
+Options: title = welcome text
+
+## After creating it
+- Add fish and zones in Config.Fishing.Zones (each FishingSpot part has a Zone attribute).
+- Balance: sell prices vs rod prices (Config.Shop Rod PriceGrowth). Players should afford rod level 2 in ~10 minutes.
+- Run test_game to play-test automatically and fix any error it reports.
+- Open ReplicatedStorage > GameKit > Config to tune numbers (rewards, prices, speeds) -- no code needed.
+- Use build_ui for extra screens and set_environment to change the mood.
+### Template: Co-op survival with crafting (craft_survival)
+
+Gather wood, stone and berries by day, craft axes, swords, walls, spikes and campfires, keep your hunger up, and defend the camp together against zombie waves every night.
+
+Systems: hud, inventory, crafting, enemies, combat, levels, quests, shop, daily, leaderboard, movement, atmosphere, admin
+Lighting: day
+Options: title = welcome text; seed = forest layout seed
+
+## After creating it
+- Tune Config.Crafting (Recipes, Nodes Hits/Respawn, Hunger) and Config.Enemies.Waves (BreakSeconds = daytime).
+- Test co-op: test_game {players: 2}. Add recipes: { Id = "Torch", Needs = { Wood = 1 } }.
 - Run test_game to play-test automatically and fix any error it reports.
 - Open ReplicatedStorage > GameKit > Config to tune numbers (rewards, prices, speeds) -- no code needed.
 - Use build_ui for extra screens and set_environment to change the mood.
@@ -331,7 +387,9 @@ Scripts: systems/hud/HUD.client.luau
     "Rebirths": "🔁",
     "Keys": "🔑",
     "Wave": "🌊",
-    "Basket": "🧺"
+    "Basket": "🧺",
+    "XP": "✨",
+    "Fish": "🐟"
   }
 }
 ```
@@ -547,13 +605,14 @@ Scripts: systems/enemies/Enemies.server.luau
     "BreakSeconds": 10,
     "SurviveRewards": {
       "Coins": 20
-    }
+    },
+    "DayNight": false
   }
 }
 ```
 - Types: Enemy types by name. Spawners pick one with their "Enemy" attribute.
 - WalkAnimation: Walk animation id (Roblox default R15 walk).
-- Waves: Enabled = true turns spawners into a wave survival game.
+- Waves: Enabled = true turns spawners into a wave survival game. DayNight = true: day during breaks, night during waves.
 
 #### How to use
 build_world piece "enemy_spawner" (options: enemy, maxAlive). Custom models: ServerStorage.GameKit.Enemies.<TypeName>.
@@ -1070,6 +1129,466 @@ Scripts: systems/farming/Farming.server.luau
 
 #### How to use
 build_world "farm" builds fields, seed stands and the market. The HUD shows "Basket" when Config.Hud ExtraStats includes it.
+### System: Inventory (inventory)
+
+Saved item counts (wood, fish, potions...) with a 🎒 window, selling (buttons or "ItemSell" parts) and a server API used by fishing, crafting and quests.
+
+Requires: core, hud
+Scripts: systems/inventory/Inventory.luau, systems/inventory/InventoryServer.server.luau, systems/inventory/Inventory.client.luau
+
+#### Tags it reacts to
+- "ItemSell": market part: sells every item that has a SellPrice
+
+#### Config.Inventory
+```json
+{
+  "Items": {
+    "Wood": {
+      "Name": "Wood",
+      "Icon": "🪵",
+      "SellPrice": 1
+    },
+    "Stone": {
+      "Name": "Stone",
+      "Icon": "🪨",
+      "SellPrice": 2
+    }
+  },
+  "MaxStack": 999,
+  "SellCurrency": "Coins",
+  "ShowButton": true
+}
+```
+- Items: Item definitions: Id = { Name, Icon, SellPrice, Rarity, Description }. Other systems add their own (fish, crafted items).
+- SellCurrency: Stat paid when selling.
+
+#### How to use
+Server scripts: local Inventory = require(game.ServerScriptService.GameKit.Inventory); Inventory.give(player, "Wood", 3); Inventory.take(player, "Wood", 2); Inventory.count(player, "Wood"). Clients read player:GetAttribute("Inv_Wood").
+### System: Levels & XP (levels)
+
+XP and levels with a growing curve, an XP bar, level-up toast + sparkles and rewards. XP comes from any reward ({ XP = 25 }) or automatically from other stats.
+
+Requires: core, hud
+Scripts: systems/levels/Levels.server.luau, systems/levels/Levels.client.luau
+
+#### Config.Levels
+```json
+{
+  "XPStat": "XP",
+  "LevelStat": "Level",
+  "BaseXP": 100,
+  "Growth": 1.25,
+  "MaxLevel": 100,
+  "XPFrom": {
+    "Coins": 0.2
+  },
+  "LevelRewards": {
+    "Coins": 25
+  },
+  "Effect": true
+}
+```
+- BaseXP: XP needed for level 2; each next level needs Growth times more.
+- XPFrom: Automatic XP from other stats: { Coins = 0.2 } gives 1 XP per 5 coins earned. {} to turn off.
+- LevelRewards: Given at each level-up, multiplied by the new level.
+
+#### How to use
+Give XP with any reward table ({ XP = 50 }) or PlayerData.reward(player, "XP", 50). Gate content with the Level stat (e.g. code_recipe door requireStat "Level").
+### System: Quests (quests)
+
+Missions with rewards and a tracker panel: earn a stat, reach a value, own items, or touch a secret place. Chain mode guides new players step by step.
+
+Requires: core, hud
+Scripts: systems/quests/Quests.server.luau, systems/quests/Quests.client.luau
+
+#### Tags it reacts to
+- "QuestTarget": attribute Quest = quest Id (Touch quests)
+
+#### Config.Quests
+```json
+{
+  "Mode": "Chain",
+  "List": [
+    {
+      "Id": "FirstCoins",
+      "Title": "Collect 25 coins",
+      "Type": "Earn",
+      "Stat": "Coins",
+      "Amount": 25,
+      "Rewards": {
+        "XP": 50
+      }
+    },
+    {
+      "Id": "MoreCoins",
+      "Title": "Collect 200 coins",
+      "Type": "Earn",
+      "Stat": "Coins",
+      "Amount": 200,
+      "Rewards": {
+        "XP": 150,
+        "Coins": 50
+      }
+    }
+  ],
+  "ShowTracker": true
+}
+```
+- Mode: "Chain" = one quest at a time in order, "All" = all at once.
+- List: Each quest: Id, Title, Type (Earn | Reach | Have | Touch), Stat or Item, Amount, Rewards. Touch quests: tag a part "QuestTarget" with attribute Quest = Id.
+
+#### How to use
+Write quests that teach the game in order (Chain): first action, first purchase, first zone... Rewards can include XP (levels system).
+### System: Eggs & pets (pets)
+
+Hatch eggs for random pets (chances, rarities), equip the best ones to multiply rewards, pets follow you, 🐾 window, hatch animation. Saved.
+
+Requires: core, hud
+Scripts: systems/pets/Pets.server.luau, systems/pets/Pets.client.luau
+
+#### Tags it reacts to
+- "EggStand": attribute Egg = an egg name from Config.Pets.Eggs
+
+#### Config.Pets
+```json
+{
+  "Stat": "Coins",
+  "MaxEquipped": 3,
+  "MaxOwned": 60,
+  "Eggs": {
+    "Basic": {
+      "Price": 100,
+      "Currency": "Coins",
+      "Color": "#F5F5F5",
+      "Pets": [
+        {
+          "Id": "Dog",
+          "Name": "Dog",
+          "Chance": 55,
+          "Multiplier": 1.2,
+          "Rarity": "Common",
+          "Color": "#C8A165"
+        },
+        {
+          "Id": "Cat",
+          "Name": "Cat",
+          "Chance": 35,
+          "Multiplier": 1.5,
+          "Rarity": "Rare",
+          "Color": "#F5A623"
+        },
+        {
+          "Id": "Dragon",
+          "Name": "Dragon",
+          "Chance": 10,
+          "Multiplier": 3,
+          "Rarity": "Legendary",
+          "Color": "#E53935"
+        }
+      ]
+    }
+  },
+  "RarityColors": {
+    "Common": "#B0BEC5",
+    "Rare": "#42A5F5",
+    "Epic": "#AB47BC",
+    "Legendary": "#FFCA28"
+  }
+}
+```
+- Stat: Stat multiplied by equipped pets (a pet can override it with its own Stat).
+- Eggs: Egg name = { Price, Currency, Color, Pets = { { Id, Name, Chance, Multiplier, Rarity, Color } } }. Chances are relative weights.
+
+#### How to use
+build_world piece "egg_stand" {egg: "Basic"}. Put better eggs in later zones with higher prices.
+### System: Racing (racing)
+
+Race rounds on a track: grid, 3-2-1-GO, laps through checkpoints in order, positions, best lap saved, place rewards. Arcade karts (keyboard, gamepad, mobile) or running races.
+
+Requires: core, hud
+Scripts: systems/racing/Racing.server.luau, systems/racing/Racing.client.luau
+
+#### Tags it reacts to
+- "RaceCheckpoint": attribute Order (1, 2, 3...): pass them in order each lap
+- "RaceFinish": start/finish line (a lap counts after all checkpoints)
+- "RaceGrid": attribute Order: starting slots (the part faces the race direction)
+
+#### Config.Racing
+```json
+{
+  "Laps": 3,
+  "MinPlayers": 1,
+  "IntermissionSeconds": 15,
+  "TimeLimit": 240,
+  "UseKarts": true,
+  "KartSpeed": 70,
+  "KartTurnSpeed": 2.4,
+  "KartColor": "#E53935",
+  "PlaceRewards": [
+    {
+      "Wins": 1,
+      "Coins": 100
+    },
+    {
+      "Coins": 60
+    },
+    {
+      "Coins": 40
+    }
+  ],
+  "FinishRewards": {
+    "Coins": 15
+  }
+}
+```
+- UseKarts: true = everyone drives a kart (VehicleSeat: WASD, thumbstick). false = running race.
+- PlaceRewards: Rewards for 1st, 2nd, 3rd... finishers (list order).
+- FinishRewards: Given to everyone who finishes.
+- TimeLimit: Seconds before the race ends for those still racing.
+
+#### How to use
+build_world race_track {length, radius, width, grid} makes a complete oval. Player attributes RaceLap, RacePosition, BestLap for UIs.
+### System: Fishing (fishing)
+
+Cast at fishing spots, wait for the bite, press REEL in time. Fish by zone with rarities go to the inventory to sell. Rod level (shop upgrade) bites faster, finds rarer fish and unlocks zones.
+
+Requires: core, hud, inventory
+Scripts: systems/fishing/Fishing.server.luau, systems/fishing/Fishing.client.luau
+
+#### Tags it reacts to
+- "FishingSpot": attribute Zone = a zone of Config.Fishing.Zones (the bobber lands on this part)
+
+#### Config.Fishing
+```json
+{
+  "Zones": {
+    "Pond": {
+      "MinRod": 0,
+      "Fish": [
+        {
+          "Id": "Minnow",
+          "Name": "Minnow",
+          "Icon": "🐟",
+          "Chance": 60,
+          "SellPrice": 3,
+          "Rarity": "Common"
+        },
+        {
+          "Id": "Salmon",
+          "Name": "Salmon",
+          "Icon": "🐠",
+          "Chance": 30,
+          "SellPrice": 12,
+          "Rarity": "Rare"
+        },
+        {
+          "Id": "GoldenKoi",
+          "Name": "Golden Koi",
+          "Icon": "✨",
+          "Chance": 10,
+          "SellPrice": 60,
+          "Rarity": "Legendary"
+        }
+      ]
+    },
+    "Ocean": {
+      "MinRod": 2,
+      "Fish": [
+        {
+          "Id": "Pufferfish",
+          "Name": "Pufferfish",
+          "Icon": "🐡",
+          "Chance": 50,
+          "SellPrice": 15,
+          "Rarity": "Common"
+        },
+        {
+          "Id": "Tuna",
+          "Name": "Tuna",
+          "Icon": "🐟",
+          "Chance": 38,
+          "SellPrice": 30,
+          "Rarity": "Rare"
+        },
+        {
+          "Id": "Shark",
+          "Name": "Shark",
+          "Icon": "🦈",
+          "Chance": 12,
+          "SellPrice": 150,
+          "Rarity": "Epic"
+        }
+      ]
+    }
+  },
+  "RodStat": "RodLevel",
+  "BiteSeconds": [
+    2,
+    6
+  ],
+  "ReelWindow": 1.6,
+  "FasterPerRod": 0.15,
+  "LuckPerRod": 0.1,
+  "CatchStat": "Fish",
+  "CatchRewards": {
+    "XP": 5
+  }
+}
+```
+- Zones: Zone name = { MinRod, Fish = { { Id, Name, Icon, Chance, SellPrice, Rarity } } }. FishingSpot parts pick a zone with their Zone attribute.
+- RodStat: Rod level stat. Sell rods with a Shop item { Kind = "Upgrade", Stat = "RodLevel", Value = 1 }.
+- BiteSeconds: { min, max } seconds before a bite (divided by 1 + FasterPerRod x rod level).
+- ReelWindow: Seconds to press REEL after the bite.
+- LuckPerRod: Non-common fish weight bonus per rod level (0.1 = +10%).
+
+#### How to use
+build_world fishing_lake makes a pond + ocean with docks. Quests: { Type = "Earn", Stat = "Fish", Amount = 10 } or { Type = "Have", Item = "Salmon" }.
+### System: Gathering & crafting (survival) (crafting)
+
+Gather wood, stone and berries from resource nodes, craft items, tools (weapons, better axes), builds (campfire heals, walls, spikes vs enemies) and bandages in a 🔨 window. Optional hunger.
+
+Requires: core, hud, inventory
+Scripts: systems/crafting/Crafting.server.luau, systems/crafting/Crafting.client.luau
+
+#### Tags it reacts to
+- "ResourceNode": part or model, attribute Node = a node type (Tree, Rock, Bush)
+- "CraftingTable": opens the crafting window (required when RequireTable)
+- "GKCampfire": model that heals players within 16 studs
+
+#### Config.Crafting
+```json
+{
+  "Items": {
+    "Berry": {
+      "Name": "Berry",
+      "Icon": "🫐",
+      "SellPrice": 1
+    },
+    "Planks": {
+      "Name": "Planks",
+      "Icon": "🟫",
+      "SellPrice": 3
+    }
+  },
+  "Nodes": {
+    "Tree": {
+      "Item": "Wood",
+      "Amount": 2,
+      "Hits": 3,
+      "Respawn": 20,
+      "Action": "Chop"
+    },
+    "Rock": {
+      "Item": "Stone",
+      "Amount": 2,
+      "Hits": 4,
+      "Respawn": 25,
+      "Action": "Mine"
+    },
+    "Bush": {
+      "Item": "Berry",
+      "Amount": 3,
+      "Hits": 1,
+      "Respawn": 15,
+      "Action": "Pick"
+    }
+  },
+  "Recipes": [
+    {
+      "Id": "Planks",
+      "Needs": {
+        "Wood": 2
+      },
+      "Gives": 3
+    },
+    {
+      "Id": "StoneAxe",
+      "Name": "Stone Axe",
+      "Icon": "🪓",
+      "Kind": "Tool",
+      "Needs": {
+        "Wood": 3,
+        "Stone": 2
+      },
+      "Damage": 20,
+      "Gather": 2
+    },
+    {
+      "Id": "StoneSword",
+      "Name": "Stone Sword",
+      "Icon": "🗡",
+      "Kind": "Tool",
+      "Needs": {
+        "Planks": 2,
+        "Stone": 4
+      },
+      "Damage": 35,
+      "Gather": 1
+    },
+    {
+      "Id": "Campfire",
+      "Name": "Campfire",
+      "Icon": "🔥",
+      "Kind": "Build",
+      "Needs": {
+        "Wood": 5,
+        "Stone": 3
+      }
+    },
+    {
+      "Id": "Wall",
+      "Name": "Wooden Wall",
+      "Icon": "🧱",
+      "Kind": "Build",
+      "Needs": {
+        "Planks": 4
+      }
+    },
+    {
+      "Id": "Spikes",
+      "Name": "Spikes",
+      "Icon": "📌",
+      "Kind": "Build",
+      "Needs": {
+        "Planks": 2,
+        "Stone": 2
+      }
+    },
+    {
+      "Id": "Bandage",
+      "Name": "Bandage",
+      "Icon": "🩹",
+      "Kind": "Heal",
+      "Needs": {
+        "Berry": 4
+      },
+      "Heal": 40
+    }
+  ],
+  "RequireTable": false,
+  "MaxBuilds": 25,
+  "CraftRewards": {
+    "XP": 5
+  },
+  "Hunger": {
+    "Enabled": false,
+    "Max": 100,
+    "DrainPerMinute": 6,
+    "StarveDamage": 4,
+    "Food": {
+      "Berry": 12
+    }
+  }
+}
+```
+- Items: Extra inventory items (Id = { Name, Icon, SellPrice }). Wood and Stone come from Config.Inventory.
+- Nodes: Resource types: Item given, Amount, Hits needed (tools with a Gather attribute hit harder), Respawn seconds, Action (prompt text).
+- Recipes: Kind: "Item" (default, Gives = amount), "Tool" (Damage, Gather: melee weapon/axe), "Build" (Campfire, Wall or Spikes placed in front of you), "Heal" (Heal = health).
+- RequireTable: true = craft only near a "CraftingTable" part.
+- Hunger: Enabled = true: hunger drains (DrainPerMinute), hurts at 0 (StarveDamage every 5 s); Food = { Item = food value } eaten from the 🔨 window.
+
+#### How to use
+build_world survival_camp makes a camp + forest of resources + enemy spawners. Combine with enemies (Waves.DayNight) and combat for co-op survival.
 
 ## Guides
 ### How to build a great Roblox game with this MCP (read first) (`workflow`)
@@ -1077,7 +1596,8 @@ build_world "farm" builds fields, seed stands and the market. The HUD shows "Bas
 #### The golden path (follow in order)
 1. **roblox_start_here** -- checks Studio is connected and shows what is already installed.
 2. **Pick a template** that matches the idea (gamekit_catalog lists them):
-   obby, tycoon, simulator, arena (PvP), survival (zombie waves), horror_escape, tower_defense (co-op), farming (idle).
+   obby, tycoon, simulator, arena (PvP), survival (zombie waves), horror_escape, tower_defense (co-op), farming (idle),
+   racing (karts), fishing, craft_survival (gather, craft, survive nights together).
    -> **create_game** { template, options }. This builds a COMPLETE playable game in one call
    (and saves a backup of what was there before: backup_game).
    No template fits? Start from the closest one, or install systems one by one with add_system.
@@ -1089,16 +1609,19 @@ build_world "farm" builds fields, seed stands and the market. The HUD shows "Bas
    - screens: build_ui (JSON -> real UI, live stat text, buttons that open windows)
    - mood: set_environment (lighting preset + terrain)
    - scenery: populate_world { theme: "forest" | "desert" | "snow" | "beach" | "fantasy" | "city" | "farm" | "spooky" | "garden" }
-   - custom 3D models: Blender (guide "blender") -> blender_to_roblox
+   - retention: add_system inventory | levels | quests | pets (eggs) -- quests teach the game step by step
+   - custom 3D models: Blender (guide "blender") -> blender_to_roblox (characters: + blender_animation)
    - **look_at_game** to SEE the result from several angles; fix what looks wrong.
    - advanced (find_tools + call_tool): terrain_fill_*, lighting_*, particle_create, sound_*, animation_*,
      insert_asset (Creator Store models), capture_device_matrix (phone/tablet screenshots).
 5. **Only then write code** (guide "coding"): first try code_recipe (ready-made verified scripts), else write_script
    for a new script and edit_script for changes (both auto-fix and refuse broken Luau).
 6. **check_game** before finishing: finds scripts in wrong places, syntax errors, loose parts, missing spawns.
-7. Polish (see guide "design"), balance prices (balance_economy), then publish (publish_checklist + guide "publishing").
+7. Polish (see guide "design"), balance prices (balance_economy), then before publishing: test_game { players: 2 },
+   test_game { device: "phone" }, check_assets, optimize_game, publish_checklist (guide "publishing").
 
 #### Working faster
+- game_notes is the project's memory (idea, decisions, todo, done): read it first in a new conversation, update it as you go.
 - backup_game { action: "save" } before a risky change; { action: "restore" } if it breaks.
 - Slow tools (blender_to_roblox, long test_game, big populate_world) can run with start_job; get the result with job_status { id, wait: 30 }.
 - Several AIs on the same game: guide "team".
@@ -1130,6 +1653,7 @@ Action -> reward -> upgrade -> bigger action. Examples:
 #### Social & retention
 - Global leaderboard (leaderboard system), daily reward with streak (daily system),
   visible cosmetics (trails, pets) so players show off.
+- Long-term goals: levels (XP bar), quests (chain mode = tutorial), eggs & pets (collection), inventory items to sell.
 #### Onboarding
 - Welcome toast explaining the goal (Config.Core.WelcomeMessage). Signs/billboards in the world.
 - The first 2 minutes must be easy. Difficulty ramps slowly (obby_course does this).
@@ -1305,9 +1829,9 @@ Tips: keep buttons >= 48 px tall (mobile), use at most 2-3 colors, put important
   and ~12 studs far. Keep obby gaps between 3 and 9 studs.
 - Every part that should not fall: Anchored = true (GameKit pieces are anchored).
 - position is the CENTER of a part: a platform of height 1 at y=10 has its top at y=10.5.
-- Whole worlds: obby_course, lobby, arena, maze, tycoon_plots, simulator_world, decor_scatter, td_map, farm.
+- Whole worlds: obby_course, lobby, arena, maze, tycoon_plots, simulator_world, decor_scatter, td_map, farm, race_track, fishing_lake, survival_camp.
 - Obstacles for obby_course: jumps, killbricks, zigzag, moving, disappearing, spinner, truss, lava_floor, falling, conveyor, jumppad, tightrope.
-- Single pieces: platform, spawn, checkpoint, finish_line, kill_brick, lava_floor, damage_part, heal_pad, jump_pad, speed_pad, boost_pad, moving_platform, spinner, disappearing_platform, falling_platform, conveyor, coin, shop_stand, leaderboard, enemy_spawner, sell_pad, zone_gate, teleporter, teleport_target, key, tree, rock, lamp, crate, tower_pad, farm_plot, seed_stand, market, pine_tree, palm_tree, bush, flowers, fence, bench, barrel, crystal, mushroom, cactus.
+- Single pieces: platform, spawn, checkpoint, finish_line, kill_brick, lava_floor, damage_part, heal_pad, jump_pad, speed_pad, boost_pad, moving_platform, spinner, disappearing_platform, falling_platform, conveyor, coin, shop_stand, leaderboard, enemy_spawner, sell_pad, zone_gate, teleporter, teleport_target, key, tree, rock, lamp, crate, tower_pad, farm_plot, seed_stand, market, egg_stand, item_sell, quest_target, race_checkpoint, race_finish, race_grid, fishing_spot, resource_node, crafting_table, campfire, pine_tree, palm_tree, bush, flowers, fence, bench, barrel, crystal, mushroom, cactus.
 - Everything goes to Workspace/GameKit/<name>; building again with the same name replaces it.
 #### build_world options (options: {...})
 - All: position [x, y, z]. zone: "<team zone>" builds at the zone center.
@@ -1331,7 +1855,11 @@ seed, snap (true: stand on terrain/big floors), avoidGameplay (true: drop props 
 1. check_game -- static audit: Luau syntax, beginner mistakes, scripts in the wrong place,
    missing SpawnLocation, unanchored parts. Fast, no playtest.
 2. test_game -- real playtest (~20 s): server + client errors with the script and line,
-   automatic play-through (checkpoints, coins, kill parts), stats after spawn. Ends by itself.
+   automatic play-through (checkpoints, coins, kill parts, shop, quests, eggs...), stats after spawn. Ends by itself.
+   - test_game { players: 2 }: server + 2 clients (rounds, PvP, co-op, trading only break with several players).
+   - test_game { device: "phone" }: phone screen; fails on buttons too small, UI off screen, unreadable text.
+   - check_assets: every sound/animation/image really loads (private assets are silent in live games).
+   - optimize_game: parts, physics, shadows, lights, particles for low-end phones; optimize_game { apply: [...] } fixes.
 3. For each error: its code lines are shown; fix them with edit_script (read_script { path, find } for more context),
    re-run test_game. Do not stop while test_game reports errors.
 Reading errors: "ServerScriptService.Shop:42: attempt to index nil with 'Value'"
@@ -1397,6 +1925,12 @@ Reading errors: "ServerScriptService.Shop:42: attempt to index nil with 'Value'"
   anchored (true), collide (true), description (asset description on Roblox).
 - No API key: it exports the file; import it in Studio (Home > Import 3D) then blender_to_roblox { name, existing: "Workspace/<model>" }.
 - Many copies around the map: populate_world { items: [{ from: "Workspace/GameKit/Props/<name>", count: 10, size: [6, 10] }] }.
+#### Characters and animations
+- Rig in Blender (armature + weights, max 4 bones per vertex, < 100 bones). blender_to_roblox exports mesh + armature
+  and gives the model an Animator.
+- Each Blender action -> blender_animation { rig: "<model path>", action: "Walk", priority: "Movement" }:
+  a KeyframeSequence in ServerStorage/GameKit/Animations with a temporary id to test in Studio, plus an animated FBX.
+- Publish it (right-click the KeyframeSequence > Save to Roblox), use the new id, then check_assets { ids: [id] }.
 
 ### Several AIs building one game at the same time (team) (`team`)
 
@@ -1431,7 +1965,7 @@ The board lives inside the place (ServerStorage/GameKitTeam), so everyone sees t
 3. Create an icon (512x512) and thumbnails (1920x1080) on create.roblox.com.
 4. Fill the description (what to do, controls) and the maturity questionnaire.
 5. Monetization: create game passes/developer products, paste IDs in Config.Monetization.
-6. Test on mobile (Studio device emulator) and with 2+ players (Test > Clients and Servers).
+6. test_game { device: "phone" } and test_game { players: 2 } pass; check_assets finds nothing broken; optimize_game is green.
 7. Make the experience Public. Update often; use the daily reward and events to bring players back.
 8. Watch Creator Dashboard > Analytics: GameKit already reports the economy (earned/spent per item), obby stage
    funnel and progression (tower defense waves, farming unlocks). Fix the step where most players quit.

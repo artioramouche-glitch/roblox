@@ -18,7 +18,8 @@ export const GUIDES: Record<string, { title: string; body: string }> = {
 ## The golden path (follow in order)
 1. **roblox_start_here** -- checks Studio is connected and shows what is already installed.
 2. **Pick a template** that matches the idea (gamekit_catalog lists them):
-   obby, tycoon, simulator, arena (PvP), survival (zombie waves), horror_escape, tower_defense (co-op), farming (idle).
+   obby, tycoon, simulator, arena (PvP), survival (zombie waves), horror_escape, tower_defense (co-op), farming (idle),
+   racing (karts), fishing, craft_survival (gather, craft, survive nights together).
    -> **create_game** { template, options }. This builds a COMPLETE playable game in one call
    (and saves a backup of what was there before: backup_game).
    No template fits? Start from the closest one, or install systems one by one with add_system.
@@ -30,16 +31,19 @@ export const GUIDES: Record<string, { title: string; body: string }> = {
    - screens: build_ui (JSON -> real UI, live stat text, buttons that open windows)
    - mood: set_environment (lighting preset + terrain)
    - scenery: populate_world { theme: "forest" | "desert" | "snow" | "beach" | "fantasy" | "city" | "farm" | "spooky" | "garden" }
-   - custom 3D models: Blender (guide "blender") -> blender_to_roblox
+   - retention: add_system inventory | levels | quests | pets (eggs) -- quests teach the game step by step
+   - custom 3D models: Blender (guide "blender") -> blender_to_roblox (characters: + blender_animation)
    - **look_at_game** to SEE the result from several angles; fix what looks wrong.
    - advanced (find_tools + call_tool): terrain_fill_*, lighting_*, particle_create, sound_*, animation_*,
      insert_asset (Creator Store models), capture_device_matrix (phone/tablet screenshots).
 5. **Only then write code** (guide "coding"): first try code_recipe (ready-made verified scripts), else write_script
    for a new script and edit_script for changes (both auto-fix and refuse broken Luau).
 6. **check_game** before finishing: finds scripts in wrong places, syntax errors, loose parts, missing spawns.
-7. Polish (see guide "design"), balance prices (balance_economy), then publish (publish_checklist + guide "publishing").
+7. Polish (see guide "design"), balance prices (balance_economy), then before publishing: test_game { players: 2 },
+   test_game { device: "phone" }, check_assets, optimize_game, publish_checklist (guide "publishing").
 
 ## Working faster
+- game_notes is the project's memory (idea, decisions, todo, done): read it first in a new conversation, update it as you go.
 - backup_game { action: "save" } before a risky change; { action: "restore" } if it breaks.
 - Slow tools (blender_to_roblox, long test_game, big populate_world) can run with start_job; get the result with job_status { id, wait: 30 }.
 - Several AIs on the same game: guide "team".
@@ -73,6 +77,7 @@ Action -> reward -> upgrade -> bigger action. Examples:
 ## Social & retention
 - Global leaderboard (leaderboard system), daily reward with streak (daily system),
   visible cosmetics (trails, pets) so players show off.
+- Long-term goals: levels (XP bar), quests (chain mode = tutorial), eggs & pets (collection), inventory items to sell.
 ## Onboarding
 - Welcome toast explaining the goal (Config.Core.WelcomeMessage). Signs/billboards in the world.
 - The first 2 minutes must be easy. Difficulty ramps slowly (obby_course does this).
@@ -212,7 +217,11 @@ seed, snap (true: stand on terrain/big floors), avoidGameplay (true: drop props 
 1. check_game -- static audit: Luau syntax, beginner mistakes, scripts in the wrong place,
    missing SpawnLocation, unanchored parts. Fast, no playtest.
 2. test_game -- real playtest (~20 s): server + client errors with the script and line,
-   automatic play-through (checkpoints, coins, kill parts), stats after spawn. Ends by itself.
+   automatic play-through (checkpoints, coins, kill parts, shop, quests, eggs...), stats after spawn. Ends by itself.
+   - test_game { players: 2 }: server + 2 clients (rounds, PvP, co-op, trading only break with several players).
+   - test_game { device: "phone" }: phone screen; fails on buttons too small, UI off screen, unreadable text.
+   - check_assets: every sound/animation/image really loads (private assets are silent in live games).
+   - optimize_game: parts, physics, shadows, lights, particles for low-end phones; optimize_game { apply: [...] } fixes.
 3. For each error: its code lines are shown; fix them with edit_script (read_script { path, find } for more context),
    re-run test_game. Do not stop while test_game reports errors.
 Reading errors: "ServerScriptService.Shop:42: attempt to index nil with 'Value'"
@@ -284,6 +293,12 @@ Reading errors: "ServerScriptService.Shop:42: attempt to index nil with 'Value'"
   anchored (true), collide (true), description (asset description on Roblox).
 - No API key: it exports the file; import it in Studio (Home > Import 3D) then blender_to_roblox { name, existing: "Workspace/<model>" }.
 - Many copies around the map: populate_world { items: [{ from: "Workspace/GameKit/Props/<name>", count: 10, size: [6, 10] }] }.
+## Characters and animations
+- Rig in Blender (armature + weights, max 4 bones per vertex, < 100 bones). blender_to_roblox exports mesh + armature
+  and gives the model an Animator.
+- Each Blender action -> blender_animation { rig: "<model path>", action: "Walk", priority: "Movement" }:
+  a KeyframeSequence in ServerStorage/GameKit/Animations with a temporary id to test in Studio, plus an animated FBX.
+- Publish it (right-click the KeyframeSequence > Save to Roblox), use the new id, then check_assets { ids: [id] }.
 `,
   },
   team: {
@@ -324,7 +339,7 @@ The board lives inside the place (ServerStorage/GameKitTeam), so everyone sees t
 3. Create an icon (512x512) and thumbnails (1920x1080) on create.roblox.com.
 4. Fill the description (what to do, controls) and the maturity questionnaire.
 5. Monetization: create game passes/developer products, paste IDs in Config.Monetization.
-6. Test on mobile (Studio device emulator) and with 2+ players (Test > Clients and Servers).
+6. test_game { device: "phone" } and test_game { players: 2 } pass; check_assets finds nothing broken; optimize_game is green.
 7. Make the experience Public. Update often; use the daily reward and events to bring players back.
 8. Watch Creator Dashboard > Analytics: GameKit already reports the economy (earned/spent per item), obby stage
    funnel and progression (tower defense waves, farming unlocks). Fix the step where most players quit.
