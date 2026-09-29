@@ -90,6 +90,20 @@ Il reste à redémarrer Studio et l'appli d'IA, puis à faire l'étape « Autori
 > Cette commande marche dès que le paquet est publié sur npm (workflow `.github/workflows/publish.yml`, voir
 > [Publier sur npm](#publier-sur-npm)). En attendant, utilise l'installation depuis le dépôt ci-dessous.
 
+### 📦 Depuis le zip (sans git)
+
+1. Sur GitHub : bouton vert **Code → Download ZIP** (choisis la branche `claude/charming-johnson-0o1yse` tant que la
+   PR n'est pas fusionnée). Dézippe dans un dossier qui ne bougera plus (ex. `C:\roblox-mcp`).
+2. Dans ce dossier, ouvre un terminal (Windows : clic droit → *Ouvrir dans le terminal*) :
+   ```bash
+   npm install        # dépendances + compilation (le zip ne contient pas les fichiers compilés)
+   npm run setup      # plugin Studio + Claude Desktop / Cursor / Windsurf configurés vers CE dossier
+   ```
+   `npm run setup -- --blender` installe aussi l'addon Blender.
+3. Redémarre Studio et l'appli d'IA, puis active **Autoriser les requêtes HTTP** (étape 2 ci-dessous).
+
+Si tu déplaces le dossier plus tard, relance `npm run setup -- --force`.
+
 ### 1. Installer le serveur (depuis le dépôt)
 
 ```bash

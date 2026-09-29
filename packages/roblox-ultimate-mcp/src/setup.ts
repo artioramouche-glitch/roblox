@@ -25,6 +25,15 @@ export function serverEntry(platform: string = process.platform): Entry {
     : { command: 'npx', args: ['-y', `${PACKAGE}@latest`] };
 }
 
+/**
+ * Run from a downloaded zip or a git clone (not from npx/npm): the apps must start THIS copy.
+ * The absolute node path matters: desktop apps (Claude Desktop on macOS) often lack node in PATH.
+ */
+export function localEntry(file: string = fileURLToPath(import.meta.url), node: string = process.execPath): Entry | undefined {
+  if (/[\\/](node_modules|_npx)[\\/]/.test(file)) return undefined;
+  return { command: node, args: [file] };
+}
+
 export interface ClientConfig {
   name: string;
   file: string;
@@ -61,9 +70,8 @@ export function mergeServerConfig(existing: string | undefined, entry: Entry, fo
   return { text: `${JSON.stringify(config, null, 2)}\n`, status: current ? 'updated' : 'added' };
 }
 
-function configureClients(force: boolean): string[] {
+function configureClients(entry: Entry, force: boolean): string[] {
   const lines: string[] = [];
-  const entry = serverEntry();
   for (const client of clientConfigs()) {
     if (!existsSync(client.folder)) continue;
     try {
@@ -113,7 +121,7 @@ export function installBlenderAddon(): string[] {
   const dirs = blenderAddonDirs();
   if (!dirs.length) {
     return [
-      '  ✖ Aucun dossier Blender trouvé. Lancez Blender une fois puis relancez : npx roblox-ultimate-mcp setup --blender',
+      `  ✖ Aucun dossier Blender trouvé. Lancez Blender une fois puis relancez : ${localEntry() ? 'npm run setup -- --blender' : 'npx roblox-ultimate-mcp setup --blender'}`,
       `    (ou Blender > Edit > Preferences > Add-ons > Install from disk > ${source})`,
     ];
   }
@@ -153,10 +161,11 @@ export async function runSetup(argv: string[] = process.argv): Promise<void> {
   }
 
   out.push('', '2. Applications d\'IA');
-  const clientLines = configureClients(force);
+  const entry = localEntry() ?? serverEntry();
+  const clientLines = configureClients(entry, force);
   out.push(...(clientLines.length ? clientLines : ['  • Aucune application détectée (Claude Desktop, Cursor, Windsurf).']));
-  const entry = serverEntry();
-  out.push(`  • Claude Code : claude mcp add ${SERVER_NAME} -- ${entry.command} ${entry.args.join(' ')}`);
+  const quote = (part: string) => (/\s/.test(part) ? `"${part}"` : part);
+  out.push(`  • Claude Code : claude mcp add ${SERVER_NAME} -- ${[entry.command, ...entry.args].map(quote).join(' ')}`);
   out.push('  • Autre application : ajoutez ce serveur MCP :');
   out.push(`    ${JSON.stringify({ mcpServers: { [SERVER_NAME]: entry } })}`);
 
@@ -164,7 +173,7 @@ export async function runSetup(argv: string[] = process.argv): Promise<void> {
     out.push('', '3. Blender');
     out.push(...installBlenderAddon());
   } else {
-    out.push('', '3. Blender (facultatif) : npx roblox-ultimate-mcp setup --blender');
+    out.push('', `3. Blender (facultatif) : ${localEntry() ? 'npm run setup -- --blender' : 'npx roblox-ultimate-mcp setup --blender'}`);
   }
 
   out.push('', 'C\'est prêt. Demandez à votre IA : "Appelle roblox_start_here puis crée-moi un obby."', '');

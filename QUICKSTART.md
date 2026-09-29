@@ -11,7 +11,19 @@ npx roblox-ultimate-mcp setup --blender   # ... et l'addon Blender
 
 Puis redémarre Studio et ton appli d'IA, et fais l'étape 4 ci-dessous (requêtes HTTP).
 
-**Depuis le dépôt :**
+**Depuis le zip (sans git) :**
+
+1. Installe [Node.js](https://nodejs.org) 18+ (version LTS).
+2. Télécharge le zip : sur GitHub, bouton vert **Code → Download ZIP** (branche `claude/charming-johnson-0o1yse` tant
+   que la PR n'est pas fusionnée), puis dézippe-le dans un dossier **qui ne bougera plus** (ex. `C:\roblox-mcp`).
+3. Dans ce dossier, ouvre un terminal et tape :
+   ```bash
+   npm install        # télécharge les dépendances et compile (1 à 2 minutes)
+   npm run setup      # plugin Studio + applis d'IA configurées (ajoute -- --blender pour Blender)
+   ```
+4. Redémarre Studio et ton appli d'IA, puis fais l'étape 4 ci-dessous (requêtes HTTP).
+
+**Depuis le dépôt (git) :**
 
 1. Installe [Node.js](https://nodejs.org) 18+.
 2. Dans un terminal :
