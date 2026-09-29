@@ -8,6 +8,8 @@ import { TEMPLATES } from './templates.js';
 import { LIGHTING_PRESETS } from './environment.js';
 import { OBSTACLES, PIECES, WORLDS } from './world.js';
 import { UI_EXAMPLE } from './ui.js';
+import { RECIPES } from './recipes.js';
+import { firstSentence } from './result.js';
 
 export const GUIDES: Record<string, { title: string; body: string }> = {
   workflow: {
@@ -32,7 +34,8 @@ export const GUIDES: Record<string, { title: string; body: string }> = {
    - **look_at_game** to SEE the result from several angles; fix what looks wrong.
    - advanced (find_tools + call_tool): terrain_fill_*, lighting_*, particle_create, sound_*, animation_*,
      insert_asset (Creator Store models), capture_device_matrix (phone/tablet screenshots).
-5. **Only then write code**, with write_script (it refuses broken Luau and explains fixes).
+5. **Only then write code** (guide "coding"): first try code_recipe (ready-made verified scripts), else write_script
+   for a new script and edit_script for changes (both auto-fix and refuse broken Luau).
 6. **check_game** before finishing: finds scripts in wrong places, syntax errors, loose parts, missing spawns.
 7. Polish (see guide "design"), balance prices (balance_economy), then publish (publish_checklist + guide "publishing").
 
@@ -185,6 +188,18 @@ Tips: keep buttons >= 48 px tall (mobile), use at most 2-3 colors, put important
 - Obstacles for obby_course: ${OBSTACLES.join(', ')}.
 - Single pieces: ${PIECES.join(', ')}.
 - Everything goes to Workspace/GameKit/<name>; building again with the same name replaces it.
+## build_world options (options: {...})
+- All: position [x, y, z]. zone: "<team zone>" builds at the zone center.
+- obby_course: stages, difficulty (easy|medium|hard), theme, coins, obstacles [list], title, seed
+- lobby: title, size, shop, leaderboardStat | arena: size, theme, spawns | maze: width, height, keys, ceiling, monster, seed
+- tycoon_plots: count | simulator_world: zones, basePrice | decor_scatter: radius, count, clear | td_map | farm: plots, crops
+- Pieces: color, size [x,y,z], yaw (degrees), stage (checkpoint), power (jump_pad), speed (speed_pad, conveyor, spinner),
+  offset [x,y,z] + duration (moving_platform), stat + amount (coin), enemy + maxAlive (enemy_spawner), zone + price (zone_gate),
+  target (teleporter), tower (tower_pad: Archer|Cannon|Frost), crop (seed_stand), length (fence), snow (pine_tree), flicker (lamp).
+## populate_world options
+theme + count, items [{kind | assetId | from, count, size: [min, max]}], center [x,y,z], radius (150), clear (empty
+radius in the middle, 40), size [w, d] (rectangle instead of a circle), zone (a team zone), spacing (8), name (Decor),
+seed, snap (true: stand on terrain/big floors), avoidGameplay (true: drop props on roads/pads or overlapping parts).
 - Need something else? find_tools "terrain" / "lighting" / "asset" / "build" lists the low-level world tools
   (terrain_fill_block, lighting_set_preset, insert_asset, generate_build...).
 - Each gameplay piece carries the tag + attributes its system reads, e.g. a jump_pad has tag "JumpPad"
@@ -198,7 +213,7 @@ Tips: keep buttons >= 48 px tall (mobile), use at most 2-3 colors, put important
    missing SpawnLocation, unanchored parts. Fast, no playtest.
 2. test_game -- real playtest (~20 s): server + client errors with the script and line,
    automatic play-through (checkpoints, coins, kill parts), stats after spawn. Ends by itself.
-3. For each error: open the script (get_script_source), fix it with write_script or edit_script_lines,
+3. For each error: its code lines are shown; fix them with edit_script (read_script { path, find } for more context),
    re-run test_game. Do not stop while test_game reports errors.
 Reading errors: "ServerScriptService.Shop:42: attempt to index nil with 'Value'"
 = script Shop, line 42, something before ".Value" is nil (wrong name or not loaded yet -> WaitForChild).
@@ -220,6 +235,33 @@ Reading errors: "ServerScriptService.Shop:42: attempt to index nil with 'Value'"
 - Unable to cast value to Object/Color3... -> wrong value type (Color3.fromRGB for colors, Vector3.new for sizes).
 `,
   },
+  coding: {
+    title: 'Writing code that works the first time (read first if you must code)',
+    body: `
+## Order of preference
+1. No code: create_game / add_system / build_world / build_ui (config instead of scripts).
+2. code_recipe: verified scripts from params (touch_reward, prompt_action, door, timed_spawner, playtime_reward,
+   ui_button_remote, npc_dialog, badge_award, character_stats, chat_command, area_music, tween_loop).
+   code_recipe {} lists them with their params. Then tweak the SETTINGS table with edit_script.
+3. write_script for a NEW script; edit_script to CHANGE one (find/replace, cheaper and safer than rewriting).
+## Before changing existing code
+- code_outline: what each script does (one line each). read_script { path, find: "word" }: only the lines you need.
+- edit_script { path, find: "<exact old lines>", replace: "<new lines>" }. Indentation may differ; the result is
+  checked before writing, so a broken edit changes nothing.
+## What the checks catch for you (fix what they report, do not use force)
+- JavaScript/Python habits are fixed automatically: != && || ! null // comments let/const i++ "a" + b, backtick $-braces.
+- Invented Roblox APIs: wrong service/class/enum names, Vector3.New, humanoid.Walkspeed, deprecated methods
+  (they suggest the right name).
+- Beginner mistakes: LocalPlayer on the server, DataStore without pcall, loops without task.wait, trusting the client.
+## Patterns to copy
+- Stats: PlayerData.defineStat({ Name = "Gems", Default = 0, Leaderstat = true }); PlayerData.reward(player, "Gems", 5);
+  if PlayerData.spend(player, "Gems", 10) then ... end. Clients read player:GetAttribute("Gems").
+- Client -> server: client Net.send("Buy", itemId); server Net.on("Buy", function(player, itemId) --[[check everything]] end).
+- Tagged parts: Util.onTag("Lava", function(part) ... end) handles parts added later too.
+- Touch: local player = Util.playerFromHit(hit) (nil for non-players); Util.cooldown(2) per player.
+- Always test_game after writing code; read the error hint, fix with edit_script, test again.
+`,
+  },
   blender: {
     title: 'Custom 3D models with Blender (blender_* tools)',
     body: `
@@ -238,6 +280,8 @@ Reading errors: "ServerScriptService.Shop:42: attempt to index nil with 'Value'"
 - blender_to_roblox { name, objects: ["MyProp"], position: [x, y, z] }: exports (auto-reduces heavy meshes),
   uploads (needs ROBLOX_OPEN_CLOUD_API_KEY + ROBLOX_CREATOR_USER_ID), inserts at real size (1 m = 3.57 studs) on the ground.
 - It takes 30 s - 2 min: use start_job { tool: "blender_to_roblox", arguments: {...} } and keep working.
+- More options: parent (default Workspace/GameKit/Props), format (fbx | glb), maxTriangles (20000), decimate (true),
+  anchored (true), collide (true), description (asset description on Roblox).
 - No API key: it exports the file; import it in Studio (Home > Import 3D) then blender_to_roblox { name, existing: "Workspace/<model>" }.
 - Many copies around the map: populate_world { items: [{ from: "Workspace/GameKit/Props/<name>", count: 10, size: [6, 10] }] }.
 `,
@@ -254,6 +298,8 @@ The board lives inside the place (ServerStorage/GameKitTeam), so everyone sees t
 3. Before building, reserve space: team { action: "claim_zone", agent, zone, center: [x, y, z], size: [w, h, d] }.
    Overlapping another agent's zone is refused. Build inside it: build_world { zone }, populate_world { zone }.
 4. Blocked? team { action: "block", agent, task, note }. Found a bug? team { action: "add", title, details, role: "qa" }.
+   More options: plan { template, replace: true }, claim_zone { purpose }, list { full: true } (details + notes),
+   release/release_zone { force: true } (only when the owner AI is gone).
 5. Studio does one thing at a time: do not run test_game while others edit; the QA agent tests between tasks.
    Blender work runs in parallel (different app): artists can model while builders build.
 `,
@@ -315,18 +361,14 @@ Shared state attributes on ReplicatedStorage.GameKit: Status, Timer, RoundActive
 };
 
 export function catalogText(): string {
-  const lines: string[] = ['# GameKit catalog', '', '## Templates (create_game)'];
-  for (const t of TEMPLATES) {
-    lines.push(`- **${t.id}** -- ${t.title}: ${t.summary}`);
-    lines.push(`  options: ${Object.entries(t.options).map(([k, v]) => `${k} (${v})`).join('; ')}`);
-  }
+  const short = (t: string) => firstSentence(t, 140) ?? t;
+  const lines: string[] = ['# GameKit catalog (details: roblox_guide <id>)', '', '## Templates (create_game)'];
+  for (const t of TEMPLATES) lines.push(`- ${t.id}: ${short(t.summary)}`);
   lines.push('', '## Systems (add_system)');
-  for (const s of SYSTEMS) {
-    lines.push(`- **${s.id}** [${s.category}] -- ${s.summary}${s.requires.length ? ` (needs: ${s.requires.join(', ')})` : ''}`);
-  }
-  lines.push('', `## World (build_world)`, `- worlds: ${WORLDS.join(', ')}`, `- pieces: ${PIECES.join(', ')}`, `- obby obstacles: ${OBSTACLES.join(', ')}`);
-  lines.push('', '## Lighting presets (set_environment)');
-  for (const [k, v] of Object.entries(LIGHTING_PRESETS)) lines.push(`- **${k}**: ${v.description}`);
+  for (const s of SYSTEMS) if (s.id !== 'core') lines.push(`- ${s.id}: ${short(s.summary)}`);
+  lines.push('', '## World (build_world, populate_world)', `- worlds: ${WORLDS.join(', ')}`, `- pieces: ${PIECES.join(', ')}`, `- obby obstacles: ${OBSTACLES.join(', ')}`);
+  lines.push('', `## Lighting presets (set_environment): ${Object.keys(LIGHTING_PRESETS).join(', ')}`);
+  lines.push('', `## Code recipes (code_recipe): ${RECIPES.map((r) => r.id).join(', ')}`);
   return lines.join('\n');
 }
 

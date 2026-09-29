@@ -14,7 +14,7 @@ import { BridgeService } from './bridge-service.js';
 import type { ToolDefinition } from './tools/definitions.js';
 import { RobloxOfficialMCPClient } from './roblox-mcp-client.js';
 import { GAMEKIT_TOOLS } from './gamekit/tools.js';
-import { SERVER_INSTRUCTIONS, handleMetaTool, metaToolDefinitions, registerPromptsAndResources, toolVisible } from './gamekit/mcp-extras.js';
+import { SERVER_INSTRUCTIONS, handleMetaTool, listingView, metaToolDefinitions, registerPromptsAndResources, toolVisible } from './gamekit/mcp-extras.js';
 import { getProfile } from './gamekit/profiles.js';
 
 interface StreamableHttpConfig {
@@ -113,7 +113,7 @@ export const TOOL_HANDLERS: Record<string, ToolHandler> = {
   compare_instances: (tools, body) => tools.compareInstances(body.instancePathA, body.instancePathB),
   get_output_log: (tools, body) => tools.getOutputLog(body.maxEntries, body.messageType),
   bulk_set_attributes: (tools, body) => tools.bulkSetAttributes(body.instancePath, body.attributes),
-  capture_screenshot: (tools) => tools.captureScreenshot(),
+  capture_screenshot: (tools, body) => tools.captureScreenshot(body?.maxSize),
   simulate_mouse_input: (tools, body) => tools.simulateMouseInput(body.action, body.x, body.y, body.button, body.scrollDirection, body.target),
   simulate_keyboard_input: (tools, body) => tools.simulateKeyboardInput(body.keyCode, body.action, body.duration, body.target),
   character_navigation: (tools, body) => tools.characterNavigation(body.position, body.instancePath, body.waitForCompletion, body.timeout, body.target),
@@ -453,7 +453,7 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
         const listedTools = () => {
           const all = allTools();
           const hooks = hookNames();
-          return [...metaToolDefinitions(all.length), ...all.filter(t => (hooks.has(t.name) ? getProfile() !== 'starter' : toolVisible(t.name)))];
+          return [...metaToolDefinitions(all.length), ...all.filter(t => (hooks.has(t.name) ? getProfile() !== 'starter' : toolVisible(t.name)))].map(listingView);
         };
 
         server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: listedTools() }));

@@ -8,7 +8,7 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "node scripts/embed-gamekit.mjs && npm run build -w packages/core && npm run build -w packages/roblox-ultimate-mcp && npm run build -w packages/roblox-ultimate-mcp-inspector",
+    "build": "node scripts/embed-gamekit.mjs && node scripts/embed-roblox-api.mjs && npm run build -w packages/core && npm run build -w packages/roblox-ultimate-mcp && npm run build -w packages/roblox-ultimate-mcp-inspector",
     "prepare": "npm run build",
     "start": "node packages/roblox-ultimate-mcp/dist/index.js",
     "start:inspector": "node packages/roblox-ultimate-mcp-inspector/dist/index.js",
@@ -21,7 +21,7 @@
     "lint": "eslint packages/*/src/**/*.ts",
     "typecheck": "tsc --noEmit -p packages/core/tsconfig.json",
     "test": "npm test -w packages/core",
-    "gamekit:embed": "node scripts/embed-gamekit.mjs",
+    "gamekit:embed": "node scripts/embed-gamekit.mjs && node scripts/embed-roblox-api.mjs",
     "gamekit:verify": "node scripts/verify-gamekit-luau.mjs",
     "gamekit:docs": "node scripts/gen-gamekit-docs.mjs",
     "gamekit:smoke": "node scripts/gamekit-smoke.mjs",

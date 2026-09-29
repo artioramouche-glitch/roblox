@@ -90,28 +90,18 @@ export const JOB_TOOLS: ToolDef[] = [
   {
     name: 'start_job',
     category: 'write',
-    description: 'Run any other tool IN THE BACKGROUND and get a job id immediately, so you can keep working (e.g. model in Blender while blender_to_roblox uploads, or while test_game plays). Collect the result with job_status. Studio still does one thing at a time: do not edit Studio while a test_game job runs.',
+    description: 'Run another tool in the background and keep working (blender_to_roblox, long test_game...). Get the result with job_status.',
     inputSchema: {
       type: 'object',
-      properties: {
-        tool: { type: 'string', description: 'Tool to run, e.g. "blender_to_roblox", "test_game", "populate_world"' },
-        arguments: { type: 'object', description: 'Arguments for that tool' },
-        label: { type: 'string', description: 'Optional note to recognise the job' },
-      },
+      properties: { tool: { type: 'string' }, arguments: { type: 'object' }, label: { type: 'string' } },
       required: ['tool'],
     },
   },
   {
     name: 'job_status',
     category: 'read',
-    description: 'Result of a background job (start_job). Without id: lists recent jobs. Pass wait (seconds, max 60) to wait for the job to finish instead of polling.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        id: { type: 'string', description: 'Job id from start_job, e.g. "job-1"' },
-        wait: { type: 'number', description: 'Seconds to wait for completion (0-60, default 0)' },
-      },
-    },
+    description: 'Result of a start_job job (wait up to 60 s with wait). Without id: list jobs.',
+    inputSchema: { type: 'object', properties: { id: { type: 'string' }, wait: { type: 'number' } } },
   },
 ];
 

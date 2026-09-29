@@ -44,26 +44,21 @@ export const TEAM_TOOLS: ToolDef[] = [
     name: 'team',
     category: 'write',
     tier: 'starter',
-    description: 'Shared task board + map zones for SEVERAL AIs building the same game at once (stored in the place, so all clients of this Studio see it). Pick a short unique agent name (e.g. "claude-1") and always pass it. Actions: plan (create tasks; default plan if none given), list, claim (next free task or a given one), done, release, block, note, add, claim_zone (reserve a box of the map), release_zone, zones.',
+    description: 'Shared task board + map zones for several AIs on one Studio (roblox_guide team). Pass your unique agent name. Actions: plan, list, claim, done, release, block, note, add, claim_zone, release_zone, zones.',
     inputSchema: {
       type: 'object',
       properties: {
         action: { type: 'string', enum: ['plan', 'list', 'claim', 'done', 'release', 'block', 'note', 'add', 'claim_zone', 'release_zone', 'zones'] },
-        agent: { type: 'string', description: 'Your agent name (required for claim/done/release/block/claim_zone/release_zone)' },
-        task: { type: 'string', description: 'Task id, e.g. "T3"' },
-        role: { type: 'string', description: `claim: prefer tasks of this role (${ROLES.join(', ')}); add: role of the new task` },
-        title: { type: 'string', description: 'add: task title' },
-        details: { type: 'string', description: 'add: what to do' },
-        note: { type: 'string', description: 'done/block/note: what you did or what blocks you' },
-        tasks: { type: 'array', items: { type: 'object' }, description: 'plan: [{title, details, role, zone}] (omit for the default plan)' },
-        template: { type: 'string', description: 'plan: template name used in the default plan' },
-        goal: { type: 'string', description: 'plan: the game idea in one sentence' },
-        replace: { type: 'boolean', description: 'plan: clear existing tasks first' },
-        zone: { type: 'string', description: 'Zone name (claim_zone / release_zone; add: zone of the task)' },
-        center: { type: 'array', items: { type: 'number' }, description: 'claim_zone: [x, y, z] center of the box' },
-        size: { type: 'array', items: { type: 'number' }, description: 'claim_zone: [x, y, z] size of the box in studs (default [120, 80, 120])' },
-        purpose: { type: 'string', description: 'claim_zone: what you build there' },
-        force: { type: 'boolean', description: 'release/release_zone something owned by another agent (only if it crashed)' },
+        agent: { type: 'string' },
+        task: { type: 'string', description: 'e.g. "T3"' },
+        role: { type: 'string', description: ROLES.join('|') },
+        title: { type: 'string' },
+        note: { type: 'string' },
+        goal: { type: 'string', description: 'plan: the game idea' },
+        tasks: { type: 'array', items: { type: 'object' }, description: 'plan: [{title, details, role, zone}]' },
+        zone: { type: 'string' },
+        center: { type: 'array', items: { type: 'number' } },
+        size: { type: 'array', items: { type: 'number' }, description: '[x,y,z]' },
       },
       required: ['action'],
     },
@@ -284,15 +279,18 @@ export async function handleTeam(host: GameKitHost, args: Record<string, any>): 
   else if (action === 'claim' && state.claimed) next = state.claimed.zone ? `First reserve your area: team {action:"claim_zone", agent, zone:"${state.claimed.zone}", center, size}. Then do the task and mark it done.` : 'Do the task, then team {action:"done", agent, task, note}.';
   else if (action === 'done') next = 'Claim the next task: team {action:"claim", agent}.';
   else if (action === 'claim_zone') next = 'Build only inside your zone (build_world / populate_world {zone}).';
+  // Only what this action needs: the whole board costs tokens on every call.
+  const brief = (t: any) => ({ id: t.id, title: t.title, status: t.status, owner: t.owner || undefined, role: t.role || undefined, zone: t.zone || undefined });
+  const showTasks = action === 'list' || action === 'plan';
   return text({
     ...(state?.ok === false ? { ok: false, error: state.error, owner: state.owner, conflicts: state.conflicts } : { ok: true }),
     claimed: state?.claimed,
-    task: state?.task,
+    task: state?.task ? brief(state.task) : undefined,
     zone: state?.zone,
     counts,
-    yourTasks: mine,
-    tasks: action === 'zones' ? undefined : tasks.map((t: any) => ({ ...t, notes: t.notes ? String(t.notes).slice(-600) : undefined })),
-    zones,
+    yourTasks: mine?.map(brief),
+    tasks: showTasks ? tasks.map((t: any) => (args.full ? { ...t, notes: t.notes ? String(t.notes).slice(-600) : undefined } : brief(t))) : undefined,
+    zones: action === 'zones' || action === 'list' || action === 'claim_zone' || state?.conflicts ? zones : undefined,
     next,
   });
 }

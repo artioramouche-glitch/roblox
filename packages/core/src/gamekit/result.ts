@@ -12,8 +12,39 @@ export interface ToolResult {
   isError?: boolean;
 }
 
+/** Drops what carries no information (undefined, null, empty arrays/objects) so replies cost fewer tokens. */
+export function prune(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(prune);
+  if (!value || typeof value !== 'object') return value;
+  const out: Record<string, unknown> = {};
+  for (const [key, v] of Object.entries(value as Record<string, unknown>)) {
+    if (v === undefined || v === null) continue;
+    const pruned = prune(v);
+    if (Array.isArray(pruned) && pruned.length === 0) continue;
+    if (pruned && typeof pruned === 'object' && !Array.isArray(pruned) && Object.keys(pruned).length === 0) continue;
+    out[key] = pruned;
+  }
+  return out;
+}
+
+/** Compact JSON by default (tokens); ROBLOX_MCP_PRETTY=1 indents it for humans. */
+export function toJson(value: unknown): string {
+  const pretty = /^(1|true|yes|on)$/i.test(process.env.ROBLOX_MCP_PRETTY ?? '');
+  return JSON.stringify(prune(value), null, pretty ? 2 : undefined);
+}
+
+/** First sentence, at most `max` characters. */
+export function firstSentence(text: string | undefined, max: number): string | undefined {
+  if (!text) return text;
+  const clean = text.replace(/\s+/g, ' ').trim();
+  const cut = clean.search(/[.!?](\s|$)/);
+  let out = cut > 0 ? clean.slice(0, cut + 1) : clean;
+  if (out.length > max) out = `${out.slice(0, max - 1).replace(/\s+\S*$/, '')}…`;
+  return out;
+}
+
 export function text(value: unknown): ToolResult {
-  return { content: [{ type: 'text', text: typeof value === 'string' ? value : JSON.stringify(value, null, 2) }] };
+  return { content: [{ type: 'text', text: typeof value === 'string' ? value : toJson(value) }] };
 }
 
 /** A JSON summary followed by images (screenshots). */

@@ -85,6 +85,24 @@ try {
   await call('build_ui', { spec: { name: 'CoinsUI', children: [{ type: 'label', position: 'top', size: [200, 40], bind: 'stat:Coins', format: '💰 {value}' }] } });
   await call('set_environment', { preset: 'sunset' });
   await call('write_script', { path: 'ServerScriptService/Hello', source: 'print("hello from write_script")' });
+
+  // Coding aids: recipe -> read -> edit (validated) -> outline; JS-style code gets auto-fixed.
+  await call('code_recipe', {});
+  const recipe = await call('code_recipe', { recipe: 'touch_reward', params: { target: 'Workspace/GameKit/MyPad', amount: 10 } });
+  const scriptPath = recipe.installed?.[0]?.split(' ')[0];
+  if (!scriptPath) { failed++; console.log('recipe not installed'); }
+  const read = await client.callTool({ name: 'read_script', arguments: { path: scriptPath, find: 'Amount' } });
+  if (!/Amount = 10/.test(read.content[0].text)) { failed++; console.log('read_script', read.content[0].text.slice(0, 300)); }
+  const edit = await call('edit_script', { path: scriptPath, find: 'Amount = 10,', replace: 'Amount = 99,' });
+  if (!edit.written) failed++;
+  const reread = await client.callTool({ name: 'read_script', arguments: { path: scriptPath, find: 'Amount = 99' } });
+  if (!/Amount = 99/.test(reread.content[0].text)) { failed++; console.log('edit not applied'); }
+  const refused = await client.callTool({ name: 'edit_script', arguments: { path: scriptPath, find: 'local ready', replace: 'local ready = = 1 --' } });
+  if (JSON.parse(refused.content[0].text).written !== false) { failed++; console.log('broken edit was written'); }
+  const fixed = await call('write_script', { path: 'ServerScriptService/JsStyle', source: 'let total = 0\n// count\nif total != 1 && !false then\n\tconsole.log("Total: " + total)\nend' });
+  if (!fixed.autofixed?.length) { failed++; console.log('no autofix reported'); }
+  const outline = await client.callTool({ name: 'code_outline', arguments: {} });
+  console.log(`ok   code_outline -> ${outline.content[0].text.split('\n')[0]}`);
   const audit = await call('check_game', {});
   console.log(`check_game: ${audit.verdict} (${audit.errors} errors, ${audit.warnings} warnings, ${audit.scripts} scripts)`);
   for (const f of (audit.findings ?? []).filter((x) => x.severity === 'error').slice(0, 10)) console.log('   error:', f.where, f.line ?? '', f.problem);

@@ -303,31 +303,24 @@ export const BLENDER_TOOLS: ToolDef[] = [
   {
     name: 'blender_status',
     category: 'read',
-    description: 'Check the link to Blender (for custom 3D models) and list the Blender scene. When connected, the other blender_* tools appear. Explains how to install the Blender addon if needed.',
+    description: 'Blender link for custom 3D models: checks the connection, lists the scene, explains the addon setup. When connected, more blender_* tools appear.',
     inputSchema: { type: 'object', properties: {} },
   },
   {
     name: 'blender_to_roblox',
     category: 'write',
     tier: 'starter',
-    description: 'Send a model from Blender into the Roblox game: exports it (auto-reduces meshes over 20k triangles, checks textures/materials), uploads it as a Roblox Model (needs ROBLOX_OPEN_CLOUD_API_KEY + ROBLOX_CREATOR_USER_ID/GROUP_ID), inserts it in Studio at the right size (1 m = 3.57 studs) standing on the ground. Without a key it exports the file and explains the 2-click manual import. Also works with an existing assetId (skips Blender). Can take 1-2 min: run it through start_job to keep working.',
+    description: 'Send a Blender model into the game: export (<= 20k triangles/mesh), upload (Open Cloud key), insert at real size on the ground. Without a key: exported file + manual import. Slow: use start_job. roblox_guide blender.',
     inputSchema: {
       type: 'object',
       properties: {
-        name: { type: 'string', description: 'Name of the model in Roblox (and on the uploaded asset)' },
-        objects: { type: 'array', items: { type: 'string' }, description: 'Blender object names to export (default: all visible meshes)' },
-        position: { type: 'array', items: { type: 'number' }, description: '[x, y, z] in studs where the model stands (bottom center). Default [0, 0, 0]' },
-        size: { type: 'number', description: 'Largest dimension in studs (default: real size from Blender, 1 m = 3.57 studs)' },
-        yaw: { type: 'number', description: 'Rotation around the vertical axis, degrees' },
-        parent: { type: 'string', description: 'Where to put it (default "Workspace/GameKit/Props")' },
-        format: { type: 'string', enum: ['fbx', 'glb'], description: 'Export format (default fbx)' },
-        maxTriangles: { type: 'number', description: 'Triangle budget per mesh (default 20000)' },
-        decimate: { type: 'boolean', description: 'Reduce meshes above the budget automatically (default true)' },
-        anchored: { type: 'boolean', description: 'Anchor the parts (default true)' },
-        collide: { type: 'boolean', description: 'Players collide with it (default true)' },
-        assetId: { type: 'number', description: 'Skip Blender: insert this existing Roblox model asset instead' },
-        existing: { type: 'string', description: 'Skip Blender and upload: only resize/place a model already in Studio, e.g. "Workspace/MyImport" (after a manual Import 3D)' },
-        description: { type: 'string', description: 'Asset description on Roblox' },
+        name: { type: 'string' },
+        objects: { type: 'array', items: { type: 'string' }, description: 'Blender objects (default all visible meshes)' },
+        position: { type: 'array', items: { type: 'number' }, description: '[x,y,z] bottom center, studs' },
+        size: { type: 'number', description: 'Largest dimension in studs (default real size)' },
+        yaw: { type: 'number' },
+        assetId: { type: 'number', description: 'Insert an existing Roblox model instead' },
+        existing: { type: 'string', description: 'Only resize/place a model already in Studio' },
       },
       required: ['name'],
     },
@@ -336,43 +329,39 @@ export const BLENDER_TOOLS: ToolDef[] = [
     name: 'blender_python',
     category: 'write',
     tier: 'blender',
-    description: 'Run Python (bpy) inside Blender to model, edit or render. Work in small steps; print() what you need to see. Use real-world meters (a door is 2 m high). Tip: keep models under 20k triangles and one material per mesh for Roblox, then call blender_to_roblox.',
-    inputSchema: { type: 'object', properties: { code: { type: 'string', description: 'Python code using bpy/bmesh/mathutils' } }, required: ['code'] },
+    description: 'Run Python (bpy) in Blender, in small steps; print() what you need. Model in meters, base at Z=0, < 20k triangles, 1 material per mesh.',
+    inputSchema: { type: 'object', properties: { code: { type: 'string' } }, required: ['code'] },
   },
   {
     name: 'blender_scene',
     category: 'read',
     tier: 'blender',
-    description: 'Look at the Blender scene: objects with size in meters, triangle counts and materials; details of one object; and/or a screenshot of the Blender viewport.',
+    description: 'Blender scene: objects (meters, triangles, materials), one object in detail, and/or a viewport screenshot.',
     inputSchema: {
       type: 'object',
-      properties: {
-        object: { type: 'string', description: 'Name of one object for full details' },
-        screenshot: { type: 'boolean', description: 'Also return a viewport screenshot' },
-        maxSize: { type: 'number', description: 'Screenshot size in pixels (default 800)' },
-      },
+      properties: { object: { type: 'string' }, screenshot: { type: 'boolean' }, maxSize: { type: 'number', description: 'default 640' } },
     },
   },
   {
     name: 'blender_assets',
     category: 'write',
     tier: 'blender',
-    description: `Get ready-made 3D content into Blender: search/download free models and textures (${ASSET_SOURCES.slice(0, 3).join(', ')}) or generate a model from text with AI (hyper3d, hunyuan3d). Sources must be enabled in the Blender addon panel (API keys for sketchfab/polypizza/hyper3d/hunyuan3d). Then send it to the game with blender_to_roblox.`,
+    description: 'Ready-made 3D content into Blender: search/download (polyhaven, sketchfab, polypizza) or AI generation (hyper3d, hunyuan3d: generate, poll, import). Enable sources in the addon panel.',
     inputSchema: {
       type: 'object',
       properties: {
-        action: { type: 'string', enum: ['status', 'search', 'download', 'generate', 'poll', 'import', 'texture'], description: 'status: which sources are enabled; search; download (by id); generate (text prompt, AI); poll (AI job); import (finished AI job); texture (apply a Poly Haven texture to an object)' },
+        action: { type: 'string', enum: ['status', 'search', 'download', 'generate', 'poll', 'import', 'texture'] },
         source: { type: 'string', enum: [...ASSET_SOURCES] },
-        query: { type: 'string', description: 'search: keywords; generate: short English description of the model' },
-        id: { type: 'string', description: 'download: asset id / uid; poll/import: job id (subscription_key, request_id, job_id or task_uuid)' },
-        assetType: { type: 'string', enum: ['models', 'textures', 'hdris', 'all'], description: 'polyhaven search/download (default models)' },
-        categories: { type: 'string', description: 'Optional category filter' },
-        resolution: { type: 'string', description: 'polyhaven: 1k, 2k, 4k (default 1k)' },
-        targetSize: { type: 'number', description: 'sketchfab/polypizza: normalize the largest dimension to this many meters' },
-        name: { type: 'string', description: 'import: object name in Blender' },
-        url: { type: 'string', description: 'import (hunyuan3d): model URL from the poll result' },
-        object: { type: 'string', description: 'texture: Blender object to texture' },
-        limit: { type: 'number', description: 'search: max results (default 20)' },
+        query: { type: 'string' },
+        id: { type: 'string' },
+        assetType: { type: 'string', enum: ['models', 'textures', 'hdris', 'all'] },
+        categories: { type: 'string' },
+        resolution: { type: 'string' },
+        targetSize: { type: 'number', description: 'meters' },
+        name: { type: 'string' },
+        url: { type: 'string' },
+        object: { type: 'string' },
+        limit: { type: 'number' },
       },
       required: ['action'],
     },
@@ -381,7 +370,7 @@ export const BLENDER_TOOLS: ToolDef[] = [
     name: 'blender_command',
     category: 'write',
     tier: 'builder',
-    description: 'Advanced: send a raw command to the Blender addon ({type, params}), e.g. get_scene_info, get_object_info, execute_code, search_polyhaven_assets. Prefer the other blender_* tools.',
+    description: 'Advanced: raw command to the Blender addon ({type, params}).',
     inputSchema: { type: 'object', properties: { type: { type: 'string' }, params: { type: 'object' } }, required: ['type'] },
   },
 ];
@@ -453,7 +442,7 @@ export class BlenderTools {
     if (!args.screenshot) return text(info);
     const file = path.join(os.tmpdir(), `gamekit-blender-${process.pid}-${Date.now()}.png`);
     try {
-      await this.client.command('get_viewport_screenshot', { max_size: Number(args.maxSize ?? 800), filepath: file, format: 'png' });
+      await this.client.command('get_viewport_screenshot', { max_size: Number(args.maxSize ?? 640), filepath: file, format: 'png' });
       const data = fs.readFileSync(file).toString('base64');
       return withImages(info, [{ label: 'Blender viewport', data }]);
     } catch (error) {

@@ -5,26 +5,27 @@
  */
 
 import { SYSTEMS, systemPlacements, getSystem } from './catalog.js';
-import { analyseAudit, collectAudit } from './doctor.js';
+import { analyseAudit, codeAt, collectAudit } from './doctor.js';
 import { buildEnvironmentLuau, LIGHTING_PRESETS, TERRAIN_MODES, type EnvironmentOptions } from './environment.js';
 import { install, runLuauJson, splitPath, type InstallReport, type Placement } from './installer.js';
 import { catalogText, guideText, GUIDES } from './knowledge.js';
-import { contextFor, lintLuau, type ScriptContext } from './luau-lint.js';
-import { checkLuauSyntax } from './luau-syntax.js';
+import { contextFor, type ScriptContext } from './luau-lint.js';
 import { runPlaytest, type PlaytestBridge } from './playtest.js';
 import { getProfile } from './profiles.js';
 import { getTemplate, TEMPLATES } from './templates.js';
 import { buildScreenGui, missingActionTargets, type UiSpec } from './ui.js';
-import { buildWorld, countParts, OBSTACLES, PIECES, WORLDS, worldPlacement } from './world.js';
+import { buildWorld, countParts, PIECES, WORLDS, worldPlacement } from './world.js';
 import { BACKUP_TOOLS, handleBackup, placeHasContent, saveBackup } from './backup.js';
 import { BLENDER_TOOLS, BlenderTools } from './blender.js';
 import { ECONOMY_TOOLS, handleEconomy } from './economy.js';
 import { handleJobTool, JOB_TOOLS, JobRegistry } from './jobs.js';
 import { POPULATE_TOOLS, populateWorld } from './props.js';
 import { PUBLISH_TOOLS, publishChecklist } from './publish.js';
-import { errorMessage, type ToolResult } from './result.js';
+import { errorMessage, toJson, type ToolResult } from './result.js';
 import { findZone, handleTeam, TEAM_TOOLS } from './team.js';
 import { lookAtGame, VISUAL_TOOLS } from './visual.js';
+import { CODE_TOOLS, handleCodeOutline, handleEditScript, handleReadScript, prepareLuau, readScript } from './code.js';
+import { handleRecipe, RECIPE_TOOLS } from './recipes.js';
 
 export interface GameKitHost extends PlaytestBridge {
   /** True when the Studio plugin polled recently. */
@@ -54,74 +55,62 @@ export const GAMEKIT_TOOLS: ToolDef[] = [
   {
     name: 'roblox_start_here',
     category: 'read',
-    description: 'START HERE before anything else. Checks the Studio connection, shows what is already in the game, and gives the step-by-step plan to build a complete game with this MCP (templates, systems, testing).',
+    description: 'START HERE: checks the Studio connection, shows what the game contains and the step-by-step plan.',
     inputSchema: obj({}),
   },
   {
     name: 'roblox_guide',
     category: 'read',
-    description: `Read a short guide. Topics: ${Object.keys(GUIDES).join(', ')}, catalog, or any system/template id (e.g. "shop", "obby"). Read "workflow" first, "errors" when something breaks.`,
-    inputSchema: obj({ topic: { type: 'string', description: 'Guide topic, e.g. "workflow", "design", "luau", "client-server", "ui", "shop"' } }, ['topic']),
+    description: `Short guides. Topics: ${Object.keys(GUIDES).join(', ')}, catalog, or a system/template id. Read "workflow" first, "errors" when stuck.`,
+    inputSchema: obj({ topic: { type: 'string' } }, ['topic']),
   },
   {
     name: 'gamekit_catalog',
     category: 'read',
-    description: 'List everything that can be installed without code: complete game templates, plug-and-play systems, world pieces and lighting presets.',
+    description: 'Everything installable without code: templates, systems, world pieces, lighting presets, code recipes.',
     inputSchema: obj({}),
   },
   {
     name: 'create_game',
     category: 'write',
-    description: `Build a COMPLETE playable game in one call: scripts (server+client), config, world, UI and lighting. Templates: ${TEMPLATES.map((t) => `${t.id} (${t.genre})`).join(', ')}. By default removes previous GameKit content first (Ctrl+Z in Studio undoes everything). Then run test_game.`,
+    description: 'Build a COMPLETE playable game in one call (scripts, config, world, UI, lighting; backs up the old place). Then test_game.',
     inputSchema: obj({
-      template: { type: 'string', enum: TEMPLATES.map((t) => t.id), description: 'Which game to build' },
-      options: {
-        type: 'object',
-        description: 'Optional: title (text on signs), theme (rainbow|candy|neon|nature|space|lava|ice), difficulty (easy|medium|hard), stages (obby), plots (tycoon, farming), zones (simulator), mazeSize & keys (horror_escape), waves (tower_defense), seed, lighting (preset name), obstacles (obby: list of obstacle types)',
-        properties: {
-          title: { type: 'string' }, theme: { type: 'string' }, difficulty: { type: 'string', enum: ['easy', 'medium', 'hard'] },
-          stages: { type: 'number' }, plots: { type: 'number' }, zones: { type: 'number' }, mazeSize: { type: 'number' }, waves: { type: 'number' },
-          keys: { type: 'number' }, seed: { type: 'number' }, lighting: { type: 'string' },
-          obstacles: { type: 'array', items: { type: 'string', enum: [...OBSTACLES] } },
-        },
-      },
-      config: { type: 'object', description: 'Optional config overrides per module, e.g. {"Shop": {"Currency": "Gems"}, "Checkpoints": {"FinishRewards": {"Wins": 1, "Coins": 100}}}' },
-      fresh: { type: 'boolean', description: 'Remove previous GameKit world/scripts first (default true)' },
-      backup: { type: 'boolean', description: 'Save a backup_game snapshot first when the place is not empty (default true)' },
+      template: { type: 'string', enum: TEMPLATES.map((t) => t.id) },
+      options: { type: 'object', description: 'title, theme, difficulty (easy|medium|hard), stages, plots, zones, mazeSize, keys, waves, seed, lighting: see roblox_guide <template>' },
+      config: { type: 'object', description: 'Per-module overrides, e.g. {"Shop": {"Currency": "Gems"}}' },
+      fresh: { type: 'boolean', description: 'Remove old GameKit content first (default true)' },
+      backup: { type: 'boolean', description: 'Snapshot a non-empty place first (default true)' },
     }, ['template']),
   },
   {
     name: 'add_system',
     category: 'write',
-    description: `Install one ready-made, tested game system (plus what it needs). Systems: ${SYSTEMS.filter((s) => s.id !== 'core').map((s) => s.id).join(', ')}. Pass "config" to change its settings (existing settings are kept otherwise). Read roblox_guide <system> for its options.`,
+    description: 'Install a tested game system (+ what it needs). Its settings: roblox_guide <system>.',
     inputSchema: obj({
       system: { type: 'string', enum: SYSTEMS.map((s) => s.id) },
-      config: { type: 'object', description: 'Overrides for the system config module(s), e.g. {"Shop": {"Items": [...]}} or directly {"Currency": "Gems"} for single-config systems' },
-      resetConfig: { type: 'boolean', description: 'Rewrite config modules with defaults (+ your overrides)' },
+      config: { type: 'object', description: 'Config overrides, e.g. {"Currency": "Gems"}' },
+      resetConfig: { type: 'boolean' },
     }, ['system']),
   },
   {
     name: 'build_world',
     category: 'write',
-    description: `Build gameplay-ready geometry in Workspace/GameKit (anchored, tagged for the systems). Worlds: ${WORLDS.join(', ')}. Pieces: ${PIECES.join(', ')}. Same name = replaced. Positions are [x, y, z] in studs, y is up.`,
+    description: `Build anchored, tagged geometry in Workspace/GameKit: worlds (${WORLDS.join(', ')}) or one of ${PIECES.length} pieces (jump_pad, coin, checkpoint, spinner, tower_pad...: roblox_guide building). Same name = replaced. [x,y,z] studs, y up.`,
     inputSchema: obj({
-      kind: { type: 'string', description: `A world (${WORLDS.join(', ')}) or a piece (${PIECES.join(', ')})` },
-      name: { type: 'string', description: 'Name of the created model/part (default: kind). Reuse a name to replace it.' },
-      zone: { type: 'string', description: 'Build at the center of a zone claimed with team (when options.position is not given)' },
-      options: {
-        type: 'object',
-        description: 'position [x,y,z]; obby_course: stages, difficulty, theme, coins, obstacles, title, seed; lobby: title, size, shop, leaderboardStat; arena: size, theme, spawns; maze: width, height, keys, ceiling, monster, seed; tycoon_plots: count; simulator_world: zones, basePrice; decor_scatter: radius, count, clear; td_map: position; farm: plots, crops. Pieces: color, size [x,y,z], stage (checkpoint), power (jump_pad), speed, offset [x,y,z] & duration (moving_platform), stat & amount (coin), enemy & maxAlive (enemy_spawner), zone & price (zone_gate), target (teleporter), tower (tower_pad: Archer|Cannon|Frost), crop (seed_stand), length (fence), yaw (degrees), text...',
-      },
+      kind: { type: 'string' },
+      name: { type: 'string' },
+      zone: { type: 'string', description: 'Build at the center of a team zone' },
+      options: { type: 'object', description: 'position [x,y,z] + kind options (roblox_guide building)' },
     }, ['kind']),
   },
   {
     name: 'build_ui',
     category: 'write',
-    description: 'Create a screen UI from JSON (no Luau): frames, labels, buttons, images, bars with responsive sizes and nice defaults. Behaviour without code: bind "stat:Coins" (live text), bar "stat:Power/stat:Capacity", showIf, action "toggle:WindowName" | "open:X" | "close:X" | "remote:Event". See roblox_guide ui.',
+    description: 'Screen UI from JSON, no Luau: frame/label/button/image/textbox/scroll/bar; bind "stat:Coins", bar, showIf, action "toggle:Window". See roblox_guide ui.',
     inputSchema: obj({
       spec: {
         type: 'object',
-        description: '{ name: "MyUI", children: [ { type: "frame"|"label"|"button"|"image"|"imagebutton"|"textbox"|"scroll"|"bar", name, text, position: "center"|"top"|"top-left"|..., size: [w,h] (<=1 = screen fraction, >1 = pixels), color, textColor, corner, stroke, padding, layout: "vertical"|"horizontal"|"grid", gap, bind, format, bar, showIf, action, visible, children: [...] } ] }',
+        description: '{ name, children: [{ type, name, text, position, size [w,h], color, bind, action, children }] }',
         properties: { name: { type: 'string' }, children: { type: 'array', items: { type: 'object' } } },
         required: ['name', 'children'],
       },
@@ -130,13 +119,13 @@ export const GAMEKIT_TOOLS: ToolDef[] = [
   {
     name: 'set_environment',
     category: 'write',
-    description: `Change the mood: lighting preset (${Object.keys(LIGHTING_PRESETS).join(', ')}), time of day, terrain (${TERRAIN_MODES.join(', ')}), remove the default Baseplate.`,
+    description: 'Mood: lighting preset, time of day, terrain, remove the Baseplate.',
     inputSchema: obj({
       preset: { type: 'string', enum: Object.keys(LIGHTING_PRESETS) },
-      clockTime: { type: 'number', description: '0-24' },
+      clockTime: { type: 'number' },
       terrain: { type: 'string', enum: [...TERRAIN_MODES] },
-      terrainSize: { type: 'number', description: 'Studs (64-2048, default 512)' },
-      terrainCenter: { type: 'array', items: { type: 'number' }, description: '[x, y, z] center of the terrain' },
+      terrainSize: { type: 'number' },
+      terrainCenter: { type: 'array', items: { type: 'number' } },
       hillHeight: { type: 'number' },
       water: { type: 'boolean' },
       removeBaseplate: { type: 'boolean' },
@@ -146,38 +135,40 @@ export const GAMEKIT_TOOLS: ToolDef[] = [
   {
     name: 'write_script',
     category: 'write',
-    description: 'The SAFE way to create or replace a script. Checks the Luau with the real compiler and a beginner-mistake linter BEFORE writing; refuses broken code and explains how to fix it. kind: server (Script), client (LocalScript) or module (ModuleScript); default from the location.',
+    description: 'The SAFE way to create/replace a whole script: auto-fixes JS-style mistakes, then checks with the Luau compiler, a beginner linter and the Roblox API list; refuses broken code. For small changes use edit_script.',
     inputSchema: obj({
-      path: { type: 'string', description: 'Full path incl. script name, e.g. "ServerScriptService/CoinGiver" or "StarterPlayer/StarterPlayerScripts/Intro"' },
-      source: { type: 'string', description: 'Complete Luau source' },
+      path: { type: 'string', description: 'e.g. "ServerScriptService/CoinGiver"' },
+      source: { type: 'string' },
       kind: { type: 'string', enum: ['server', 'client', 'module'] },
-      force: { type: 'boolean', description: 'Write even if the linter reports errors (never skips syntax errors)' },
+      force: { type: 'boolean', description: 'Write despite linter errors (never despite syntax errors)' },
     }, ['path', 'source']),
   },
   {
     name: 'check_luau',
     category: 'read',
-    description: 'Check Luau code WITHOUT writing it: real compiler syntax check + beginner-mistake linter (client/server confusion, infinite loops, deprecated APIs, trusting the client...). Works even when Studio is closed.',
+    description: 'Check Luau without writing it (compiler, beginner linter, Roblox API names) and get an auto-fixed version. Works offline.',
     inputSchema: obj({
       source: { type: 'string' },
-      kind: { type: 'string', enum: ['server', 'client', 'module'], description: 'Where the code runs (improves the checks)' },
+      kind: { type: 'string', enum: ['server', 'client', 'module'] },
     }, ['source']),
   },
   {
     name: 'check_game',
     category: 'read',
-    description: 'Audit the whole place without playing: syntax errors in every script, beginner mistakes, scripts that can never run where they are, missing spawn, loose unanchored parts, GameKit pieces without their system. Returns problems with fixes.',
-    inputSchema: obj({ includeGameKit: { type: 'boolean', description: 'Also lint GameKit\'s own scripts (default false)' } }),
+    description: 'Audit the place without playing: script errors, wrong script locations, bad API names, missing spawn, loose parts, pieces without their system.',
+    inputSchema: obj({ includeGameKit: { type: 'boolean' } }),
   },
   {
     name: 'test_game',
     category: 'write',
-    description: 'Automatic playtest: starts Play, plays through the game (checkpoints, coins, kill parts), records server AND client errors with script/line and plain-English fixes, then stops by itself and cleans up. Run it after every change until it says PASS.',
+    description: 'Automatic playtest: plays the game, reports server+client errors with script, line and fix, then stops. Repeat after every change until PASS.',
     inputSchema: obj({
-      seconds: { type: 'number', description: 'How long to play (8-120, default 20)' },
-      autoplay: { type: 'boolean', description: 'Walk through checkpoints/coins automatically (default true)' },
+      seconds: { type: 'number', description: '8-120, default 20' },
+      autoplay: { type: 'boolean' },
     }),
   },
+  ...CODE_TOOLS,
+  ...RECIPE_TOOLS,
   ...POPULATE_TOOLS,
   ...VISUAL_TOOLS,
   ...BACKUP_TOOLS,
@@ -193,7 +184,7 @@ export const GAMEKIT_TOOL_NAMES = new Set(GAMEKIT_TOOLS.map((t) => t.name));
 const BLENDER_NAMES = new Set(BLENDER_TOOLS.map((t) => t.name));
 
 function text(value: unknown) {
-  return { content: [{ type: 'text', text: typeof value === 'string' ? value : JSON.stringify(value, null, 2) }] };
+  return { content: [{ type: 'text', text: typeof value === 'string' ? value : toJson(value) }] };
 }
 
 const NOT_CONNECTED = {
@@ -276,6 +267,10 @@ export class GameKit {
       case 'check_luau': return this.checkLuau(args);
       case 'check_game': return this.checkGame(args);
       case 'test_game': return this.testGame(args);
+      case 'read_script': this.requireStudio(); return handleReadScript(this.host, args);
+      case 'edit_script': this.requireStudio(); return handleEditScript(this.host, args);
+      case 'code_outline': this.requireStudio(); return handleCodeOutline(this.host, args);
+      case 'code_recipe': return handleRecipe(this.host, args, () => this.requireStudio());
       case 'populate_world': this.requireStudio(); return populateWorld(this.host, args);
       case 'look_at_game': this.requireStudio(); return lookAtGame(this.host, args);
       case 'backup_game': this.requireStudio(); return handleBackup(this.host, args);
@@ -475,28 +470,20 @@ return HttpService:JSONEncode({ place = game.Name, placeId = game.PlaceId, gameK
     return text({ ...result, next: 'Look at the viewport; try another preset if the mood is not right.' });
   }
 
-  private async validate(source: string, context: ScriptContext) {
-    const syntax = await checkLuauSyntax(source, 'script');
-    const lint = syntax.ok ? lintLuau(source, context) : [];
-    return {
-      syntax,
-      lint,
-      errors: [
-        ...syntax.errors.map((e) => ({ line: e.line, problem: `Syntax: ${e.message}`, fix: e.hint })),
-        ...lint.filter((l) => l.severity === 'error').map((l) => ({ line: l.line, problem: l.message, fix: l.fix, rule: l.rule })),
-      ],
-      warnings: lint.filter((l) => l.severity !== 'error').map((l) => ({ line: l.line, problem: l.message, fix: l.fix, rule: l.rule })),
-    };
-  }
-
   async checkLuau(args: Record<string, any>) {
     const context: ScriptContext = args.kind === 'server' ? 'server' : args.kind === 'client' ? 'client' : args.kind === 'module' ? 'module' : 'unknown';
-    const result = await this.validate(String(args.source ?? ''), context);
+    const source = String(args.source ?? '');
+    const prepared = await prepareLuau(source, context);
+    const changed = prepared.fixes.length > 0;
     return text({
-      ok: result.errors.length === 0,
-      syntaxChecker: result.syntax.available ? 'luau compiler (wasm)' : 'unavailable',
-      errors: result.errors,
-      warnings: result.warnings,
+      ok: prepared.validation.errors.length === 0,
+      checker: prepared.validation.available ? undefined : 'compiler unavailable: linter only',
+      autofixed: prepared.fixes,
+      errors: prepared.validation.errors,
+      warnings: prepared.validation.warnings,
+      // The fixed code, so the model can reuse it (write_script applies the same fixes itself).
+      fixedSource: changed && source.length <= 6000 ? prepared.source : undefined,
+      next: changed ? 'write_script applies these fixes automatically: just send your code.' : undefined,
     });
   }
 
@@ -505,30 +492,31 @@ return HttpService:JSONEncode({ place = game.Name, placeId = game.PlaceId, gameK
     if (segments.length < 2) throw new Error('path must include the container and the script name, e.g. "ServerScriptService/MyScript"');
     const kind = (args.kind as 'server' | 'client' | 'module' | undefined) ?? inferKind(segments);
     const className = kindToClass(kind) ?? 'Script';
-    const source = String(args.source ?? '');
-    const result = await this.validate(source, contextFor(className, segments.join('.')));
-    const syntaxFailed = !result.syntax.ok;
-    if (syntaxFailed || (result.errors.length && !args.force)) {
+    const prepared = await prepareLuau(String(args.source ?? ''), contextFor(className, segments.join('.')));
+    const { validation } = prepared;
+    if (!validation.syntaxOk || (validation.errors.length && !args.force)) {
       return text({
         written: false,
-        reason: syntaxFailed ? 'The code has syntax errors (it would not run). Fix them and call write_script again.' : 'The linter found mistakes that break the game. Fix them (or pass force: true if you are sure).',
-        errors: result.errors,
-        warnings: result.warnings,
+        reason: !validation.syntaxOk ? 'The code has syntax errors (it would not run). Fix them and call write_script again.' : 'The checks found mistakes that break the game. Fix them (or force: true if you are sure).',
+        errors: validation.errors,
+        warnings: validation.warnings.slice(0, 8),
+        autofixed: prepared.fixes,
       });
     }
     this.requireStudio();
     const name = segments[segments.length - 1];
     const report = await install(this.host, {
       label: `GameKit: write ${segments.join('/')}`,
-      items: [{ parent: segments.slice(0, -1), mode: 'merge', node: { name, className, source } }],
+      items: [{ parent: segments.slice(0, -1), mode: 'merge', node: { name, className, source: prepared.source } }],
     });
     return text({
       written: report.ok,
+      error: report.error,
       path: segments.join('/'),
       className,
-      install: summarizeInstall(report),
-      warnings: result.warnings,
-      next: 'Run test_game to see it working.',
+      autofixed: prepared.fixes,
+      warnings: validation.warnings.slice(0, 8),
+      next: 'Run test_game. For later changes use edit_script (find/replace) instead of rewriting the whole script.',
     });
   }
 
@@ -548,11 +536,21 @@ return HttpService:JSONEncode({ place = game.Name, placeId = game.PlaceId, gameK
     this.requireStudio();
     const result = await runPlaytest(this.host, { seconds: args.seconds, autoplay: args.autoplay });
     this.lastTest = { verdict: String(result.verdict), at: Date.now() };
+    // Show the failing lines of the first errors: the fix can be made straight away.
+    const withCode = (Array.isArray(result.errors) ? result.errors : []).filter((e: any) => e.script && e.line).slice(0, 3);
+    for (const error of withCode) {
+      try {
+        const info = await readScript(this.host, String(error.script).replace(/^game\./, ''));
+        if (info.ok) error.code = codeAt(info.source, Number(error.line));
+      } catch {
+        // the script may be gone (e.g. a runtime-created one): the message is still there
+      }
+    }
     return text({
       ...result,
       next: result.verdict === 'PASS'
         ? 'Great. Improve the game (roblox_guide design) and test again after each change.'
-        : 'Fix the first error (open the script with get_script_source, fix with write_script or edit_script_lines), then run test_game again.',
+        : 'Fix the first error with edit_script (its code is shown; read_script { path, find } for more), then run test_game again.',
     });
   }
 }

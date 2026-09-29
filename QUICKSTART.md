@@ -32,6 +32,7 @@
    - « Fais un tower defense à 20 vagues » / « Fais un jeu de ferme relaxant ».
    - « Entoure la carte d'une forêt et montre-moi le résultat. » (`populate_world` + `look_at_game`)
    - « Modélise une fontaine dans Blender et mets-la au centre du lobby. »
+   - « Ajoute un PNJ qui explique le jeu, et une porte VIP à 500 pièces. » (recettes `npc_dialog`, `door`)
 
 ## Ce que l'IA fait toute seule
 

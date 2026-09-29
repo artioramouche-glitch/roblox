@@ -16,8 +16,6 @@ export const STARTER_BASE = [
   'get_project_structure',
   'get_instance_properties',
   'search_objects',
-  'get_script_source',
-  'edit_script_lines',
   'set_property',
   'create_object',
   'delete_object',
@@ -30,7 +28,7 @@ export const STARTER_BASE = [
 export const BUILDER_EXTRA = [
   // exploring
   'get_file_tree', 'search_files', 'get_place_info', 'get_instance_children', 'get_descendants', 'get_class_info',
-  'get_selection', 'grep_scripts',
+  'get_selection', 'grep_scripts', 'get_script_source', 'edit_script_lines',
   // editing
   'set_properties', 'mass_set_property', 'mass_create_objects', 'smart_duplicate', 'mass_duplicate', 'clone_object',
   'reparent_instance', 'redo', 'set_attribute', 'get_attributes', 'bulk_set_attributes', 'add_tag', 'remove_tag',

@@ -13,7 +13,9 @@ Variables d'environnement utiles :
 
 | Variable | Effet |
 |---|---|
-| `ROBLOX_MCP_PROFILE` | `starter` (défaut, 35 outils), `builder` (94), `full` (174) |
+| `ROBLOX_MCP_PROFILE` | `starter` (défaut, 37 outils), `builder` (98), `full` (178) |
+| `ROBLOX_MCP_COMPACT` | `0` : descriptions d'outils complètes (par défaut, version courte pour économiser les tokens) |
+| `ROBLOX_MCP_PRETTY` | `1` : réponses JSON indentées (par défaut compactes) |
 | `ROBLOX_STUDIO_PORT` | Port HTTP pour le plugin (défaut `58741`, secours `3002`) |
 | `ROBLOX_OPEN_CLOUD_API_KEY` | Clé Open Cloud pour `search_assets` / `upload_asset` / `blender_to_roblox` (droits *asset:read*, *asset:write*) |
 | `ROBLOX_CREATOR_USER_ID` / `ROBLOX_CREATOR_GROUP_ID` | Propriétaire des modèles envoyés (`upload_asset`, `blender_to_roblox`) |

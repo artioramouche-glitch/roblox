@@ -35,10 +35,13 @@ console.log(`full profile: ${tools.length} tools`);
 if (!tools.includes('terrain_fill_block')) fail('full profile incomplete');
 await client.callTool({ name: 'set_tool_profile', arguments: { profile: 'starter' } });
 
-const lint = await client.callTool({ name: 'check_luau', arguments: { source: 'if x != 1 then end', kind: 'server' } });
+const fix = JSON.parse((await client.callTool({ name: 'check_luau', arguments: { source: 'if x != 1 then end', kind: 'server' } })).content[0].text);
+console.log(`check_luau autofix: ${fix.autofixed?.join('; ')} -> ${JSON.stringify(fix.fixedSource)}`);
+if (!fix.fixedSource?.includes('~=')) fail('check_luau did not auto-fix !=');
+const lint = await client.callTool({ name: 'check_luau', arguments: { source: 'local p = game:GetService("Player")', kind: 'server' } });
 const lintBody = JSON.parse(lint.content[0].text);
-console.log(`check_luau: ok=${lintBody.ok} first error: ${lintBody.errors[0]?.problem} | ${lintBody.errors[0]?.fix}`);
-if (lintBody.ok !== false) fail('check_luau did not catch the error');
+console.log(`check_luau: ok=${lintBody.ok} first error: ${lintBody.errors?.[0]?.problem} | ${lintBody.errors?.[0]?.fix}`);
+if (lintBody.ok !== false) fail('check_luau did not catch the invented service');
 
 const viaGateway = await client.callTool({ name: 'call_tool', arguments: { name: 'roblox_guide', arguments: { topic: 'errors' } } });
 if (!viaGateway.content[0].text.includes('attempt to index nil')) fail('call_tool gateway');

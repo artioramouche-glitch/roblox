@@ -5,91 +5,79 @@
 
 ## GameKit tools
 
-- **roblox_start_here** — START HERE before anything else. Checks the Studio connection, shows what is already in the game, and gives the step-by-step plan to build a complete game with this MCP (templates, systems, testing).
-- **roblox_guide** — Read a short guide. Topics: workflow, design, luau, client-server, data, ui, building, testing, errors, blender, team, localization, publishing, performance, gamekit-api, catalog, or any system/template id (e.g. "shop", "obby"). Read "workflow" first, "errors" when something breaks.
-- **gamekit_catalog** — List everything that can be installed without code: complete game templates, plug-and-play systems, world pieces and lighting presets.
-- **create_game** — Build a COMPLETE playable game in one call: scripts (server+client), config, world, UI and lighting. Templates: obby (Obby), tycoon (Tycoon), simulator (Simulator), arena (Fighting), survival (Survival), horror_escape (Horror), tower_defense (Tower defense), farming (Farming / Idle). By default removes previous GameKit content first (Ctrl+Z in Studio undoes everything). Then run test_game.
-- **add_system** — Install one ready-made, tested game system (plus what it needs). Systems: hud, checkpoints, hazards, movers, collectibles, rounds, combat, enemies, shop, daily, leaderboard, movement, atmosphere, admin, monetization, tycoon, simulator, objectives, towerdefense, farming. Pass "config" to change its settings (existing settings are kept otherwise). Read roblox_guide <system> for its options.
-- **build_world** — Build gameplay-ready geometry in Workspace/GameKit (anchored, tagged for the systems). Worlds: obby_course, lobby, arena, maze, tycoon_plots, simulator_world, decor_scatter, td_map, farm. Pieces: platform, spawn, checkpoint, finish_line, kill_brick, lava_floor, damage_part, heal_pad, jump_pad, speed_pad, boost_pad, moving_platform, spinner, disappearing_platform, falling_platform, conveyor, coin, shop_stand, leaderboard, enemy_spawner, sell_pad, zone_gate, teleporter, teleport_target, key, tree, rock, lamp, crate, tower_pad, farm_plot, seed_stand, market, pine_tree, palm_tree, bush, flowers, fence, bench, barrel, crystal, mushroom, cactus. Same name = replaced. Positions are [x, y, z] in studs, y is up.
-- **build_ui** — Create a screen UI from JSON (no Luau): frames, labels, buttons, images, bars with responsive sizes and nice defaults. Behaviour without code: bind "stat:Coins" (live text), bar "stat:Power/stat:Capacity", showIf, action "toggle:WindowName" | "open:X" | "close:X" | "remote:Event". See roblox_guide ui.
-- **set_environment** — Change the mood: lighting preset (day, sunset, night, horror, fantasy, neon, winter, desert, space, underwater), time of day, terrain (none, clear, flat, hills, island, water), remove the default Baseplate.
-- **write_script** — The SAFE way to create or replace a script. Checks the Luau with the real compiler and a beginner-mistake linter BEFORE writing; refuses broken code and explains how to fix it. kind: server (Script), client (LocalScript) or module (ModuleScript); default from the location.
-- **check_luau** — Check Luau code WITHOUT writing it: real compiler syntax check + beginner-mistake linter (client/server confusion, infinite loops, deprecated APIs, trusting the client...). Works even when Studio is closed.
-- **check_game** — Audit the whole place without playing: syntax errors in every script, beginner mistakes, scripts that can never run where they are, missing spawn, loose unanchored parts, GameKit pieces without their system. Returns problems with fixes.
-- **test_game** — Automatic playtest: starts Play, plays through the game (checkpoints, coins, kill parts), records server AND client errors with script/line and plain-English fixes, then stops by itself and cleans up. Run it after every change until it says PASS.
-- **populate_world** — Fill an area with decoration in ONE call, snapped to terrain or big floors and never blocking gameplay (props landing on a road, pad or platform, or overlapping a wall/obstacle, are dropped). Use a theme (forest, desert, snow, beach, fantasy, city, farm, spooky, garden) or items: procedural pieces (tree, rock, lamp, crate, pine_tree, palm_tree, bush, flowers, fence, bench, barrel, crystal, mushroom, cactus), Creator Store / uploaded models (assetId) or clones of a model already in Studio (from, e.g. a Blender import). Same name = replaced.
-- **look_at_game** — See the game: screenshots of the whole map (or one model) from several angles (iso, front, back, left, right, top, player; "player" = from the spawn at eye height), then the camera is restored. Use it after building to check that things look right (floating parts, empty areas, ugly colors). Needs Game Settings > Security > "Allow Mesh / Image APIs".
-- **backup_game** — Save / restore a full snapshot of the game (world, scripts, UI, lighting, terrain) inside the place. Save before a risky change; restore if it went wrong (restore itself can be undone with Ctrl+Z). Actions: save (label), list, restore (id), delete (id). create_game saves one automatically.
-- **team** — Shared task board + map zones for SEVERAL AIs building the same game at once (stored in the place, so all clients of this Studio see it). Pick a short unique agent name (e.g. "claude-1") and always pass it. Actions: plan (create tasks; default plan if none given), list, claim (next free task or a given one), done, release, block, note, add, claim_zone (reserve a box of the map), release_zone, zones.
-- **start_job** — Run any other tool IN THE BACKGROUND and get a job id immediately, so you can keep working (e.g. model in Blender while blender_to_roblox uploads, or while test_game plays). Collect the result with job_status. Studio still does one thing at a time: do not edit Studio while a test_game job runs.
-- **job_status** — Result of a background job (start_job). Without id: lists recent jobs. Pass wait (seconds, max 60) to wait for the job to finish instead of polling.
-- **blender_status** — Check the link to Blender (for custom 3D models) and list the Blender scene. When connected, the other blender_* tools appear. Explains how to install the Blender addon if needed.
-- **blender_to_roblox** — Send a model from Blender into the Roblox game: exports it (auto-reduces meshes over 20k triangles, checks textures/materials), uploads it as a Roblox Model (needs ROBLOX_OPEN_CLOUD_API_KEY + ROBLOX_CREATOR_USER_ID/GROUP_ID), inserts it in Studio at the right size (1 m = 3.57 studs) standing on the ground. Without a key it exports the file and explains the 2-click manual import. Also works with an existing assetId (skips Blender). Can take 1-2 min: run it through start_job to keep working.
-- **blender_python** — Run Python (bpy) inside Blender to model, edit or render. Work in small steps; print() what you need to see. Use real-world meters (a door is 2 m high). Tip: keep models under 20k triangles and one material per mesh for Roblox, then call blender_to_roblox.
-- **blender_scene** — Look at the Blender scene: objects with size in meters, triangle counts and materials; details of one object; and/or a screenshot of the Blender viewport.
-- **blender_assets** — Get ready-made 3D content into Blender: search/download free models and textures (polyhaven, sketchfab, polypizza) or generate a model from text with AI (hyper3d, hunyuan3d). Sources must be enabled in the Blender addon panel (API keys for sketchfab/polypizza/hyper3d/hunyuan3d). Then send it to the game with blender_to_roblox.
-- **blender_command** — Advanced: send a raw command to the Blender addon ({type, params}), e.g. get_scene_info, get_object_info, execute_code, search_polyhaven_assets. Prefer the other blender_* tools.
-- **balance_economy** — Simulate how a player progresses (earn -> buy -> earn faster) and check prices: time to first purchase, walls, items that are instant, total time vs target. Gives a timeline and smooth suggested prices. fromGame: true reads the installed tycoon / shop / simulator / farming / tower defense; or pass numbers yourself.
-- **publish_checklist** — Before publishing: checks what Studio can verify (published place, spawn, script errors, last test result, monetization ids, open team tasks, mobile-friendly UI, max players...) and lists the manual steps (icon, thumbnails, description, age questionnaire, API access, public visibility) with where to click.
+- **roblox_start_here** — START HERE: checks the Studio connection, shows what the game contains and the step-by-step plan.
+- **roblox_guide** — Short guides. Topics: workflow, design, luau, client-server, data, ui, building, testing, errors, coding, blender, team, localization, publishing, performance, gamekit-api, catalog, or a system/template id. Read "workflow" first, "errors" when stuck.
+- **gamekit_catalog** — Everything installable without code: templates, systems, world pieces, lighting presets, code recipes.
+- **create_game** — Build a COMPLETE playable game in one call (scripts, config, world, UI, lighting; backs up the old place). Then test_game.
+- **add_system** — Install a tested game system (+ what it needs). Its settings: roblox_guide <system>.
+- **build_world** — Build anchored, tagged geometry in Workspace/GameKit: worlds (obby_course, lobby, arena, maze, tycoon_plots, simulator_world, decor_scatter, td_map, farm) or one of 43 pieces (jump_pad, coin, checkpoint, spinner, tower_pad...: roblox_guide building). Same name = replaced. [x,y,z] studs, y up.
+- **build_ui** — Screen UI from JSON, no Luau: frame/label/button/image/textbox/scroll/bar; bind "stat:Coins", bar, showIf, action "toggle:Window". See roblox_guide ui.
+- **set_environment** — Mood: lighting preset, time of day, terrain, remove the Baseplate.
+- **write_script** — The SAFE way to create/replace a whole script: auto-fixes JS-style mistakes, then checks with the Luau compiler, a beginner linter and the Roblox API list; refuses broken code. For small changes use edit_script.
+- **check_luau** — Check Luau without writing it (compiler, beginner linter, Roblox API names) and get an auto-fixed version. Works offline.
+- **check_game** — Audit the place without playing: script errors, wrong script locations, bad API names, missing spawn, loose parts, pieces without their system.
+- **test_game** — Automatic playtest: plays the game, reports server+client errors with script, line and fix, then stops. Repeat after every change until PASS.
+- **read_script** — Read a script with line numbers: whole (up to 200 lines), a range (from/to), or only the lines around a word (find). Cheaper than get_script_source.
+- **edit_script** — Change part of a script by find/replace (old lines copied from read_script; indentation may differ). Auto-fixed and checked before writing: never leaves a broken script.
+- **code_outline** — Map of the game's code in a few lines: every script with its purpose, functions, remotes, tags and requires. Read it before changing code you did not write.
+- **code_recipe** — Ready-made, verified scripts from a few params: prefer them to writing code. Without recipe: lists recipes and params. Installs by default; preview returns the code.
+- **populate_world** — Fill an area with scenery in one call, on terrain/big floors, never blocking gameplay: a theme and/or items [{kind|assetId|from, count, size}]. Same name = replaced.
+- **look_at_game** — SEE the game: small screenshots of the map or one model from several angles. Use after building. Needs Game Settings > Security > Allow Mesh / Image APIs.
+- **backup_game** — Snapshots of the whole game kept in the place: save before a risky change, restore if it breaks. Actions: save, list, restore (newest by default), delete.
+- **team** — Shared task board + map zones for several AIs on one Studio (roblox_guide team). Pass your unique agent name. Actions: plan, list, claim, done, release, block, note, add, claim_zone, release_zone, zones.
+- **start_job** — Run another tool in the background and keep working (blender_to_roblox, long test_game...). Get the result with job_status.
+- **job_status** — Result of a start_job job (wait up to 60 s with wait). Without id: list jobs.
+- **blender_status** — Blender link for custom 3D models: checks the connection, lists the scene, explains the addon setup. When connected, more blender_* tools appear.
+- **blender_to_roblox** — Send a Blender model into the game: export (<= 20k triangles/mesh), upload (Open Cloud key), insert at real size on the ground. Without a key: exported file + manual import. Slow: use start_job. roblox_guide blender.
+- **blender_python** — Run Python (bpy) in Blender, in small steps; print() what you need. Model in meters, base at Z=0, < 20k triangles, 1 material per mesh.
+- **blender_scene** — Blender scene: objects (meters, triangles, materials), one object in detail, and/or a viewport screenshot.
+- **blender_assets** — Ready-made 3D content into Blender: search/download (polyhaven, sketchfab, polypizza) or AI generation (hyper3d, hunyuan3d: generate, poll, import). Enable sources in the addon panel.
+- **blender_command** — Advanced: raw command to the Blender addon ({type, params}).
+- **balance_economy** — Simulate player progression and check prices (first purchase, walls, total time) with suggested prices. fromGame reads the installed economy; or pass items and income.
+- **publish_checklist** — Before publishing: verifies what Studio can check and lists the manual steps (icon, description, questionnaire, visibility).
 
+# GameKit catalog (details: roblox_guide <id>)
 
 ## Templates (create_game)
-- **obby** -- Obby (parkour): A floating parkour course over a lava sea: saved checkpoints, 12 obstacle types with rising difficulty, coins, finish rewards, shop with trails, global Wins board, daily reward.
-  options: title (sign text); stages (2-60 (default 12)); difficulty (easy | medium | hard); theme (rainbow | candy | neon | nature | space | lava | ice); obstacles (optional list of obstacle types to cycle)
-- **tycoon** -- Tycoon: Claimable plots with droppers, conveyor, upgrader and collector; 10 purchases in order (walls, garden, super dropper, tower); progress is saved.
-  options: title (welcome text); plots (1-8 (default 4))
-- **simulator** -- Simulator: Train to fill your backpack with Power, sell for Coins, buy upgrades and pets, unlock zones with bigger orbs, rebirth for a permanent multiplier.
-  options: zones (1-6 (default 3))
-- **arena** -- Sword arena (PvP rounds): Lobby + arena with cover, round loop (intermission, last one standing wins), swords given during rounds, kill and win rewards, shop with trails and boosts.
-  options: title (lobby sign text); theme (arena theme)
-- **survival** -- Zombie survival (waves): Survive growing waves of zombies (normal, fast, brute) with a sword; earn coins per kill and per wave; spend them in the shop.
-  options: title (unused); seed (layout seed)
-- **horror_escape** -- Horror escape (maze + monster): Dark generated maze with flickering lights: find the keys, open the exit and escape before the monster catches you. Runs reset automatically.
-  options: mazeSize (6-20 cells (default 10)); keys (keys to find (default 3)); seed (maze layout seed)
-- **tower_defense** -- Tower defense (co-op): Enemies walk a winding path in waves (Basic, Fast, Tank, Boss); players build and upgrade Archer, Cannon (splash) and Frost (slow) towers on 15 pads with match cash and defend the castle together. Victory rewards Wins and Coins.
-  options: waves (5-50 waves to win (default 15)); title (welcome text)
-- **farming** -- Farming (idle): Plant seeds on 24 plots, watch them grow, harvest, sell at the market and unlock better crops (Wheat -> Carrot -> Tomato -> Pumpkin -> Crystal). Calm, saved progression with a shop and daily rewards.
-  options: plots (4-64 plots (default 24)); title (welcome text)
+- obby: A floating parkour course over a lava sea: saved checkpoints, 12 obstacle types with rising difficulty, coins, finish rewards, shop with…
+- tycoon: Claimable plots with droppers, conveyor, upgrader and collector; 10 purchases in order (walls, garden, super dropper, tower); progress is…
+- simulator: Train to fill your backpack with Power, sell for Coins, buy upgrades and pets, unlock zones with bigger orbs, rebirth for a permanent…
+- arena: Lobby + arena with cover, round loop (intermission, last one standing wins), swords given during rounds, kill and win rewards, shop with…
+- survival: Survive growing waves of zombies (normal, fast, brute) with a sword; earn coins per kill and per wave; spend them in the shop.
+- horror_escape: Dark generated maze with flickering lights: find the keys, open the exit and escape before the monster catches you.
+- tower_defense: Enemies walk a winding path in waves (Basic, Fast, Tank, Boss); players build and upgrade Archer, Cannon (splash) and Frost (slow) towers…
+- farming: Plant seeds on 24 plots, watch them grow, harvest, sell at the market and unlock better crops (Wheat -> Carrot -> Tomato -> Pumpkin ->…
 
 ## Systems (add_system)
-- **core** [core] -- Saving/loading player data with DataStores, leaderstats, remotes (Net), shared helpers (Util), UI kit (UIKit) with automatic translation (Lang: fr/es/pt/de), the no-code UI binder and Creator Dashboard analytics (economy, funnels, progression).
-- **hud** [ui] -- Stats panel with +N pop-ups, status/timer bar, toast notifications, and the left column of HUD buttons used by other systems. (needs: core)
-- **checkpoints** [gameplay] -- Saved stage progress, respawn on the last checkpoint, finish line rewards. (needs: core, hud)
-- **hazards** [gameplay] -- Kill bricks, damage parts and heal pads. (needs: core)
-- **movers** [gameplay] -- Moving platforms, spinners, disappearing and falling platforms, conveyors, teleporters, jump/speed/boost pads. (needs: core)
-- **collectibles** [economy] -- Spinning coins/orbs that give a stat and respawn. (needs: core, hud)
-- **rounds** [gameplay] -- Intermission -> round -> winners loop with timer, map rotation, rewards. (needs: core, hud)
-- **combat** [gameplay] -- Ready sword tool, server-side hit detection with anti-cheat range check, kill rewards. (needs: core, hud)
-- **enemies** [gameplay] -- Chasing NPCs with pathfinding, attacks, rewards; optional wave survival mode. (needs: core, hud)
-- **shop** [economy] -- Server-validated shop window: speed/jump boosts, tools, trails, multipliers, pets, repeatable upgrades. (needs: core, hud)
-- **daily** [economy] -- Claim a reward every day with a growing streak (great for retention). (needs: core, hud)
-- **leaderboard** [ui] -- In-world board with the all-time top 10 of any stat across all servers. (needs: core)
-- **movement** [gameplay] -- Shift to sprint (button on mobile) and a double jump. (needs: core)
-- **atmosphere** [world] -- Day/night cycle, background music playlist, flickering lights. (needs: core)
-- **admin** [gameplay] -- Chat commands for the owner: /give, /set, /reset, /kick, /tp, /bring, /speed, /heal. (needs: core, hud)
-- **monetization** [economy] -- Developer products and game passes with safe receipt handling (no double grants). (needs: core, hud)
-- **tycoon** [genre] -- Claimable plots, droppers -> conveyor -> collector, purchase buttons in order, saved progress. (needs: core, hud, movers)
-- **simulator** [genre] -- Train -> backpack -> sell -> upgrades -> zones -> rebirth loop. (needs: core, hud, collectibles)
-- **objectives** [genre] -- Find keys, open the exit door, escape; the run resets automatically. (needs: core, hud)
-- **towerdefense** [genre] -- Co-op tower defense: enemies walk a path in waves (Basic, Fast, Tank, Boss), players build/upgrade/sell towers (Archer, Cannon splash, Frost slow) on pads with match cash, defend the base, win after the last wave. (needs: core, hud)
-- **farming** [genre] -- Plant seeds on plots, wait for them to grow (3 visible stages), harvest, sell at the market, unlock better crops (Wheat -> Carrot -> Tomato -> Pumpkin -> Crystal). Relaxing idle-style progression, saved. (needs: core, hud)
+- hud: Stats panel with +N pop-ups, status/timer bar, toast notifications, and the left column of HUD buttons used by other systems.
+- checkpoints: Saved stage progress, respawn on the last checkpoint, finish line rewards.
+- hazards: Kill bricks, damage parts and heal pads.
+- movers: Moving platforms, spinners, disappearing and falling platforms, conveyors, teleporters, jump/speed/boost pads.
+- collectibles: Spinning coins/orbs that give a stat and respawn.
+- rounds: Intermission -> round -> winners loop with timer, map rotation, rewards.
+- combat: Ready sword tool, server-side hit detection with anti-cheat range check, kill rewards.
+- enemies: Chasing NPCs with pathfinding, attacks, rewards; optional wave survival mode.
+- shop: Server-validated shop window: speed/jump boosts, tools, trails, multipliers, pets, repeatable upgrades.
+- daily: Claim a reward every day with a growing streak (great for retention).
+- leaderboard: In-world board with the all-time top 10 of any stat across all servers.
+- movement: Shift to sprint (button on mobile) and a double jump.
+- atmosphere: Day/night cycle, background music playlist, flickering lights.
+- admin: Chat commands for the owner: /give, /set, /reset, /kick, /tp, /bring, /speed, /heal.
+- monetization: Developer products and game passes with safe receipt handling (no double grants).
+- tycoon: Claimable plots, droppers -> conveyor -> collector, purchase buttons in order, saved progress.
+- simulator: Train -> backpack -> sell -> upgrades -> zones -> rebirth loop.
+- objectives: Find keys, open the exit door, escape; the run resets automatically.
+- towerdefense: Co-op tower defense: enemies walk a path in waves (Basic, Fast, Tank, Boss), players build/upgrade/sell towers (Archer, Cannon splash,…
+- farming: Plant seeds on plots, wait for them to grow (3 visible stages), harvest, sell at the market, unlock better crops (Wheat -> Carrot ->…
 
-## World (build_world)
+## World (build_world, populate_world)
 - worlds: obby_course, lobby, arena, maze, tycoon_plots, simulator_world, decor_scatter, td_map, farm
 - pieces: platform, spawn, checkpoint, finish_line, kill_brick, lava_floor, damage_part, heal_pad, jump_pad, speed_pad, boost_pad, moving_platform, spinner, disappearing_platform, falling_platform, conveyor, coin, shop_stand, leaderboard, enemy_spawner, sell_pad, zone_gate, teleporter, teleport_target, key, tree, rock, lamp, crate, tower_pad, farm_plot, seed_stand, market, pine_tree, palm_tree, bush, flowers, fence, bench, barrel, crystal, mushroom, cactus
 - obby obstacles: jumps, killbricks, zigzag, moving, disappearing, spinner, truss, lava_floor, falling, conveyor, jumppad, tightrope
 
-## Lighting presets (set_environment)
-- **day**: Bright, friendly daylight. Good default for obbies, simulators and tycoons.
-- **sunset**: Warm orange evening light, cinematic.
-- **night**: Calm starry night with blue moonlight.
-- **horror**: Very dark, dense fog, desaturated. For horror/escape games (add FlickerLight lamps).
-- **fantasy**: Dreamy purple-pink magical light with strong glow.
-- **neon**: Cyberpunk night: purple haze and heavy glow on Neon parts.
-- **winter**: Cold bright snowy day.
-- **desert**: Hot hazy desert sun.
-- **space**: Black sky full of stars, no atmosphere.
-- **underwater**: Blue-green murky underwater look.
+## Lighting presets (set_environment): day, sunset, night, horror, fantasy, neon, winter, desert, space, underwater
+
+## Code recipes (code_recipe): touch_reward, prompt_action, door, timed_spawner, playtime_reward, ui_button_remote, npc_dialog, badge_award, character_stats, chat_command, area_music, tween_loop
 
 ## Templates in detail
 ### Template: Obby (parkour) (obby)
@@ -205,6 +193,47 @@ Options: plots = 4-64 plots (default 24); title = welcome text
 - Run test_game to play-test automatically and fix any error it reports.
 - Open ReplicatedStorage > GameKit > Config to tune numbers (rewards, prices, speeds) -- no code needed.
 - Use build_ui for extra screens and set_environment to change the mood.
+
+## Code recipes (code_recipe)
+
+Verified scripts generated from a few params (checked by the compiler, the linter, the Roblox API check and luau-lsp in CI).
+
+- **touch_reward** — Touching a part gives a stat (coins, gems...), with a cooldown or once per player (saved).
+  - params: `target*` (part/model path or "tag:Name"), `stat` (default Coins), `amount` (default 10), `cooldown` (seconds, default 2), `once` (once per player, saved), `message` (toast text)
+  - example: `{"target":"Workspace/GameKit/GiftBox","stat":"Coins","amount":25,"once":true}`
+- **prompt_action** — A "press E" prompt on a part: can cost a stat, give a stat, heal, give a Tool from ServerStorage, teleport, show a message.
+  - params: `target*` (part/model path or "tag:Name"), `actionText` (default "Use"), `objectText` (label), `costStat`, `cost` (amount), `rewardStat`, `reward` (amount), `heal` (health), `giveTool` (Tool name in ServerStorage), `teleportTo` (part path), `message`, `cooldown` (default 1), `once` (saved)
+  - example: `{"target":"Workspace/GameKit/Chest","actionText":"Open","cost":50,"costStat":"Coins","giveTool":"Sword","once":true}`
+- **door** — A door that opens (fades, lets players through, closes again) for players who meet a requirement: a stat level, an owned item, or paying once (saved).
+  - params: `target*` (door part/model path or "tag:Name"), `requireStat` (stat name), `requireMin` (minimum value), `requireItem` (owned item id), `payStat` (stat), `pay` (price to unlock once), `openSeconds` (default 3), `useTouch` (open by touching instead of a prompt)
+  - example: `{"target":"Workspace/GameKit/VipDoor","payStat":"Coins","pay":500}`
+- **timed_spawner** — Every few seconds, places a copy of a template (from ServerStorage) at a random spot of an area, up to a maximum; copies can expire.
+  - params: `template*` (path, e.g. "ServerStorage/Coin"), `every` (seconds, default 5), `max` (max alive, default 10), `center` ([x,y,z]), `size` ([width, depth]), `lifetime` (seconds, 0 = forever), `folder` (folder name in Workspace)
+  - example: `{"template":"ServerStorage/GoldCoin","every":4,"max":15,"center":[0,3,0],"size":[80,80]}`
+- **playtime_reward** — Gives every player a reward every N seconds they stay in the game.
+  - params: `stat` (default Coins), `amount` (default 10), `every` (seconds, default 60), `message`
+  - example: `{"stat":"Gems","amount":1,"every":300}`
+- **ui_button_remote** — A screen button (client) that asks the server to do something; the server checks cooldown and price, then rewards. The safe client/server pattern.
+  - params: `text` (button text), `position` (bottom-right | bottom-left | top-right | top-left | bottom), `rewardStat`, `reward` (amount), `costStat`, `cost` (amount), `cooldown` (seconds, default 10), `message`
+  - example: `{"text":"🎁 Free gift","rewardStat":"Coins","reward":50,"cooldown":600}`
+- **npc_dialog** — Press E on an NPC (or any part) to read dialog lines in a window, one after the other.
+  - params: `npc*` (NPC model/part path), `name` (speaker name), `lines` (array of sentences), `actionText` (default "Talk")
+  - example: `{"npc":"Workspace/GameKit/Guide","name":"Old Sam","lines":["Welcome!","The key is behind the waterfall."]}`
+- **badge_award** — Awards a Roblox badge when a stat reaches a value, or when a part is touched.
+  - params: `badgeId*` (badge id (Creator Dashboard > Badges)), `stat` (stat to watch), `atLeast` (value), `target` (or: part path / "tag:Name" to touch)
+  - example: `{"badgeId":123456789,"stat":"Wins","atLeast":1}`
+- **character_stats** — Sets walk speed, jump power and max health on every spawn; speed can grow with a stat (e.g. Level).
+  - params: `walkSpeed` (default 16), `jumpPower` (default 50), `maxHealth` (default 100), `speedStat` (stat that adds speed), `speedPerPoint` (speed per point)
+  - example: `{"walkSpeed":20,"speedStat":"Level","speedPerPoint":0.5}`
+- **chat_command** — A custom chat command ("/gift 50") for admins (the game owner by default) that gives a stat.
+  - params: `command` (default "/gift"), `rewardStat` (default Coins), `amount` (default 100 (or the number typed after the command)), `adminUserIds` (array of user ids), `anyone` (everyone may use it)
+  - example: `{"command":"/coins","rewardStat":"Coins","amount":1000}`
+- **area_music** — Plays a looping sound (music, ambience) while the player stands inside a zone part, with fades.
+  - params: `area*` (zone part path (invisible box)), `soundId*` (rbxassetid://...), `volume` (default 0.5)
+  - example: `{"area":"Workspace/GameKit/CaveZone","soundId":"rbxassetid://1843463175","volume":0.4}`
+- **tween_loop** — Moves and/or rotates a part or model back and forth forever, smoothly (TweenService).
+  - params: `target*` (part/model path or "tag:Name"), `offset` ([x,y,z] studs), `rotation` ([x,y,z] degrees), `seconds` (default 2), `pingPong` (go back, default true), `easing` (Sine | Linear | Quad | Back | Bounce | Elastic)
+  - example: `{"target":"Workspace/GameKit/Elevator","offset":[0,20,0],"seconds":3}`
 
 ## Systems in detail
 ### System: Core (always installed) (core)
@@ -1064,7 +1093,8 @@ build_world "farm" builds fields, seed stands and the market. The HUD shows "Bas
    - **look_at_game** to SEE the result from several angles; fix what looks wrong.
    - advanced (find_tools + call_tool): terrain_fill_*, lighting_*, particle_create, sound_*, animation_*,
      insert_asset (Creator Store models), capture_device_matrix (phone/tablet screenshots).
-5. **Only then write code**, with write_script (it refuses broken Luau and explains fixes).
+5. **Only then write code** (guide "coding"): first try code_recipe (ready-made verified scripts), else write_script
+   for a new script and edit_script for changes (both auto-fix and refuse broken Luau).
 6. **check_game** before finishing: finds scripts in wrong places, syntax errors, loose parts, missing spawns.
 7. Polish (see guide "design"), balance prices (balance_economy), then publish (publish_checklist + guide "publishing").
 
@@ -1279,6 +1309,18 @@ Tips: keep buttons >= 48 px tall (mobile), use at most 2-3 colors, put important
 - Obstacles for obby_course: jumps, killbricks, zigzag, moving, disappearing, spinner, truss, lava_floor, falling, conveyor, jumppad, tightrope.
 - Single pieces: platform, spawn, checkpoint, finish_line, kill_brick, lava_floor, damage_part, heal_pad, jump_pad, speed_pad, boost_pad, moving_platform, spinner, disappearing_platform, falling_platform, conveyor, coin, shop_stand, leaderboard, enemy_spawner, sell_pad, zone_gate, teleporter, teleport_target, key, tree, rock, lamp, crate, tower_pad, farm_plot, seed_stand, market, pine_tree, palm_tree, bush, flowers, fence, bench, barrel, crystal, mushroom, cactus.
 - Everything goes to Workspace/GameKit/<name>; building again with the same name replaces it.
+#### build_world options (options: {...})
+- All: position [x, y, z]. zone: "<team zone>" builds at the zone center.
+- obby_course: stages, difficulty (easy|medium|hard), theme, coins, obstacles [list], title, seed
+- lobby: title, size, shop, leaderboardStat | arena: size, theme, spawns | maze: width, height, keys, ceiling, monster, seed
+- tycoon_plots: count | simulator_world: zones, basePrice | decor_scatter: radius, count, clear | td_map | farm: plots, crops
+- Pieces: color, size [x,y,z], yaw (degrees), stage (checkpoint), power (jump_pad), speed (speed_pad, conveyor, spinner),
+  offset [x,y,z] + duration (moving_platform), stat + amount (coin), enemy + maxAlive (enemy_spawner), zone + price (zone_gate),
+  target (teleporter), tower (tower_pad: Archer|Cannon|Frost), crop (seed_stand), length (fence), snow (pine_tree), flicker (lamp).
+#### populate_world options
+theme + count, items [{kind | assetId | from, count, size: [min, max]}], center [x,y,z], radius (150), clear (empty
+radius in the middle, 40), size [w, d] (rectangle instead of a circle), zone (a team zone), spacing (8), name (Decor),
+seed, snap (true: stand on terrain/big floors), avoidGameplay (true: drop props on roads/pads or overlapping parts).
 - Need something else? find_tools "terrain" / "lighting" / "asset" / "build" lists the low-level world tools
   (terrain_fill_block, lighting_set_preset, insert_asset, generate_build...).
 - Each gameplay piece carries the tag + attributes its system reads, e.g. a jump_pad has tag "JumpPad"
@@ -1290,7 +1332,7 @@ Tips: keep buttons >= 48 px tall (mobile), use at most 2-3 colors, put important
    missing SpawnLocation, unanchored parts. Fast, no playtest.
 2. test_game -- real playtest (~20 s): server + client errors with the script and line,
    automatic play-through (checkpoints, coins, kill parts), stats after spawn. Ends by itself.
-3. For each error: open the script (get_script_source), fix it with write_script or edit_script_lines,
+3. For each error: its code lines are shown; fix them with edit_script (read_script { path, find } for more context),
    re-run test_game. Do not stop while test_game reports errors.
 Reading errors: "ServerScriptService.Shop:42: attempt to index nil with 'Value'"
 = script Shop, line 42, something before ".Value" is nil (wrong name or not loaded yet -> WaitForChild).
@@ -1309,6 +1351,31 @@ Reading errors: "ServerScriptService.Shop:42: attempt to index nil with 'Value'"
 - HTTP 403 / Sound failed to load -> the asset is private; use public or your own assets.
 - Unable to cast value to Object/Color3... -> wrong value type (Color3.fromRGB for colors, Vector3.new for sizes).
 
+### Writing code that works the first time (read first if you must code) (`coding`)
+
+#### Order of preference
+1. No code: create_game / add_system / build_world / build_ui (config instead of scripts).
+2. code_recipe: verified scripts from params (touch_reward, prompt_action, door, timed_spawner, playtime_reward,
+   ui_button_remote, npc_dialog, badge_award, character_stats, chat_command, area_music, tween_loop).
+   code_recipe {} lists them with their params. Then tweak the SETTINGS table with edit_script.
+3. write_script for a NEW script; edit_script to CHANGE one (find/replace, cheaper and safer than rewriting).
+#### Before changing existing code
+- code_outline: what each script does (one line each). read_script { path, find: "word" }: only the lines you need.
+- edit_script { path, find: "<exact old lines>", replace: "<new lines>" }. Indentation may differ; the result is
+  checked before writing, so a broken edit changes nothing.
+#### What the checks catch for you (fix what they report, do not use force)
+- JavaScript/Python habits are fixed automatically: != && || ! null // comments let/const i++ "a" + b, backtick $-braces.
+- Invented Roblox APIs: wrong service/class/enum names, Vector3.New, humanoid.Walkspeed, deprecated methods
+  (they suggest the right name).
+- Beginner mistakes: LocalPlayer on the server, DataStore without pcall, loops without task.wait, trusting the client.
+#### Patterns to copy
+- Stats: PlayerData.defineStat({ Name = "Gems", Default = 0, Leaderstat = true }); PlayerData.reward(player, "Gems", 5);
+  if PlayerData.spend(player, "Gems", 10) then ... end. Clients read player:GetAttribute("Gems").
+- Client -> server: client Net.send("Buy", itemId); server Net.on("Buy", function(player, itemId) --[[check everything]] end).
+- Tagged parts: Util.onTag("Lava", function(part) ... end) handles parts added later too.
+- Touch: local player = Util.playerFromHit(hit) (nil for non-players); Util.cooldown(2) per player.
+- Always test_game after writing code; read the error hint, fix with edit_script, test again.
+
 ### Custom 3D models with Blender (blender_* tools) (`blender`)
 
 #### Setup (once)
@@ -1326,6 +1393,8 @@ Reading errors: "ServerScriptService.Shop:42: attempt to index nil with 'Value'"
 - blender_to_roblox { name, objects: ["MyProp"], position: [x, y, z] }: exports (auto-reduces heavy meshes),
   uploads (needs ROBLOX_OPEN_CLOUD_API_KEY + ROBLOX_CREATOR_USER_ID), inserts at real size (1 m = 3.57 studs) on the ground.
 - It takes 30 s - 2 min: use start_job { tool: "blender_to_roblox", arguments: {...} } and keep working.
+- More options: parent (default Workspace/GameKit/Props), format (fbx | glb), maxTriangles (20000), decimate (true),
+  anchored (true), collide (true), description (asset description on Roblox).
 - No API key: it exports the file; import it in Studio (Home > Import 3D) then blender_to_roblox { name, existing: "Workspace/<model>" }.
 - Many copies around the map: populate_world { items: [{ from: "Workspace/GameKit/Props/<name>", count: 10, size: [6, 10] }] }.
 
@@ -1340,6 +1409,8 @@ The board lives inside the place (ServerStorage/GameKitTeam), so everyone sees t
 3. Before building, reserve space: team { action: "claim_zone", agent, zone, center: [x, y, z], size: [w, h, d] }.
    Overlapping another agent's zone is refused. Build inside it: build_world { zone }, populate_world { zone }.
 4. Blocked? team { action: "block", agent, task, note }. Found a bug? team { action: "add", title, details, role: "qa" }.
+   More options: plan { template, replace: true }, claim_zone { purpose }, list { full: true } (details + notes),
+   release/release_zone { force: true } (only when the owner AI is gone).
 5. Studio does one thing at a time: do not run test_game while others edit; the QA agent tests between tasks.
    Blender work runs in parallel (different app): artists can model while builders build.
 

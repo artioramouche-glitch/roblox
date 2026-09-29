@@ -52,3 +52,42 @@ export function rgbaToPng(rgba: Buffer, width: number, height: number): Buffer {
     writeChunk('IEND', Buffer.alloc(0)),
   ]);
 }
+
+/**
+ * Shrinks an RGBA image so its longest side is at most maxSide (box filter: every source
+ * pixel counts, so text and thin lines stay readable). Vision models bill images by pixel
+ * count, so a 1920x1080 viewport costs ~4x more tokens than the same view at 960x540.
+ */
+export function downscaleRgba(rgba: Buffer, width: number, height: number, maxSide: number): { data: Buffer; width: number; height: number } {
+  const longest = Math.max(width, height);
+  if (!maxSide || maxSide <= 0 || longest <= maxSide) return { data: rgba, width, height };
+  const scale = maxSide / longest;
+  const w = Math.max(1, Math.round(width * scale));
+  const h = Math.max(1, Math.round(height * scale));
+  const out = Buffer.alloc(w * h * 4);
+  for (let y = 0; y < h; y++) {
+    const y0 = Math.floor((y * height) / h);
+    const y1 = Math.max(y0 + 1, Math.floor(((y + 1) * height) / h));
+    for (let x = 0; x < w; x++) {
+      const x0 = Math.floor((x * width) / w);
+      const x1 = Math.max(x0 + 1, Math.floor(((x + 1) * width) / w));
+      let r = 0, g = 0, b = 0, a = 0;
+      for (let sy = y0; sy < y1; sy++) {
+        let i = (sy * width + x0) * 4;
+        for (let sx = x0; sx < x1; sx++, i += 4) {
+          r += rgba[i];
+          g += rgba[i + 1];
+          b += rgba[i + 2];
+          a += rgba[i + 3];
+        }
+      }
+      const n = (y1 - y0) * (x1 - x0);
+      const o = (y * w + x) * 4;
+      out[o] = Math.round(r / n);
+      out[o + 1] = Math.round(g / n);
+      out[o + 2] = Math.round(b / n);
+      out[o + 3] = Math.round(a / n);
+    }
+  }
+  return { data: out, width: w, height: h };
+}

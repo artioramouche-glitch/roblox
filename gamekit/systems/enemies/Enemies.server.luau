@@ -117,8 +117,14 @@ local function buildTemplate(name: string): Model?
 		description.LeftLegColor = shirt
 		description.RightLegColor = shirt
 		local ok, result = pcall(function()
-			return Players:CreateHumanoidModelFromDescription(description, Enum.HumanoidRigType.R15)
+			return Players:CreateHumanoidModelFromDescriptionAsync(description, Enum.HumanoidRigType.R15)
 		end)
+		if not ok then
+			-- Older engines only have the non-Async name.
+			ok, result = pcall(function()
+				return (Players :: any):CreateHumanoidModelFromDescription(description, Enum.HumanoidRigType.R15)
+			end)
+		end
 		if not ok then
 			warn(`[GameKit] Could not build enemy rig '{name}': {result}`)
 			return nil

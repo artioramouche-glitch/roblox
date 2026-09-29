@@ -16,13 +16,14 @@ export const VISUAL_TOOLS: ToolDef[] = [
     name: 'look_at_game',
     category: 'read',
     tier: 'starter',
-    description: `See the game: screenshots of the whole map (or one model) from several angles (${VIEWS.join(', ')}; "player" = from the spawn at eye height), then the camera is restored. Use it after building to check that things look right (floating parts, empty areas, ugly colors). Needs Game Settings > Security > "Allow Mesh / Image APIs".`,
+    description: 'SEE the game: small screenshots of the map or one model from several angles. Use after building. Needs Game Settings > Security > Allow Mesh / Image APIs.',
     inputSchema: {
       type: 'object',
       properties: {
-        target: { type: 'string', description: 'What to frame, e.g. "Workspace/GameKit/Lobby" (default: Workspace/GameKit, else the whole Workspace)' },
-        views: { type: 'array', items: { type: 'string', enum: [...VIEWS] }, description: 'Angles (default ["iso", "top", "player"], max 6)' },
-        zoom: { type: 'number', description: '1 = fit the target, 0.5 = closer, 2 = farther (default 1)' },
+        target: { type: 'string', description: 'e.g. "Workspace/GameKit/Lobby" (default the whole map)' },
+        views: { type: 'array', items: { type: 'string', enum: [...VIEWS] }, description: 'default ["iso", "top", "player"]' },
+        zoom: { type: 'number', description: '<1 closer, >1 farther' },
+        size: { type: 'number', description: 'Image size in pixels (default 640, max 1280)' },
       },
     },
   },
@@ -152,7 +153,7 @@ export async function lookAtGame(host: GameKitHost, args: Record<string, any>): 
       }
       await sleep(150);
       try {
-        const shot = await host.callTool('capture_screenshot', {});
+        const shot = await host.callTool('capture_screenshot', { maxSize: Math.max(256, Math.min(1280, Number(args.size) || 640)) });
         const found = resultImages(shot);
         if (found.length) images.push({ label: `View: ${view}`, ...found[0] });
         else problems.push(`${view}: ${JSON.stringify(resultJson(shot)).slice(0, 300)}`);

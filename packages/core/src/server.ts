@@ -20,6 +20,7 @@ import {
   metaToolDefinitions,
   registerPromptsAndResources,
   toolVisible,
+  listingView,
   type ListedTool,
 } from './gamekit/mcp-extras.js';
 import { getProfile, onProfileChange } from './gamekit/profiles.js';
@@ -136,7 +137,7 @@ export class RobloxStudioMCPServer {
     const all = this.allTools();
     const hookNames = new Set(this.robloxHook?.isConnected() ? this.robloxHook.getTools().map((t: any) => t.name) : []);
     const visible = all.filter((t) => (hookNames.has(t.name) ? getProfile() !== 'starter' : toolVisible(t.name)));
-    return [...metaToolDefinitions(all.length), ...visible];
+    return [...metaToolDefinitions(all.length), ...visible].map(listingView);
   }
 
   private setupCallHandler() {

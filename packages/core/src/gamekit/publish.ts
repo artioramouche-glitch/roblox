@@ -14,7 +14,7 @@ export const PUBLISH_TOOLS: ToolDef[] = [
     name: 'publish_checklist',
     category: 'read',
     tier: 'builder',
-    description: 'Before publishing: checks what Studio can verify (published place, spawn, script errors, last test result, monetization ids, open team tasks, mobile-friendly UI, max players...) and lists the manual steps (icon, thumbnails, description, age questionnaire, API access, public visibility) with where to click.',
+    description: 'Before publishing: verifies what Studio can check and lists the manual steps (icon, description, questionnaire, visibility).',
     inputSchema: { type: 'object', properties: {} },
   },
 ];

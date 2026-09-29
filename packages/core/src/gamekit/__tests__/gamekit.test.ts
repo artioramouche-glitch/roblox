@@ -102,6 +102,8 @@ describe('Luau library', () => {
   test('embedded sources are up to date with gamekit/', () => {
     const script = [join(process.cwd(), 'scripts', 'embed-gamekit.mjs'), join(process.cwd(), '..', '..', 'scripts', 'embed-gamekit.mjs')].find(existsSync)!;
     expect(() => execFileSync(process.execPath, [script, '--check'], { stdio: 'pipe' })).not.toThrow();
+    // Same for the Roblox API index (generated from packages/core/assets/globalTypes.d.luau).
+    expect(() => execFileSync(process.execPath, [script.replace('embed-gamekit.mjs', 'embed-roblox-api.mjs'), '--check'], { stdio: 'pipe' })).not.toThrow();
   });
 
   test('GameKit scripts pass the beginner linter (no errors)', () => {

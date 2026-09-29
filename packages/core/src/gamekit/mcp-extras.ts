@@ -17,6 +17,9 @@ import {
   ReadResourceRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 import { GAMEKIT_TOOLS, GAMEKIT_TOOL_NAMES } from './tools.js';
+import { firstSentence, toJson } from './result.js';
+
+export { firstSentence };
 import { baseToolVisible, getProfile, PROFILES, setProfile, tierVisible } from './profiles.js';
 
 export const SERVER_INSTRUCTIONS = `This server lets you build complete Roblox games in Roblox Studio.
@@ -25,11 +28,11 @@ ALWAYS follow this path:
 2. Build the game with create_game (templates: ${TEMPLATES.map((t) => t.id).join(', ')}) instead of writing code from scratch.
 3. Call test_game after every change and fix every error it reports until it says PASS.
 4. Customise with add_system (config), build_world, build_ui and set_environment -- they need no code.
-5. When you must write code, use write_script (it validates Luau and refuses broken code). Server logic in ServerScriptService, UI/input in LocalScripts.
+5. Before writing code, try code_recipe (verified scripts). Otherwise write_script for new scripts and edit_script for changes: both auto-fix and refuse broken code. Server logic in ServerScriptService, UI/input in LocalScripts.
 6. Look at the result with look_at_game, decorate with populate_world, and run check_game before finishing.
 Save with backup_game before risky changes. Slow tools (blender_to_roblox, long test_game) can run through start_job while you keep working.
 Custom 3D models: blender_status, then model in Blender and send with blender_to_roblox. Several AIs on one game: team (plan, claim tasks, claim zones).
-Read roblox_guide (topics: workflow, design, luau, client-server, ui, errors) when unsure. Never invent Roblox APIs; never trust values sent by the client.
+Read roblox_guide (topics: workflow, coding, design, luau, client-server, ui, errors) when unsure. Understand existing code with code_outline and read_script { path, find }. Never invent Roblox APIs; never trust values sent by the client.
 For anything else (terrain, lighting, animations, particles, sounds, assets, profiling, multiplayer tests, screenshots...) many more tools exist: find_tools then call_tool.`;
 
 export interface PromptDef {
@@ -52,7 +55,7 @@ Follow exactly:
 1. Call roblox_start_here.
 2. Choose the closest template${a.template ? ` (use "${a.template}")` : ` among: ${TEMPLATES.map((t) => `${t.id} = ${t.summary}`).join(' | ')}`}.
 3. Call create_game with fitting options (title, theme, difficulty, sizes).
-4. Call test_game. For each error: read the script (get_script_source), fix it with write_script or edit_script_lines, test again. Repeat until PASS.
+4. Call test_game. Each error shows its code lines: fix them with edit_script, test again. Repeat until PASS. Custom features: code_recipe first, then write_script.
 5. Customise to match the idea: add_system config (rewards, prices, texts), build_world pieces, build_ui screens, set_environment mood, populate_world scenery.
 6. look_at_game to check how it looks; fix what looks wrong.
 7. test_game again, then check_game. Report what you built and how to play it.`,
@@ -63,7 +66,7 @@ Follow exactly:
     arguments: [],
     build: () => `Fix this Roblox game.
 1. Call check_game and fix every "error" finding (syntax, scripts in the wrong place, missing systems).
-2. Call test_game. For each runtime error: open the script, understand the hint, fix it with write_script/edit_script_lines.
+2. Call test_game. Each runtime error shows its code lines and a hint: fix with edit_script (read_script { path, find } for context).
 3. Repeat test_game until it reports PASS. Do not stop while errors remain.
 4. Summarise what was wrong and what you changed.`,
   },
@@ -157,13 +160,13 @@ export function metaToolDefinitions(totalTools: number): ListedTool[] {
   return [
     {
       name: 'set_tool_profile',
-      description: `Show more or fewer tools. starter = GameKit + essentials (default, best for most AIs), builder = + common editing, world, asset and testing tools, full = all ${totalTools} tools. Current: ${getProfile()}. If your client does not refresh its tool list, use find_tools + call_tool instead.`,
+      description: `List more or fewer tools: starter (default), builder, full (all ${totalTools}). Current: ${getProfile()}. Hidden tools always work through find_tools + call_tool.`,
       inputSchema: { type: 'object', properties: { profile: { type: 'string', enum: PROFILES } }, required: ['profile'] },
     },
     {
       name: 'find_tools',
-      description: 'Search ALL tools (including the ones hidden by the current profile) by keyword and get their input schema. Then run one with call_tool.',
-      inputSchema: { type: 'object', properties: { query: { type: 'string', description: 'Keyword, e.g. "terrain", "attribute", "animation", "profiler"' } } },
+      description: 'Search ALL tools (also hidden ones) by keyword, e.g. "terrain", "animation". An exact tool name returns its full schema. Then call_tool.',
+      inputSchema: { type: 'object', properties: { query: { type: 'string' }, detail: { type: 'boolean', description: 'Full schemas for every match' } } },
     },
     {
       name: 'call_tool',
@@ -186,24 +189,66 @@ export interface MetaToolContext {
   listedCount(): number;
 }
 
+// --- Token diet for the tool list ---------------------------------------------------------
+// Most clients resend the whole tool list with every message, so every word here costs
+// tokens on every turn. GameKit descriptions are written short by hand; the 140+ base tools
+// get their first sentence only. find_tools { query, detail: true } shows the full text.
+
+function compactEnabled(): boolean {
+  return !/^(0|false|no|off)$/i.test(process.env.ROBLOX_MCP_COMPACT ?? '');
+}
+
+function shortenSchema(schema: any, max: number): any {
+  if (!schema || typeof schema !== 'object') return schema;
+  if (Array.isArray(schema)) return schema.map((s) => shortenSchema(s, max));
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(schema)) {
+    if (key === 'description' && typeof value === 'string') out[key] = firstSentence(value, max);
+    else if (key === 'additionalProperties' && value === false) continue;
+    else out[key] = shortenSchema(value, max);
+  }
+  return out;
+}
+
+/** What tools/list sends: name, description, schema only (no internal fields), shortened. */
+export function listingView(tool: ListedTool): ListedTool {
+  const view: ListedTool = { name: tool.name, description: tool.description, inputSchema: tool.inputSchema };
+  if (!compactEnabled() || GAMEKIT_TOOL_NAMES.has(tool.name) || META_TOOL_NAMES.has(tool.name)) return view;
+  return { name: tool.name, description: firstSentence(tool.description, 200), inputSchema: shortenSchema(tool.inputSchema, 90) };
+}
+
+function paramSummary(schema: any): string {
+  const props = Object.keys(schema?.properties ?? {});
+  const required = new Set<string>(schema?.required ?? []);
+  return props.map((p) => (required.has(p) ? `${p}*` : p)).join(', ');
+}
+
 /** Handles set_tool_profile / find_tools / call_tool. Returns null for any other tool. */
 export async function handleMetaTool(name: string, args: Record<string, any>, ctx: MetaToolContext): Promise<any | null> {
-  const reply = (value: unknown) => ({ content: [{ type: 'text', text: JSON.stringify(value, null, 2) }] });
+  const reply = (value: unknown) => ({ content: [{ type: 'text', text: toJson(value) }] });
   if (name === 'set_tool_profile') {
     const profile = setProfile(String(args.profile ?? ''));
     return reply({ profile, listedTools: ctx.listedCount(), note: 'Tool list updated. If new tools do not show up in your client, use find_tools + call_tool.' });
   }
   if (name === 'find_tools') {
     const query = String(args.query ?? '').toLowerCase().trim();
+    const all = ctx.allTools();
+    const exact = all.find((t) => t.name === query);
     const words = query.split(/\s+/).filter(Boolean);
-    const matches = ctx.allTools().filter((t) => {
+    const matches = exact ? [exact] : all.filter((t) => {
       const hay = `${t.name} ${t.description ?? ''}`.toLowerCase();
       return words.every((w) => hay.includes(w));
     });
+    // Few matches (or an exact name, or detail: true): full schemas. Otherwise a short index.
+    const full = !!args.detail || matches.length <= 3;
+    const limit = full ? 8 : 30;
     return reply({
       count: matches.length,
-      tools: matches.slice(0, 25).map((t) => ({ name: t.name, listed: toolVisible(t.name), description: t.description, inputSchema: t.inputSchema })),
-      more: Math.max(0, matches.length - 25),
+      tools: matches.slice(0, limit).map((t) => (full
+        ? { name: t.name, listed: toolVisible(t.name), description: t.description, inputSchema: t.inputSchema }
+        : { name: t.name, about: firstSentence(t.description, 110), params: paramSummary(t.inputSchema) })),
+      more: Math.max(0, matches.length - limit),
+      next: full ? 'Run one with call_tool { name, arguments }.' : 'find_tools { query: "<exact tool name>" } shows its full schema; params with * are required.',
     });
   }
   if (name === 'call_tool') {

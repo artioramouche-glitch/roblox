@@ -10,6 +10,7 @@ const { GUIDES, catalogText, systemDoc, templateDoc } = await import(new URL('kn
 const { SYSTEMS } = await import(new URL('catalog.js', dist));
 const { TEMPLATES } = await import(new URL('templates.js', dist));
 const { GAMEKIT_TOOLS } = await import(new URL('tools.js', dist));
+const { RECIPES } = await import(new URL('recipes.js', dist));
 
 const parts = [
   '# GameKit reference',
@@ -25,6 +26,12 @@ const parts = [
   '',
   '## Templates in detail',
   ...TEMPLATES.map((t) => templateDoc(t.id).replace(/^# /, '### ')),
+  '',
+  '## Code recipes (code_recipe)',
+  '',
+  'Verified scripts generated from a few params (checked by the compiler, the linter, the Roblox API check and luau-lsp in CI).',
+  '',
+  ...RECIPES.map((r) => `- **${r.id}** — ${r.summary}\n  - params: ${Object.entries(r.params).map(([k, v]) => `\`${k}\`${v ? ` (${v})` : ''}`).join(', ')}\n  - example: \`${JSON.stringify(r.example)}\``),
   '',
   '## Systems in detail',
   ...SYSTEMS.map((s) => systemDoc(s.id).replace(/^# /, '### ').replace(/\n## /g, '\n#### ')),

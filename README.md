@@ -59,7 +59,9 @@ déjà testées** au lieu d'écrire 2000 lignes de Luau fragile.
 | 🧪 | **`test_game`** | Lance le jeu, **joue tout seul** (checkpoints, pièces, pièges), récupère les erreurs serveur ET client avec explication, s'arrête et nettoie |
 | 🧰 | **140+ outils Studio** | Terrain, éclairage, animations, particules, sons, matériaux, assets du Creator Store, captures d'écran, simulateur d'appareils, tests à 8 joueurs, profileurs, points d'arrêt, `.rbxm`, synchro de fichiers… |
 | 🧠 | Guides, prompts, instructions | La méthode est injectée automatiquement dans l'IA ; `roblox_guide` explique Luau, client/serveur, game design, erreurs… |
-| 🎚️ | Profils d'outils | 35 outils par défaut (au lieu de 174) pour ne pas perdre une petite IA ; tout reste accessible via `find_tools`/`call_tool` |
+| 🧑‍💻 | **Aide au code** | Correction auto des réflexes JavaScript/Python, détection des API Roblox inventées (avec la bonne suggestion), `edit_script` vérifié, 12 recettes de code prêtes à l'emploi |
+| 🪙 | **Économe en tokens** | Liste d'outils allégée (−36 %), réponses JSON compactes, lecture de scripts ciblée, captures réduites |
+| 🎚️ | Profils d'outils | 37 outils par défaut (au lieu de 178) pour ne pas perdre une petite IA ; tout reste accessible via `find_tools`/`call_tool` |
 
 ---
 
@@ -210,6 +212,37 @@ La référence complète (réglages, tags, attributs) est dans **[docs/GAMEKIT.m
 
 ---
 
+## 🧑‍💻 Une IA moyenne en code devient fiable
+
+Les petits modèles échouent surtout sur trois choses : des habitudes d'autres langages, des API Roblox inventées, et
+des réécritures complètes de scripts qui cassent tout. Le serveur s'en occupe :
+
+| Aide | Ce qu'elle fait |
+|---|---|
+| **Correction automatique** | `write_script`, `edit_script` et `check_luau` convertissent `!=`, `&&`, `\|\|`, `!x`, `null`, `// commentaires`, `let/const`, `i++`, `"texte" + x`, `` `${x}` ``, `wait()`… en Luau correct, et disent ce qui a été changé (l'IA apprend) |
+| **Détecteur d'API inventées** | Index de toute l'API Roblox (965 classes, 635 enums) : `GetService("Player")` → *Players*, `Instance.new("Brick")` → *Part*, `Enum.Material.Wooden` → *Wood*, `Vector3.New`, `humanoid.Walkspeed` → *WalkSpeed*, méthodes obsolètes (`AwardBadge` → `AwardBadgeAsync`)… |
+| **`code_recipe`** | 12 scripts vérifiés à partir de quelques paramètres : récompense au toucher, prompt « E », porte à condition, apparition d'objets, récompense de temps de jeu, bouton UI → serveur, dialogue de PNJ, badge, stats du personnage, commande de chat, musique de zone, mouvement en boucle. Chacun passe le compilateur, le linter, le contrôle d'API et luau-lsp |
+| **`edit_script`** | Modifie une partie d'un script par rechercher/remplacer (tolère une indentation différente), vérifie le résultat **avant** d'écrire : jamais de script cassé, et pas besoin de renvoyer tout le fichier |
+| **`read_script`** / **`code_outline`** | Lire seulement les lignes utiles (plage ou mot-clé) ; plan du code du jeu en une ligne par script |
+| **Erreurs avec leur code** | `test_game` et `check_game` montrent les lignes fautives à côté de l'explication : la correction se fait sans relire le script |
+
+## 🪙 Économie de tokens
+
+| | Avant | Maintenant |
+|---|---|---|
+| Liste d'outils du profil de base (renvoyée à chaque message par la plupart des clients) | ~7 200 tokens | ~4 600 tokens (avec 2 outils de plus) |
+| `find_tools` (recherche) | ~2 600 tokens | ~400 tokens (index ; schéma complet pour un nom exact) |
+| Catalogue | ~1 900 tokens | ~1 200 tokens |
+| Réponses | JSON indenté, champs vides | JSON compact, champs vides retirés |
+| Captures (`look_at_game`, `capture_screenshot`) | pleine taille | 640 / 1024 px (≈ 4× moins de tokens d'image) |
+| Lire un script | le source envoyé deux fois | `read_script` : lignes numérotées, plage ou recherche |
+| Modifier un script | tout réécrire | `edit_script` : seulement le passage changé |
+
+Les descriptions détaillées sont dans `roblox_guide`, lues seulement quand l'IA en a besoin.
+Variables : `ROBLOX_MCP_COMPACT=0` (descriptions complètes), `ROBLOX_MCP_PRETTY=1` (JSON indenté).
+
+---
+
 ## 🎨 Modèles 3D avec Blender
 
 Le dossier `integrations/blender-mcp/` contient [blender-mcp](https://github.com/ahujasid/blender-mcp) (MIT). Seul son
@@ -249,8 +282,9 @@ Le tableau est stocké **dans le jeu** (`ServerStorage/GameKitTeam`) : il est pa
 ## 🔧 Les outils
 
 **Game Kit (toujours visibles)** : `roblox_start_here`, `roblox_guide`, `gamekit_catalog`, `create_game`, `add_system`,
-`build_world`, `build_ui`, `set_environment`, `write_script`, `check_luau`, `check_game`, `test_game`,
-`populate_world`, `look_at_game`, `backup_game`, `team`, `start_job`, `job_status`, `blender_status`, `blender_to_roblox`.
+`build_world`, `build_ui`, `set_environment`, `write_script`, `edit_script`, `read_script`, `code_outline`, `code_recipe`,
+`check_luau`, `check_game`, `test_game`, `populate_world`, `look_at_game`, `backup_game`, `team`, `start_job`,
+`job_status`, `blender_status`, `blender_to_roblox`.
 
 **En plus dès le profil `builder`** : `balance_economy`, `publish_checklist`, `blender_python`, `blender_scene`,
 `blender_assets`, `blender_command` (les outils Blender apparaissent aussi dès que Blender est connecté).
@@ -259,9 +293,9 @@ Le tableau est stocké **dans le jeu** (`ServerStorage/GameKitTeam`) : il est pa
 
 | Profil | Outils listés | Contenu |
 |---|---|---|
-| `starter` *(défaut)* | 35 | Game Kit + essentiels (lecture/édition de scripts, propriétés, objets, `execute_luau`, annuler, capture d'écran, doc Roblox) |
-| `builder` | 94 | + économie, publication, Blender, tags, attributs, opérations de masse, terrain, éclairage, assets, playtest manuel, logs par pair, runtime eval, navigation du personnage, multi-Studio |
-| `full` | 174 | Tout : animations, sons, particules, matériaux, profileurs, points d'arrêt, simulateur d'appareils/réseau, tests multijoueurs, `.rbxm`, synchro de fichiers, publication… |
+| `starter` *(défaut)* | 37 | Game Kit + essentiels (propriétés, objets, `execute_luau`, annuler, capture d'écran, doc Roblox) |
+| `builder` | 98 | + économie, publication, Blender, scripts bas niveau, tags, attributs, opérations de masse, terrain, éclairage, assets, playtest manuel, logs par pair, runtime eval, navigation du personnage, multi-Studio |
+| `full` | 178 | Tout : animations, sons, particules, matériaux, profileurs, points d'arrêt, simulateur d'appareils/réseau, tests multijoueurs, `.rbxm`, synchro de fichiers, publication… |
 
 Même en `starter`, **tous** les outils restent utilisables : `find_tools` (recherche + schéma) puis `call_tool`.
 
@@ -277,14 +311,17 @@ Luau ; aucune écriture) — pratique pour faire relire un jeu sans risque.
 ## 🧠 Pourquoi ça marche même avec une petite IA
 
 1. **Moins de code à écrire** : un jeu complet = 1 appel ; une fonctionnalité = 1 système + un peu de config.
-2. **Moins de choix** : 35 outils au lieu de 174, avec des descriptions qui disent *quand* les utiliser.
+2. **Moins de choix** : 37 outils au lieu de 178, avec des descriptions courtes qui disent *quand* les utiliser.
 3. **Instructions automatiques** : la méthode est envoyée à l'IA dès la connexion (champ `instructions` MCP).
-4. **Garde-fous** : `write_script` compile le Luau (vrai compilateur) et bloque les erreurs de débutant
-   (`LocalPlayer` côté serveur, boucle infinie sans `task.wait`, argent modifié côté client, `!=` au lieu de `~=`…).
-5. **Boucle de correction** : `test_game` renvoie chaque erreur avec le script, la ligne et **l'explication en clair**.
-6. **Guides intégrés** : Luau, client/serveur, sauvegarde, UI, game design, erreurs courantes, Blender, travail en
-   équipe, traduction, publication.
-7. **Filets de sécurité** : sauvegarde automatique avant chaque `create_game`, `backup_game` pour revenir en arrière,
+4. **Garde-fous** : `write_script` / `edit_script` corrigent automatiquement les réflexes d'autres langages, compilent
+   le Luau (vrai compilateur), vérifient les noms d'API Roblox et bloquent les erreurs de débutant
+   (`LocalPlayer` côté serveur, boucle infinie sans `task.wait`, argent modifié côté client…).
+5. **Du code déjà écrit** : `code_recipe` fournit des scripts vérifiés au lieu de les faire écrire de zéro.
+6. **Boucle de correction** : `test_game` renvoie chaque erreur avec le script, la ligne, **le code fautif** et
+   **l'explication en clair** ; `edit_script` corrige juste ce passage.
+7. **Guides intégrés** : méthode de code, Luau, client/serveur, sauvegarde, UI, game design, erreurs courantes,
+   Blender, travail en équipe, traduction, publication.
+8. **Filets de sécurité** : sauvegarde automatique avant chaque `create_game`, `backup_game` pour revenir en arrière,
    `look_at_game` pour vérifier visuellement.
 
 ---
@@ -293,9 +330,9 @@ Luau ; aucune écriture) — pratique pour faire relire un jeu sans risque.
 
 ```bash
 npm run build            # intègre gamekit/*.luau puis compile core + serveur + édition lecture seule
-npm test                 # 107 tests du serveur + 59 tests Game Kit (dont un faux addon Blender en TCP)
+npm test                 # 107 tests du serveur + 77 tests Game Kit (faux addon Blender, correction auto, API, recettes…)
 npm run gamekit:smoke    # test MCP de bout en bout (stdio)
-npm run gamekit:verify   # syntaxe (WASM) + types Roblox (si luau-lsp est installé) de tout le Luau
+npm run gamekit:verify   # syntaxe (WASM) + types Roblox (si luau-lsp est installé) de tout le Luau, recettes comprises
 npm run build:plugin     # recompile le plugin Studio (roblox-ts) et l'installe (Windows/macOS)
 ```
 

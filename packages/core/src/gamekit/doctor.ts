@@ -7,6 +7,7 @@
 import { LUAU_SOURCES } from './generated/luau-sources.js';
 import { asArray, runLuauJson, type LuauRunner } from './installer.js';
 import { contextFor, lintLuau, type LintIssue } from './luau-lint.js';
+import { checkRobloxApi } from './api-check.js';
 import { checkLuauSyntax } from './luau-syntax.js';
 
 export interface AuditScript {
@@ -33,6 +34,8 @@ export interface Finding {
   line?: number;
   problem: string;
   fix?: string;
+  /** The lines around the problem, e.g. "11| local x = nil\n12| x.Value = 1". */
+  code?: string;
 }
 
 const CLIENT_CONTAINERS = /^(StarterPlayer\.StarterPlayerScripts|StarterPlayer\.StarterCharacterScripts|StarterGui|StarterPack|ReplicatedFirst)\b/;
@@ -62,8 +65,22 @@ function placementFinding(s: AuditScript): Finding | null {
   return null;
 }
 
+/** The offending line (and one before) so the fix can be made without reading the script. */
+export function codeAt(source: string | undefined, line: number | undefined): string | undefined {
+  if (!source || !line) return undefined;
+  const lines = source.split('\n');
+  const from = Math.max(1, line - 1);
+  const to = Math.min(lines.length, line + 1);
+  const out: string[] = [];
+  for (let i = from; i <= to; i++) out.push(`${i}| ${lines[i - 1].trim().slice(0, 120)}`);
+  return out.join('\n');
+}
+
 function lintFindings(s: AuditScript, issues: LintIssue[]): Finding[] {
-  return issues.map((i) => ({ severity: i.severity, where: s.path, line: i.line, problem: i.message, fix: i.fix }));
+  return issues.map((i) => ({
+    severity: i.severity, where: s.path, line: i.line, problem: i.message, fix: i.fix,
+    code: i.severity === 'error' ? codeAt(s.source, i.line) : undefined,
+  }));
 }
 
 export async function collectAudit(runner: LuauRunner): Promise<Audit> {
@@ -97,7 +114,7 @@ export async function analyseAudit(audit: Audit, options: { includeGameKit?: boo
     }
     if (isKit && !options.includeGameKit) continue;
     const ctx = contextFor(s.className, s.path.replace(/^game\./, ''), s.runContext);
-    findings.push(...lintFindings(s, lintLuau(s.source, ctx)));
+    findings.push(...lintFindings(s, [...lintLuau(s.source, ctx), ...checkRobloxApi(s.source)]));
   }
 
   const f = audit.facts ?? {};

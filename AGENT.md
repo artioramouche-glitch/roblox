@@ -40,7 +40,8 @@ gemini mcp add roblox node PATH/packages/roblox-ultimate-mcp/dist/index.js      
 1. `roblox_start_here` — connection check + what is already installed.
 2. `create_game { template, options }` — templates: `obby`, `tycoon`, `simulator`, `arena`, `survival`, `horror_escape`,
    `tower_defense`, `farming`. Builds scripts, config, world, HUD and lighting in one call (and backs up the previous place).
-3. `test_game` — automatic playtest. Fix **every** error it reports (script + line + hint), then run it again until `PASS`.
+3. `test_game` — automatic playtest. Fix **every** error it reports (script + line + code + hint, fix with
+   `edit_script`), then run it again until `PASS`.
 4. Customise **without code**:
    - `add_system { system, config }` — settings live in `ReplicatedStorage/GameKit/Config/<System>`.
    - `build_world { kind, options }` — whole worlds (`obby_course`, `maze`, `arena`...) or pieces (`jump_pad`, `coin`, `spinner`...).
@@ -49,8 +50,13 @@ gemini mcp add roblox node PATH/packages/roblox-ultimate-mcp/dist/index.js      
    - `populate_world { theme | items, zone }` — scenery snapped to the ground, never blocking gameplay.
    - `look_at_game` — screenshots from several angles: LOOK at what you built and fix what looks wrong.
    - `balance_economy { fromGame: true }` — progression simulation + suggested prices.
-5. Custom code: **only** with `write_script` (validates Luau with the real compiler + a beginner linter).
-   Check snippets with `check_luau` first. Read `roblox_guide gamekit-api` to reuse PlayerData / Net / UIKit.
+5. Custom code (read `roblox_guide coding`):
+   - First `code_recipe` (verified scripts from params: touch_reward, prompt_action, door, timed_spawner, npc_dialog,
+     ui_button_remote, badge_award, chat_command...). `code_recipe {}` lists them.
+   - New script: `write_script`. Change: `edit_script { path, find, replace }` (never rewrite a whole script).
+     Both auto-fix JS/Python habits and refuse broken code or invented Roblox APIs (they suggest the right name).
+   - Understand existing code: `code_outline`, then `read_script { path, find }` (only the lines you need).
+   - Reuse PlayerData / Net / Util / UIKit (`roblox_guide gamekit-api`).
 6. Finish with `check_game` (static audit) and a last `test_game`; `publish_checklist` before publishing.
 
 Safety and speed: `backup_game { action: "save" }` before risky changes (`restore` to undo). Slow tools run in the
@@ -81,7 +87,7 @@ Read `roblox_guide team`. Lead: `team { action: "plan", goal }`. Everyone: pick 
 
 ## 4. Tool profiles and the 140+ Studio tools
 
-Default profile `starter` lists 35 of the 174 tools (`builder` 94). Everything else is still callable:
+Default profile `starter` lists 37 of the 178 tools (`builder` 98). Everything else is still callable:
 `find_tools { query }` then `call_tool { name, arguments }`, or `set_tool_profile { profile: "builder" | "full" }`.
 Useful families: terrain_*, lighting_*, animation_*, particle_*, sound_*, material_*, insert_asset / search_assets
 (needs an Open Cloud key), capture_screenshot, simulate_*_input, character_navigation, eval_server_runtime /
@@ -90,7 +96,7 @@ breakpoints, export_rbxm / import_rbxm, source_pull / source_push, get_roblox_do
 
 ## 5. Guides available through the server
 
-`roblox_guide` topics: workflow, design, luau, client-server, data, ui, building, testing, errors, blender, team,
+`roblox_guide` topics: workflow, coding, design, luau, client-server, data, ui, building, testing, errors, blender, team,
 localization, publishing, performance, gamekit-api, catalog, and every system/template id. Also exposed as MCP
 resources `gamekit://...` and prompts `make_game`, `fix_my_game`, `add_feature`, `polish_game`, `team_build`,
 `blender_prop`.

@@ -27,6 +27,33 @@ function walk(dir) {
 }
 
 const files = walk(libDir).sort();
+
+// Code recipes (packages/core/src/gamekit/recipes.ts) are generated from params: check what they
+// produce with their example params too (needs `npm run build` first).
+const { mkdirSync, writeFileSync: writeFile, rmSync } = await import('fs');
+const recipeDir = join(root, '.tools', 'recipe-check');
+const recipeTargets = new Map();
+try {
+  const { RECIPES } = await import(new URL('../packages/core/dist/gamekit/recipes.js', import.meta.url));
+  rmSync(recipeDir, { recursive: true, force: true });
+  mkdirSync(recipeDir, { recursive: true });
+  for (const recipe of RECIPES) {
+    [recipe.example, ...(recipe.variants ?? [])].forEach((params, v) => {
+      recipe.build(params).files.forEach((f, i) => {
+        const id = `${recipe.id}_${v}_${i}`;
+        const file = join(recipeDir, `${id}.${f.side}.luau`);
+        writeFile(file, f.source);
+        files.push(file);
+        recipeTargets.set(file, f.side === 'server'
+          ? { path: ['ServerScriptService', 'Recipes'], name: id, className: 'Script' }
+          : { path: ['StarterPlayer', 'StarterPlayerScripts', 'Recipes'], name: id, className: 'LocalScript' });
+      });
+    });
+  }
+  console.log(`[recipes] ${recipeTargets.size} generated scripts added`);
+} catch (err) {
+  console.log(`[recipes] skipped (${err.message.split('\n')[0]}): run npm run build first`);
+}
 const { LuauState } = await import('luau-web');
 const state = await LuauState.createAsync();
 let syntaxErrors = 0;
@@ -67,7 +94,7 @@ function ensure(node, name, className) {
 }
 for (const file of files) {
   const rel = relative(root, file).split('\\').join('/');
-  const t = targetFor(rel);
+  const t = recipeTargets.get(file) ?? targetFor(rel);
   if (!t) continue;
   let node = sourcemap;
   t.path.forEach((seg, i) => { node = ensure(node, seg, i === 0 ? seg : (seg === 'StarterPlayerScripts' ? 'StarterPlayerScripts' : 'Folder')); });
