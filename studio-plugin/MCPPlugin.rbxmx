@@ -17,6 +17,7 @@ local ReloadHandlers = TS.import(script, script, "modules", "handlers", "ReloadH
 local _EvalBridges = TS.import(script, script, "modules", "EvalBridges")
 local cleanupLegacyEditBridges = _EvalBridges.cleanupLegacyEditBridges
 local ensureRuntimeBridgeInstalled = _EvalBridges.ensureRuntimeBridgeInstalled
+local ActivityPanel = TS.import(script, script, "modules", "ActivityPanel")
 -- Attach the per-peer LogService listener before anything else, so boot-time prints from
 -- the place's own scripts are captured rather than missed. Idempotent.
 RuntimeLogBuffer.install()
@@ -42,6 +43,15 @@ local function peerRole()
 end
 local toolbar = plugin:CreateToolbar("MCP Integration")
 local button = toolbar:CreateButton("MCP Server", "Connect to MCP Server for AI Integration", "rbxassetid://10734944444")
+-- The AI panel only makes sense where the AI edits the place: the edit DataModel.
+if peerRole() == "edit" then
+	local panelOk, panelError = pcall(function()
+		return ActivityPanel.init(plugin, toolbar)
+	end)
+	if not panelOk then
+		warn(`[robloxstudio-mcp] AI panel failed to start: {panelError}`)
+	end
+end
 -- Remembered across Studio restarts. Without this the plugin came up DISCONNECTED every
 -- time, and had to be toggled by hand before any tool call could reach Studio -- which is
 -- most of the "the MCP is broken again" experience. Connecting is a decision the user
@@ -157,6 +167,424 @@ Communication.checkForUpdates()
       </Properties>
       <Item class="ModuleScript" referent="2">
         <Properties>
+          <string name="Name">Activity</string>
+          <string name="Source"><![CDATA[-- Compiled with roblox-ts v3.0.0
+-- What the AI did in this Studio, newest last, for the AI panel (ActivityPanel).
+--
+-- GameKit calls arrive as execute-luau with a trailing "--@ai <write|read> <label>" line
+-- added by the MCP server; other tools are named after their endpoint. "Write" calls from
+-- GameKit are recorded as one undo step named "MCP: AI <label>" (see MetadataHandlers),
+-- so "Undo last AI action" is a plain ChangeHistoryService:Undo() on that step.
+local MAX_ENTRIES = 60
+local entries = {}
+local changed = Instance.new("BindableEvent")
+-- Polled by the MCP server all the time (playtest state, logs...): not worth a line.
+local QUIET = {
+	["/api/get-playtest-output"] = true,
+	["/api/multiplayer-test-state"] = true,
+	["/api/get-runtime-logs"] = true,
+	["/api/get-studio-mode"] = true,
+	["/api/ping"] = true,
+}
+local WRITE_WORDS = { "create", "set", "delete", "insert", "move", "write", "update", "import", "clone", "rename", "build", "apply", "undo", "redo", "generate", "start", "stop", "edit", "fill", "clear", "replace", "mass", "bulk", "smart" }
+--* Reads the "--@ai write create_game obby" tag the MCP server appends to GameKit code. 
+local function parseTag(code)
+	local kind, label = string.match(code, "\n%-%-@ai (%a+) ([^\n]*)$")
+	if kind == nil or label == nil then
+		return nil
+	end
+	return { kind == "write", label }
+end
+local function endpointLabel(endpoint, data)
+	local name = string.gsub(endpoint, "^/api/", "")
+	local write = false
+	for _, word in WRITE_WORDS do
+		if (string.find(name, word, 1, true)) ~= nil then
+			write = true
+			break
+		end
+	end
+	local _condition = data.instancePath
+	if _condition == nil then
+		_condition = data.path
+		if _condition == nil then
+			_condition = data.parentPath
+			if _condition == nil then
+				_condition = data.scriptPath
+			end
+		end
+	end
+	local target = _condition
+	local spaced = string.gsub(name, "-", "_")
+	return { write, if type(target) == "string" then `{spaced} {target}` else spaced }
+end
+local function record(endpoint, data, result, threw)
+	if QUIET[endpoint] then
+		return nil
+	end
+	local tag
+	local _condition = endpoint == "/api/execute-luau"
+	if _condition then
+		local _code = data.code
+		_condition = type(_code) == "string"
+	end
+	if _condition then
+		tag = parseTag(data.code)
+	end
+	local _binding = tag or endpointLabel(endpoint, data)
+	local write = _binding[1]
+	local label = _binding[2]
+	local ok = threw == nil
+	local err = threw
+	local _result = result
+	if type(_result) == "table" then
+		local r = result
+		if r.success == false or r.error ~= nil then
+			ok = false
+			local _condition_1 = r.error
+			if _condition_1 == nil then
+				_condition_1 = "failed"
+			end
+			err = tostring(_condition_1)
+		end
+	end
+	local last = entries[#entries]
+	if last and last.label == label and last.ok == ok and os.clock() - last.time < 30 then
+		last.count += 1
+		last.time = os.clock()
+	else
+		local _arg0 = {
+			time = os.clock(),
+			label = label,
+			write = write,
+			ok = ok,
+			error = err,
+			count = 1,
+		}
+		table.insert(entries, _arg0)
+		while #entries > MAX_ENTRIES do
+			table.remove(entries, 1)
+		end
+	end
+	changed:Fire()
+end
+return {
+	record = record,
+	parseTag = parseTag,
+	list = function()
+		return entries
+	end,
+	changed = changed.Event,
+}
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="3">
+        <Properties>
+          <string name="Name">ActivityPanel</string>
+          <string name="Source"><![CDATA[-- Compiled with roblox-ts v3.0.0
+local TS = require(script.Parent.Parent.include.RuntimeLib)
+-- The AI panel: what the AI is doing in this Studio, the team board, the TODO list from
+-- game_notes, and a button that undoes the AI's last change (only an AI change: the
+-- undo step must be named "MCP: ..." so a human edit is never reverted by mistake).
+-- Text is in French: it is read by the game creator, not by the AI.
+local Activity = TS.import(script, script.Parent, "Activity")
+local ChangeHistoryService = game:GetService("ChangeHistoryService")
+local ServerStorage = game:GetService("ServerStorage")
+local history = ChangeHistoryService
+local C = {
+	bg = Color3.fromRGB(14, 14, 14),
+	card = Color3.fromRGB(24, 24, 24),
+	border = Color3.fromRGB(40, 40, 40),
+	dim = Color3.fromRGB(130, 130, 130),
+	text = Color3.fromRGB(235, 235, 235),
+	green = Color3.fromRGB(52, 211, 153),
+	yellow = Color3.fromRGB(251, 191, 36),
+	red = Color3.fromRGB(248, 113, 113),
+	blue = Color3.fromRGB(96, 165, 250),
+}
+local widget
+local list
+local undoButton
+local undoLabel
+local refreshQueued = false
+local function label(parent, text, size, color, bold)
+	if bold == nil then
+		bold = false
+	end
+	local l = Instance.new("TextLabel")
+	l.BackgroundTransparency = 1
+	l.Size = size
+	l.Text = text
+	l.TextColor3 = color
+	l.TextSize = if bold then 13 else 12
+	l.Font = if bold then Enum.Font.GothamBold else Enum.Font.Gotham
+	l.TextXAlignment = Enum.TextXAlignment.Left
+	l.TextWrapped = true
+	l.AutomaticSize = Enum.AutomaticSize.Y
+	l.Parent = parent
+	return l
+end
+local function button(parent, text, color)
+	local b = Instance.new("TextButton")
+	b.Size = UDim2.new(0.5, -6, 0, 30)
+	b.BackgroundColor3 = color
+	b.Text = text
+	b.TextColor3 = C.bg
+	b.TextSize = 12
+	b.Font = Enum.Font.GothamBold
+	b.AutoButtonColor = true
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 6)
+	corner.Parent = b
+	b.Parent = parent
+	return b
+end
+local function section(title, order)
+	local frame = Instance.new("Frame")
+	frame.BackgroundColor3 = C.card
+	frame.BorderSizePixel = 0
+	frame.Size = UDim2.new(1, -8, 0, 0)
+	frame.AutomaticSize = Enum.AutomaticSize.Y
+	frame.LayoutOrder = order
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 6)
+	corner.Parent = frame
+	local pad = Instance.new("UIPadding")
+	pad.PaddingLeft = UDim.new(0, 8)
+	pad.PaddingRight = UDim.new(0, 8)
+	pad.PaddingTop = UDim.new(0, 6)
+	pad.PaddingBottom = UDim.new(0, 6)
+	pad.Parent = frame
+	local layout = Instance.new("UIListLayout")
+	layout.Padding = UDim.new(0, 3)
+	layout.SortOrder = Enum.SortOrder.LayoutOrder
+	layout.Parent = frame
+	label(frame, title, UDim2.new(1, 0, 0, 16), C.blue, true).LayoutOrder = 0
+	frame.Parent = list
+	return frame
+end
+local function ago(seconds)
+	if seconds < 60 then
+		return `{math.floor(seconds)} s`
+	end
+	if seconds < 3600 then
+		return `{math.floor(seconds / 60)} min`
+	end
+	return `{math.floor(seconds / 3600)} h`
+end
+local function lastAiStep()
+	local ok, canUndo, name = pcall(function()
+		local can, waypoint = history:GetCanUndo()
+		return can, waypoint
+	end)
+	if not ok or not canUndo or not (type(name) == "string") then
+		return nil
+	end
+	return if string.sub(name, 1, 4) == "MCP:" then name else nil
+end
+local function teamRows(parent)
+	local _tasks = ServerStorage:FindFirstChild("GameKitTeam")
+	if _tasks ~= nil then
+		_tasks = _tasks:FindFirstChild("Tasks")
+	end
+	local tasks = _tasks
+	local shown = 0
+	if not tasks then
+		return 0
+	end
+	local items = tasks:GetChildren()
+	table.sort(items, function(a, b)
+		local _condition = tonumber(string.sub(a.Name, 2))
+		if _condition == nil then
+			_condition = 0
+		end
+		local _condition_1 = tonumber(string.sub(b.Name, 2))
+		if _condition_1 == nil then
+			_condition_1 = 0
+		end
+		return _condition < _condition_1
+	end)
+	for _, item in items do
+		local _condition = item:GetAttribute("Status")
+		if _condition == nil then
+			_condition = "todo"
+		end
+		local status = tostring(_condition)
+		local _condition_1 = item:GetAttribute("Owner")
+		if _condition_1 == nil then
+			_condition_1 = ""
+		end
+		local owner = tostring(_condition_1)
+		local icon = if status == "done" then "✅" elseif status == "doing" then "🔨" elseif status == "blocked" then "⛔" else "⬜"
+		local color = if status == "done" then C.dim elseif status == "doing" then C.yellow elseif status == "blocked" then C.red else C.text
+		local who = if owner ~= "" then `  ({owner})` else ""
+		local _exp = parent
+		local _exp_1 = item.Name
+		local _condition_2 = item:GetAttribute("Title")
+		if _condition_2 == nil then
+			_condition_2 = ""
+		end
+		label(_exp, `{icon} {_exp_1} {tostring(_condition_2)}{who}`, UDim2.new(1, 0, 0, 14), color).LayoutOrder = 10 + shown
+		shown += 1
+	end
+	return shown
+end
+local function todoRows(parent)
+	local _todo = ServerStorage:FindFirstChild("GameKitNotes")
+	if _todo ~= nil then
+		_todo = _todo:FindFirstChild("todo")
+	end
+	local todo = _todo
+	if not todo or not todo:IsA("StringValue") or todo.Value == "" then
+		return 0
+	end
+	local shown = 0
+	for line in string.gmatch(todo.Value, "[^\n]+") do
+		label(parent, `• {line}`, UDim2.new(1, 0, 0, 14), C.text).LayoutOrder = 10 + shown
+		shown += 1
+		if shown >= 12 then
+			break
+		end
+	end
+	return shown
+end
+local function refresh()
+	refreshQueued = false
+	if not widget or not widget.Enabled then
+		return nil
+	end
+	for _, child in list:GetChildren() do
+		if child:IsA("Frame") then
+			child:Destroy()
+		end
+	end
+	local step = lastAiStep()
+	undoLabel.Text = if step ~= nil then `Dernière action IA annulable : {string.sub(step, 6)}` else "Aucune action de l'IA à annuler (la dernière modification vient de vous)."
+	undoButton.AutoButtonColor = step ~= nil
+	undoButton.BackgroundColor3 = if step ~= nil then C.yellow else C.border
+	local entries = Activity.list()
+	local now = os.clock()
+	local activity = section("Ce que fait l'IA", 1)
+	if #entries == 0 then
+		label(activity, "Rien pour l'instant. Demandez à votre IA : « appelle roblox_start_here ».", UDim2.new(1, 0, 0, 14), C.dim).LayoutOrder = 1
+	end
+	local row = 0
+	do
+		local i = #entries - 1
+		local _shouldIncrement = false
+		while true do
+			if _shouldIncrement then
+				i -= 1
+			else
+				_shouldIncrement = true
+			end
+			if not (i >= 0 and row < 25) then
+				break
+			end
+			local e = entries[i + 1]
+			local icon = if not e.ok then "❌" elseif e.write then "✏️" else "👁"
+			local times = if e.count > 1 then ` ×{e.count}` else ""
+			local color = if not e.ok then C.red elseif e.write then C.text else C.dim
+			local text = `{icon} {e.label}{times}  · il y a {ago(now - e.time)}{if e.error ~= nil then `\n   {string.sub(e.error, 1, 120)}` else ""}`
+			label(activity, text, UDim2.new(1, 0, 0, 14), color).LayoutOrder = 1 + row
+			row += 1
+		end
+	end
+	local team = section("Tableau d'équipe", 2)
+	if teamRows(team) == 0 then
+		label(team, "Pas de tâches (outil team, action plan).", UDim2.new(1, 0, 0, 14), C.dim).LayoutOrder = 1
+	end
+	local todo = section("À faire (game_notes)", 3)
+	if todoRows(todo) == 0 then
+		label(todo, "Liste vide (outil game_notes, section todo).", UDim2.new(1, 0, 0, 14), C.dim).LayoutOrder = 1
+	end
+end
+local function queueRefresh()
+	if refreshQueued then
+		return nil
+	end
+	refreshQueued = true
+	task.delay(0.3, refresh)
+end
+local function init(pluginRef, toolbar)
+	widget = pluginRef:CreateDockWidgetPluginGuiAsync("RobloxUltimateAIPanel", DockWidgetPluginGuiInfo.new(Enum.InitialDockState.Right, false, false, 320, 420, 260, 240))
+	widget.Title = "IA : activité"
+	local root = Instance.new("Frame")
+	root.Size = UDim2.new(1, 0, 1, 0)
+	root.BackgroundColor3 = C.bg
+	root.BorderSizePixel = 0
+	root.Parent = widget
+	local top = Instance.new("Frame")
+	top.BackgroundTransparency = 1
+	top.Size = UDim2.new(1, -12, 0, 76)
+	top.Position = UDim2.new(0, 6, 0, 6)
+	top.Parent = root
+	undoButton = button(top, "↶ Annuler l'action de l'IA", C.yellow)
+	local redoButton = button(top, "↷ Rétablir", C.border)
+	redoButton.Position = UDim2.new(0.5, 6, 0, 0)
+	redoButton.TextColor3 = C.text
+	undoLabel = label(top, "", UDim2.new(1, 0, 0, 30), C.dim)
+	undoLabel.Position = UDim2.new(0, 0, 0, 36)
+	undoLabel.AutomaticSize = Enum.AutomaticSize.None
+	undoLabel.TextSize = 11
+	list = Instance.new("ScrollingFrame")
+	list.BackgroundTransparency = 1
+	list.BorderSizePixel = 0
+	list.Position = UDim2.new(0, 6, 0, 86)
+	list.Size = UDim2.new(1, -6, 1, -92)
+	list.ScrollBarThickness = 5
+	list.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	list.CanvasSize = UDim2.new()
+	list.Parent = root
+	local layout = Instance.new("UIListLayout")
+	layout.Padding = UDim.new(0, 6)
+	layout.SortOrder = Enum.SortOrder.LayoutOrder
+	layout.Parent = list
+	undoButton.Activated:Connect(function()
+		if lastAiStep() == nil then
+			return nil
+		end
+		pcall(function()
+			return ChangeHistoryService:Undo()
+		end)
+		queueRefresh()
+	end)
+	redoButton.Activated:Connect(function()
+		pcall(function()
+			return ChangeHistoryService:Redo()
+		end)
+		queueRefresh()
+	end)
+	Activity.changed:Connect(queueRefresh)
+	ChangeHistoryService.OnUndo:Connect(queueRefresh)
+	ChangeHistoryService.OnRedo:Connect(queueRefresh)
+	widget:GetPropertyChangedSignal("Enabled"):Connect(queueRefresh)
+	-- "il y a 12 s" and the team board (edited by other AIs) stay fresh while open.
+	task.spawn(function()
+		while widget do
+			task.wait(5)
+			if widget.Enabled then
+				queueRefresh()
+			end
+		end
+	end)
+	local panelButton = toolbar:CreateButton("AI Panel", "What the AI is doing, team board, undo the AI's last change", "rbxassetid://10734944444")
+	panelButton.Click:Connect(function()
+		if widget then
+			widget.Enabled = not widget.Enabled
+		end
+	end)
+	queueRefresh()
+end
+return {
+	init = init,
+}
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="4">
+        <Properties>
           <string name="Name">Communication</string>
           <string name="Source"><![CDATA[-- Compiled with roblox-ts v3.0.0
 local TS = require(script.Parent.Parent.include.RuntimeLib)
@@ -190,6 +618,7 @@ local DebuggerHandlers = TS.import(script, script.Parent, "handlers", "DebuggerH
 local EditorHandlers = TS.import(script, script.Parent, "handlers", "EditorHandlers")
 local ReloadHandlers = TS.import(script, script.Parent, "handlers", "ReloadHandlers")
 local MultiplayerTestHandlers = TS.import(script, script.Parent, "handlers", "MultiplayerTestHandlers")
+local Activity = TS.import(script, script.Parent, "Activity")
 local instanceId = HttpService:GenerateGUID(false)
 local assignedRole
 local function detectRole()
@@ -296,7 +725,17 @@ local function processRequest(request)
 	end
 	local handler = (routeOverride or routeMap)[endpoint]
 	if handler then
-		return handler(data)
+		-- Feeds the AI panel. A throwing handler is still re-raised to the poll loop as before.
+		local ok, result = pcall(function()
+			return handler(data)
+		end)
+		pcall(function()
+			return Activity.record(endpoint, data, if ok then result else nil, if ok then nil else tostring(result))
+		end)
+		if not ok then
+			error(result, 0)
+		end
+		return result
 	else
 		return {
 			error = `Unknown endpoint: {endpoint}`,
@@ -649,7 +1088,7 @@ return {
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="3">
+      <Item class="ModuleScript" referent="5">
         <Properties>
           <string name="Name">EvalBridges</string>
           <string name="Source"><![CDATA[-- Compiled with roblox-ts v3.0.0
@@ -924,11 +1363,11 @@ return {
 ]]></string>
         </Properties>
       </Item>
-      <Item class="Folder" referent="4">
+      <Item class="Folder" referent="6">
         <Properties>
           <string name="Name">handlers</string>
         </Properties>
-        <Item class="ModuleScript" referent="5">
+        <Item class="ModuleScript" referent="7">
           <Properties>
             <string name="Name">AssetHandlers</string>
             <string name="Source"><![CDATA[-- Compiled with roblox-ts v3.0.0
@@ -1214,7 +1653,7 @@ return {
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="6">
+        <Item class="ModuleScript" referent="8">
           <Properties>
             <string name="Name">BreakpointHandlers</string>
             <string name="Source"><![CDATA[-- Compiled with roblox-ts v3.0.0
@@ -1740,7 +2179,7 @@ return {
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="7">
+        <Item class="ModuleScript" referent="9">
           <Properties>
             <string name="Name">BuildHandlers</string>
             <string name="Source"><![CDATA[-- Compiled with roblox-ts v3.0.0
@@ -2305,7 +2744,7 @@ return {
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="8">
+        <Item class="ModuleScript" referent="10">
           <Properties>
             <string name="Name">CaptureHandlers</string>
             <string name="Source"><![CDATA[-- Compiled with roblox-ts v3.0.0
@@ -2471,7 +2910,7 @@ return {
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="9">
+        <Item class="ModuleScript" referent="11">
           <Properties>
             <string name="Name">DebuggerHandlers</string>
             <string name="Source"><![CDATA[-- Compiled with roblox-ts v3.0.0
@@ -2730,7 +3169,7 @@ return {
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="10">
+        <Item class="ModuleScript" referent="12">
           <Properties>
             <string name="Name">EditorHandlers</string>
             <string name="Source"><![CDATA[-- Compiled with roblox-ts v3.0.0
@@ -3284,7 +3723,7 @@ return {
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="11">
+        <Item class="ModuleScript" referent="13">
           <Properties>
             <string name="Name">EvalRuntimeHandlers</string>
             <string name="Source"><![CDATA[-- Compiled with roblox-ts v3.0.0
@@ -3438,7 +3877,7 @@ return {
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="12">
+        <Item class="ModuleScript" referent="14">
           <Properties>
             <string name="Name">GenerateModelHandlers</string>
             <string name="Source"><![CDATA[-- Compiled with roblox-ts v3.0.0
@@ -3643,7 +4082,7 @@ return {
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="13">
+        <Item class="ModuleScript" referent="15">
           <Properties>
             <string name="Name">InputHandlers</string>
             <string name="Source"><![CDATA[-- Compiled with roblox-ts v3.0.0
@@ -3797,7 +4236,7 @@ return {
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="14">
+        <Item class="ModuleScript" referent="16">
           <Properties>
             <string name="Name">InstanceHandlers</string>
             <string name="Source"><![CDATA[-- Compiled with roblox-ts v3.0.0
@@ -4304,7 +4743,7 @@ return {
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="15">
+        <Item class="ModuleScript" referent="17">
           <Properties>
             <string name="Name">LogHandlers</string>
             <string name="Source"><![CDATA[-- Compiled with roblox-ts v3.0.0
@@ -4330,7 +4769,7 @@ return {
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="16">
+        <Item class="ModuleScript" referent="18">
           <Properties>
             <string name="Name">MemoryHandlers</string>
             <string name="Source"><![CDATA[-- Compiled with roblox-ts v3.0.0
@@ -4398,14 +4837,17 @@ return {
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="17">
+        <Item class="ModuleScript" referent="19">
           <Properties>
             <string name="Name">MetadataHandlers</string>
             <string name="Source"><![CDATA[-- Compiled with roblox-ts v3.0.0
 local TS = require(script.Parent.Parent.Parent.include.RuntimeLib)
-local CollectionService = TS.import(script, script.Parent.Parent.Parent, "node_modules", "@rbxts", "services").CollectionService
+local _services = TS.import(script, script.Parent.Parent.Parent, "node_modules", "@rbxts", "services")
+local CollectionService = _services.CollectionService
+local RunService = _services.RunService
 local Utils = TS.import(script, script.Parent.Parent, "Utils")
 local Recording = TS.import(script, script.Parent.Parent, "Recording")
+local Activity = TS.import(script, script.Parent.Parent, "Activity")
 local ChangeHistoryService = game:GetService("ChangeHistoryService")
 local Selection = game:GetService("Selection")
 local _binding = Utils
@@ -4857,6 +5299,10 @@ local function executeLuau(requestData)
 		table.insert(output, _arg0)
 		oldWarn(unpack(args))
 	end
+	-- GameKit changes are one undo step each ("MCP: AI create_game obby"), which the AI
+	-- panel's "Undo last AI action" button reverts. A failed change is rolled back.
+	local tag = Activity.parseTag(code)
+	local recordingId = if tag ~= nil and tag[1] and not RunService:IsRunning() then beginRecording(`AI {tag[2]}`) else nil
 	local success, result = pcall(function()
 		local fn, compileError = loadstring(code)
 		if not fn then
@@ -4864,6 +5310,7 @@ local function executeLuau(requestData)
 		end
 		return fn()
 	end)
+	finishRecording(recordingId, success)
 	env.print = oldPrint
 	env.warn = oldWarn
 	if success then
@@ -4981,7 +5428,7 @@ return {
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="18">
+        <Item class="ModuleScript" referent="20">
           <Properties>
             <string name="Name">MicroProfilerHandlers</string>
             <string name="Source"><![CDATA[-- Compiled with roblox-ts v3.0.0
@@ -6734,7 +7181,7 @@ return {
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="19">
+        <Item class="ModuleScript" referent="21">
           <Properties>
             <string name="Name">MultiplayerTestHandlers</string>
             <string name="Source"><![CDATA[-- Compiled with roblox-ts v3.0.0
@@ -6999,7 +7446,7 @@ return {
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="20">
+        <Item class="ModuleScript" referent="22">
           <Properties>
             <string name="Name">PropertyHandlers</string>
             <string name="Source"><![CDATA[-- Compiled with roblox-ts v3.0.0
@@ -7251,7 +7698,7 @@ return {
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="21">
+        <Item class="ModuleScript" referent="23">
           <Properties>
             <string name="Name">QueryHandlers</string>
             <string name="Source"><![CDATA[-- Compiled with roblox-ts v3.0.0
@@ -8267,7 +8714,7 @@ return {
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="22">
+        <Item class="ModuleScript" referent="24">
           <Properties>
             <string name="Name">ReloadHandlers</string>
             <string name="Source"><![CDATA[-- Compiled with roblox-ts v3.0.0
@@ -8454,7 +8901,7 @@ return {
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="23">
+        <Item class="ModuleScript" referent="25">
           <Properties>
             <string name="Name">SceneAnalysisHandlers</string>
             <string name="Source"><![CDATA[-- Compiled with roblox-ts v3.0.0
@@ -8703,7 +9150,7 @@ return {
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="24">
+        <Item class="ModuleScript" referent="26">
           <Properties>
             <string name="Name">ScriptHandlers</string>
             <string name="Source"><![CDATA[-- Compiled with roblox-ts v3.0.0
@@ -9399,7 +9846,7 @@ return {
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="25">
+        <Item class="ModuleScript" referent="27">
           <Properties>
             <string name="Name">ScriptProfilerHandlers</string>
             <string name="Source"><![CDATA[-- Compiled with roblox-ts v3.0.0
@@ -9862,7 +10309,7 @@ return {
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="26">
+        <Item class="ModuleScript" referent="28">
           <Properties>
             <string name="Name">SelectionHandlers</string>
             <string name="Source"><![CDATA[-- Compiled with roblox-ts v3.0.0
@@ -10048,7 +10495,7 @@ return {
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="27">
+        <Item class="ModuleScript" referent="29">
           <Properties>
             <string name="Name">SerializationHandlers</string>
             <string name="Source"><![CDATA[-- Compiled with roblox-ts v3.0.0
@@ -10234,7 +10681,7 @@ return {
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="28">
+        <Item class="ModuleScript" referent="30">
           <Properties>
             <string name="Name">TestHandlers</string>
             <string name="Source"><![CDATA[-- Compiled with roblox-ts v3.0.0
@@ -10592,7 +11039,7 @@ return {
           </Properties>
         </Item>
       </Item>
-      <Item class="ModuleScript" referent="29">
+      <Item class="ModuleScript" referent="31">
         <Properties>
           <string name="Name">LuauExec</string>
           <string name="Source"><![CDATA[-- Compiled with roblox-ts v3.0.0
@@ -11026,7 +11473,7 @@ return {
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="30">
+      <Item class="ModuleScript" referent="32">
         <Properties>
           <string name="Name">Recording</string>
           <string name="Source"><![CDATA[-- Compiled with roblox-ts v3.0.0
@@ -11056,7 +11503,7 @@ return {
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="31">
+      <Item class="ModuleScript" referent="33">
         <Properties>
           <string name="Name">RuntimeLogBuffer</string>
           <string name="Source"><![CDATA[-- Compiled with roblox-ts v3.0.0
@@ -11311,7 +11758,7 @@ return {
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="32">
+      <Item class="ModuleScript" referent="34">
         <Properties>
           <string name="Name">State</string>
           <string name="Source"><![CDATA[-- Compiled with roblox-ts v3.0.0
@@ -11407,7 +11854,7 @@ return {
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="33">
+      <Item class="ModuleScript" referent="35">
         <Properties>
           <string name="Name">StopPlayMonitor</string>
           <string name="Source"><![CDATA[-- Compiled with roblox-ts v3.0.0
@@ -11705,7 +12152,7 @@ return {
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="34">
+      <Item class="ModuleScript" referent="36">
         <Properties>
           <string name="Name">UI</string>
           <string name="Source"><![CDATA[-- Compiled with roblox-ts v3.0.0
@@ -12425,7 +12872,7 @@ return {
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="35">
+      <Item class="ModuleScript" referent="37">
         <Properties>
           <string name="Name">Utils</string>
           <string name="Source"><![CDATA[-- Compiled with roblox-ts v3.0.0
@@ -12962,11 +13409,11 @@ return {
         </Properties>
       </Item>
     </Item>
-    <Item class="Folder" referent="39">
+    <Item class="Folder" referent="41">
       <Properties>
         <string name="Name">include</string>
       </Properties>
-      <Item class="ModuleScript" referent="36">
+      <Item class="ModuleScript" referent="38">
         <Properties>
           <string name="Name">Promise</string>
           <string name="Source"><![CDATA[--[[
@@ -15040,7 +15487,7 @@ return Promise
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="37">
+      <Item class="ModuleScript" referent="39">
         <Properties>
           <string name="Name">RuntimeLib</string>
           <string name="Source"><![CDATA[local Promise = require(script.Parent.Promise)
@@ -15307,15 +15754,15 @@ return TS
         </Properties>
       </Item>
     </Item>
-    <Item class="Folder" referent="40">
+    <Item class="Folder" referent="42">
       <Properties>
         <string name="Name">node_modules</string>
       </Properties>
-      <Item class="Folder" referent="41">
+      <Item class="Folder" referent="43">
         <Properties>
           <string name="Name">@rbxts</string>
         </Properties>
-      <Item class="ModuleScript" referent="38">
+      <Item class="ModuleScript" referent="40">
         <Properties>
           <string name="Name">services</string>
           <string name="Source"><![CDATA[return setmetatable({}, {

@@ -200,6 +200,40 @@ describe('World generators', () => {
     expect(nodes.some((n) => n.tags?.includes('EnemySpawner'))).toBe(true);
   });
 
+  test('race track: checkpoints 1..3 in order, a finish line and a grid', () => {
+    const nodes = collect(buildWorld('race_track', { grid: 6 }));
+    const orders = nodes.filter((n) => n.tags?.includes('RaceCheckpoint')).map((n) => n.attrs?.Order);
+    expect(orders).toEqual([1, 2, 3]);
+    expect(nodes.filter((n) => n.tags?.includes('RaceFinish'))).toHaveLength(1);
+    expect(nodes.filter((n) => n.tags?.includes('RaceGrid'))).toHaveLength(6);
+  });
+
+  test('fishing spots and resource nodes use zones/nodes that exist in the configs', () => {
+    const configOf = (system: string, name: string) => SYSTEMS.find((s) => s.id === system)!.configs.find((c) => c.name === name)!.defaults as any;
+    const zones = Object.keys(configOf('fishing', 'Fishing').Zones);
+    const spots = collect(buildWorld('fishing_lake', {})).filter((n) => n.tags?.includes('FishingSpot'));
+    expect(spots.length).toBeGreaterThan(4);
+    for (const spot of spots) expect(zones).toContain(spot.attrs?.Zone);
+    const nodeTypes = Object.keys(configOf('crafting', 'Crafting').Nodes);
+    const camp = collect(buildWorld('survival_camp', {}));
+    const resources = camp.filter((n) => n.tags?.includes('ResourceNode'));
+    expect(new Set(resources.map((n) => n.attrs?.Node))).toEqual(new Set(nodeTypes));
+    expect(camp.some((n) => n.tags?.includes('CraftingTable'))).toBe(true);
+    expect(camp.filter((n) => n.tags?.includes('EnemySpawner'))).toHaveLength(4);
+  });
+
+  test('template quests only use items that exist', () => {
+    for (const t of TEMPLATES) {
+      const plan = t.plan({});
+      const quests = (plan.config.Quests?.List ?? []) as Array<{ Type: string; Item?: string }>;
+      const items = new Set<string>(['Wood', 'Stone', 'Berry', 'Planks']);
+      const fishing = SYSTEMS.find((s) => s.id === 'fishing')!.configs[0].defaults as any;
+      for (const zone of Object.values(fishing.Zones) as any[]) for (const f of zone.Fish) items.add(f.Id);
+      for (const q of quests.filter((x) => x.Type === 'Have')) expect({ template: t.id, item: q.Item, known: items.has(q.Item!) }).toEqual({ template: t.id, item: q.Item, known: true });
+      for (const q of quests) expect(['Earn', 'Reach', 'Have', 'Touch']).toContain(q.Type);
+    }
+  });
+
   test('tycoon buttons reference existing items', () => {
     const plots = collect(buildWorld('tycoon_plots', { count: 2 })).filter((n) => n.tags?.includes('TycoonPlot'));
     expect(plots).toHaveLength(2);

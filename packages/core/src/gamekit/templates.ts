@@ -5,7 +5,7 @@
 
 import type { EnvironmentOptions } from './environment.js';
 import type { Placement } from './installer.js';
-import { arena, decorScatter, farm, lobby, maze, obbyCourse, piece, simulatorWorld, tdMap, tycoonPlots, worldPlacement, type ObstacleType } from './world.js';
+import { arena, decorScatter, farm, fishingLake, lobby, maze, obbyCourse, piece, raceTrack, simulatorWorld, survivalCamp, tdMap, tycoonPlots, worldPlacement, type ObstacleType } from './world.js';
 
 export interface TemplateOptions {
   title?: string;
@@ -17,6 +17,8 @@ export interface TemplateOptions {
   mazeSize?: number;
   keys?: number;
   waves?: number;
+  laps?: number;
+  karts?: boolean;
   seed?: number;
   lighting?: string;
   obstacles?: ObstacleType[];
@@ -308,6 +310,151 @@ export const TEMPLATES: TemplateDef[] = [
       nextSteps: [
         'Balance: balance_economy {fromGame: true} shows coins per minute of each crop and unlock times; tune Config.Farming.Crops.',
         'More plots: build_world farm {plots: 40} (replaces the farm) or add farm_plot pieces.',
+        ...COMMON_NEXT,
+      ],
+    }),
+  },
+  {
+    id: 'racing',
+    title: 'Kart racing',
+    genre: 'Racing',
+    summary: 'Kart races on an oval track: starting grid, 3-2-1-GO, laps through checkpoints, live positions, best lap saved, podium rewards, quests and levels. Works on keyboard, gamepad and mobile.',
+    options: { laps: 'laps per race (default 3)', karts: 'false = running race instead of karts', title: 'welcome text' },
+    plan: (o) => ({
+      systems: ['hud', 'racing', 'levels', 'quests', 'shop', 'daily', 'leaderboard', 'atmosphere', 'admin'],
+      config: {
+        Core: { WelcomeMessage: o.title ? `Welcome to ${o.title}! 🏎` : 'Race 🏎, win 🏆, beat your best lap ⏱!' },
+        Racing: { Laps: o.laps ?? 3, UseKarts: o.karts ?? true },
+        Atmosphere: { DayNightCycle: false, StartTime: 14 },
+        Quests: {
+          Mode: 'Chain',
+          List: [
+            { Id: 'FirstRace', Title: 'Finish a race', Type: 'Earn', Stat: 'Coins', Amount: 15, Rewards: { XP: 50 } },
+            { Id: 'FirstWin', Title: 'Win a race', Type: 'Reach', Stat: 'Wins', Amount: 1, Rewards: { XP: 150, Coins: 100 } },
+            { Id: 'Level5', Title: 'Reach level 5', Type: 'Reach', Stat: 'Level', Amount: 5, Rewards: { Coins: 250 } },
+            { Id: 'FiveWins', Title: 'Win 5 races', Type: 'Reach', Stat: 'Wins', Amount: 5, Rewards: { XP: 500, Coins: 500 } },
+          ],
+        },
+        Shop: {
+          Title: 'Garage',
+          Items: [
+            { Id: 'FireTrail', Name: 'Fire Trail', Description: 'Leave flames behind', Price: 150, Kind: 'Trail', Value: '#FF5722', Icon: '🔥' },
+            { Id: 'NeonTrail', Name: 'Neon Trail', Description: 'Glow on the track', Price: 400, Kind: 'Trail', Value: '#00E5FF', Icon: '💠' },
+            { Id: 'DoubleCoins', Name: 'Sponsor Deal', Description: '2x coins', Price: 3000, Kind: 'Multiplier', Stat: 'Coins', Value: 2, Icon: '💰' },
+          ],
+        },
+      },
+      world: [worldPlacement(raceTrack({ position: [0, 0.5, 0] }))],
+      environment: { preset: o.lighting ?? 'day' },
+      nextSteps: [
+        'Tune Config.Racing (Laps, KartSpeed, KartTurnSpeed, PlaceRewards). Test with 2 players: test_game {players: 2}.',
+        'Longer track: build_world race_track {length: 260, radius: 70} (replaces it), or add RaceCheckpoint parts (Order) for a custom layout.',
+        ...COMMON_NEXT,
+      ],
+    }),
+  },
+  {
+    id: 'fishing',
+    title: 'Fishing',
+    genre: 'Fishing / Collection',
+    summary: 'Cast, wait for the bite, reel in time: 6 fish in 2 zones (pond, ocean) with rarities, sell at the fish market, upgrade your rod to fish faster, catch rarer fish and unlock the ocean. Quests, levels, eggs and pets.',
+    options: { title: 'welcome text' },
+    plan: (o) => ({
+      systems: ['hud', 'inventory', 'fishing', 'levels', 'quests', 'pets', 'shop', 'daily', 'leaderboard', 'movement', 'atmosphere', 'admin'],
+      config: {
+        Core: { WelcomeMessage: o.title ? `Welcome to ${o.title}! 🎣` : 'Fish 🎣, sell 💰, upgrade your rod, catch the legendary Golden Koi ✨!' },
+        Movement: { DoubleJump: false },
+        Inventory: { Items: {}, SellCurrency: 'Coins' },
+        Shop: {
+          Title: 'Tackle shop',
+          Items: [
+            { Id: 'Rod', Name: 'Better Rod', Description: '+1 rod level: faster bites, rarer fish, level 2 opens the ocean', Price: 120, Kind: 'Upgrade', Stat: 'RodLevel', Value: 1, PriceGrowth: 2.4, MaxLevel: 6, Icon: '🎣' },
+            { Id: 'Boots', Name: 'Running Boots', Description: 'Run faster', Price: 150, Kind: 'WalkSpeed', Value: 24, Icon: '👢' },
+            { Id: 'DoubleCoins', Name: 'Golden Net', Description: '2x coins when selling', Price: 4000, Kind: 'Multiplier', Stat: 'Coins', Value: 2, Icon: '🥅' },
+          ],
+        },
+        Quests: {
+          Mode: 'Chain',
+          List: [
+            { Id: 'FirstFish', Title: 'Catch a fish', Type: 'Earn', Stat: 'Fish', Amount: 1, Rewards: { XP: 20, Coins: 10 } },
+            { Id: 'FirstSale', Title: 'Sell fish for 30 coins', Type: 'Earn', Stat: 'Coins', Amount: 30, Rewards: { XP: 40 } },
+            { Id: 'BetterRod', Title: 'Buy a better rod', Type: 'Reach', Stat: 'RodLevel', Amount: 1, Rewards: { XP: 60 } },
+            { Id: 'Salmon', Title: 'Catch a salmon', Type: 'Have', Item: 'Salmon', Amount: 1, Rewards: { Coins: 50 } },
+            { Id: 'Ocean', Title: 'Unlock the ocean (rod level 2)', Type: 'Reach', Stat: 'RodLevel', Amount: 2, Rewards: { XP: 150 } },
+            { Id: 'SecretCove', Title: 'Find the secret cove', Type: 'Touch', Amount: 1, Rewards: { Coins: 150 } },
+            { Id: 'Shark', Title: 'Catch a shark', Type: 'Have', Item: 'Shark', Amount: 1, Rewards: { Coins: 500, XP: 300 } },
+            { Id: 'HundredFish', Title: 'Catch 100 fish', Type: 'Earn', Stat: 'Fish', Amount: 100, Rewards: { Coins: 1000, XP: 800 } },
+          ],
+        },
+        Pets: {
+          Stat: 'Coins',
+          Eggs: {
+            Sea: {
+              Price: 300, Currency: 'Coins', Color: '#4FC3F7',
+              Pets: [
+                { Id: 'Crab', Name: 'Crab', Chance: 55, Multiplier: 1.2, Rarity: 'Common', Color: '#EF5350' },
+                { Id: 'Turtle', Name: 'Turtle', Chance: 35, Multiplier: 1.5, Rarity: 'Rare', Color: '#66BB6A' },
+                { Id: 'Kraken', Name: 'Kraken', Chance: 10, Multiplier: 3, Rarity: 'Legendary', Color: '#7E57C2' },
+              ],
+            },
+          },
+        },
+      },
+      world: [
+        worldPlacement(fishingLake({ position: [0, 0.5, 0] })),
+        worldPlacement(piece('egg_stand', [45, 0.5, -70], { name: 'SeaEgg', egg: 'Sea', color: [79, 195, 247] })),
+      ],
+      environment: { preset: o.lighting ?? 'day' },
+      nextSteps: [
+        'Add fish and zones in Config.Fishing.Zones (each FishingSpot part has a Zone attribute).',
+        'Balance: sell prices vs rod prices (Config.Shop Rod PriceGrowth). Players should afford rod level 2 in ~10 minutes.',
+        ...COMMON_NEXT,
+      ],
+    }),
+  },
+  {
+    id: 'craft_survival',
+    title: 'Co-op survival with crafting',
+    genre: 'Survival / Crafting',
+    summary: 'Gather wood, stone and berries by day, craft axes, swords, walls, spikes and campfires, keep your hunger up, and defend the camp together against zombie waves every night.',
+    options: { title: 'welcome text', seed: 'forest layout seed' },
+    plan: (o) => ({
+      systems: ['hud', 'inventory', 'crafting', 'enemies', 'combat', 'levels', 'quests', 'shop', 'daily', 'leaderboard', 'movement', 'atmosphere', 'admin'],
+      config: {
+        Core: { WelcomeMessage: o.title ? `Welcome to ${o.title}! 🔥` : 'Gather 🪵, craft 🔨, survive the night together 🧟!' },
+        Combat: { GiveSword: 'Never', KillRewards: { Kills: 1, Coins: 5 } },
+        Atmosphere: { DayNightCycle: false, StartTime: 14 },
+        Crafting: { Hunger: { Enabled: true, Max: 100, DrainPerMinute: 6, StarveDamage: 4, Food: { Berry: 12 } } },
+        Enemies: {
+          Types: {
+            Zombie: { Health: 80, WalkSpeed: 10, Damage: 12, AttackCooldown: 1, AttackRange: 5, DetectRange: 200, Rewards: { Coins: 5 }, SkinColor: '#6E9E4C', ShirtColor: '#4B3B2A', Scale: 1 },
+          },
+          Waves: { Enabled: true, FirstWaveSize: 3, GrowthPerWave: 2, BreakSeconds: 120, SurviveRewards: { Coins: 25, XP: 50 }, DayNight: true },
+        },
+        Quests: {
+          Mode: 'Chain',
+          List: [
+            { Id: 'Wood', Title: 'Chop 6 wood', Type: 'Have', Item: 'Wood', Amount: 6, Rewards: { XP: 20 } },
+            { Id: 'Stone', Title: 'Mine 4 stone', Type: 'Have', Item: 'Stone', Amount: 4, Rewards: { XP: 20 } },
+            { Id: 'Planks', Title: 'Craft planks', Type: 'Have', Item: 'Planks', Amount: 3, Rewards: { XP: 30 } },
+            { Id: 'Survive', Title: 'Defeat 5 zombies', Type: 'Earn', Stat: 'Kills', Amount: 5, Rewards: { Coins: 50, XP: 100 } },
+            { Id: 'Level3', Title: 'Reach level 3', Type: 'Reach', Stat: 'Level', Amount: 3, Rewards: { Coins: 100 } },
+            { Id: 'Hunter', Title: 'Defeat 50 zombies', Type: 'Earn', Stat: 'Kills', Amount: 50, Rewards: { Coins: 500, XP: 800 } },
+          ],
+        },
+        Shop: {
+          Title: 'Trader',
+          Items: [
+            { Id: 'Sword', Name: 'Iron Sword', Description: 'A real weapon', Price: 150, Kind: 'Tool', Value: 'Sword', Icon: '⚔️' },
+            { Id: 'Boots', Name: 'Running Boots', Description: 'Run faster', Price: 100, Kind: 'WalkSpeed', Value: 22, Icon: '👢' },
+          ],
+        },
+      },
+      world: [worldPlacement(survivalCamp({ position: [0, 0.5, 0], seed: o.seed }))],
+      environment: { preset: o.lighting ?? 'day' },
+      nextSteps: [
+        'Tune Config.Crafting (Recipes, Nodes Hits/Respawn, Hunger) and Config.Enemies.Waves (BreakSeconds = daytime).',
+        'Test co-op: test_game {players: 2}. Add recipes: { Id = "Torch", Needs = { Wood = 1 } }.',
         ...COMMON_NEXT,
       ],
     }),

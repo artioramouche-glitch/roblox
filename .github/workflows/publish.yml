@@ -1,0 +1,32 @@
+# Publishes roblox-ultimate-mcp to npm so anyone can run `npx roblox-ultimate-mcp setup`
+# without cloning this repository.
+# One-time setup: npmjs.com > Access Tokens > Generate (Automation), then in GitHub:
+# Settings > Secrets and variables > Actions > New secret NPM_TOKEN.
+# Run it: Actions > "Publish to npm" > Run workflow (or push a tag like v4.1.0).
+name: Publish to npm
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+      - run: npm ci
+      # The Studio plugin (studio-plugin/*.rbxmx) is committed, so only the server is built here.
+      - run: npm run build
+      - run: npm test
+      - run: npm publish -w packages/roblox-ultimate-mcp --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

@@ -538,6 +538,72 @@ export function piece(kind: string, pos: Vec, o: Record<string, any> = {}): Inst
         part('PoleL', [pos[0] - 6, pos[1] + 4, pos[2]], [0.6, 5, 0.6], { color: [240, 240, 240] }),
         part('PoleR', [pos[0] + 6, pos[1] + 4, pos[2]], [0.6, 5, 0.6], { color: [240, 240, 240] }),
       ]);
+    case 'egg_stand': {
+      const eggColor = rgbOf(o.color, [245, 245, 245]);
+      return model(name, [
+        part('Pedestal', [pos[0], pos[1] + 1, pos[2]], [6, 2, 6], { shape: 'Cylinder', rot: [0, 0, 90], color: [120, 144, 156], material: 'Marble', tags: ['EggStand'], attrs: { Egg: o.egg ?? 'Basic' } }),
+        part('Egg', [pos[0], pos[1] + 4.2, pos[2]], [3.2, 4.2, 3.2], { shape: 'Ball', color: eggColor, material: 'SmoothPlastic', canCollide: false, children: [billboard(`🥚 ${o.egg ?? 'Basic'} egg`, [255, 255, 255], 3.5, [8, 2])] }),
+      ]);
+    }
+    case 'item_sell':
+      return model(name, [
+        part('Counter', [pos[0], pos[1] + 1.5, pos[2]], [12, 3, 4], { color: [141, 110, 99], material: 'WoodPlanks', tags: ['ItemSell'] }),
+        part('Roof', [pos[0], pos[1] + 7, pos[2]], [14, 1, 7], { color: [255, 179, 0], children: [billboard(o.text ?? '💰 SELL', [255, 255, 255], 2, [9, 2.5])] }),
+        part('PoleL', [pos[0] - 6, pos[1] + 4, pos[2]], [0.6, 5, 0.6], { color: [240, 240, 240] }),
+        part('PoleR', [pos[0] + 6, pos[1] + 4, pos[2]], [0.6, 5, 0.6], { color: [240, 240, 240] }),
+      ]);
+    case 'quest_target':
+      return part(name, pos, o.size ?? [10, 8, 10], { transparency: o.visible ? 0.6 : 1, canCollide: false, color: [255, 235, 59], material: 'ForceField', tags: ['QuestTarget'], attrs: { Quest: o.quest ?? 'SecretSpot' } });
+    case 'race_checkpoint':
+      return part(name, pos, o.size ?? [4, 16, 34], { transparency: 1, canCollide: false, rot: [0, o.yaw ?? 0, 0], tags: ['RaceCheckpoint'], attrs: { Order: o.order ?? 1 } });
+    case 'race_finish': {
+      const w = o.width ?? 34;
+      const yaw = o.yaw ?? 0;
+      const ax = Math.sin((yaw * Math.PI) / 180) * (w / 2 + 2);
+      const az = Math.cos((yaw * Math.PI) / 180) * (w / 2 + 2);
+      return model(name, [
+        part('Line', pos, [4, 16, w], { transparency: 1, canCollide: false, rot: [0, yaw, 0], tags: ['RaceFinish'] }),
+        part('Paint', [pos[0], pos[1] - 7.85, pos[2]], [4, 0.2, w], { color: [245, 245, 245], material: 'SmoothPlastic', canCollide: false, rot: [0, yaw, 0] }),
+        part('Arch', [pos[0], pos[1] + 9, pos[2]], [2, 2, w + 6], { color: [30, 30, 30], material: 'Metal', rot: [0, yaw, 0], children: [billboard('🏁 START / FINISH', [255, 255, 255], 3, [14, 3])] }),
+        part('PostA', [pos[0] + ax, pos[1] + 0.5, pos[2] + az], [1.6, 18, 1.6], { color: [30, 30, 30], material: 'Metal' }),
+        part('PostB', [pos[0] - ax, pos[1] + 0.5, pos[2] - az], [1.6, 18, 1.6], { color: [30, 30, 30], material: 'Metal' }),
+      ]);
+    }
+    case 'race_grid':
+      return part(name, pos, [6, 0.2, 9], { color: [255, 255, 255], material: 'SmoothPlastic', transparency: 0.4, canCollide: false, rot: [0, o.yaw ?? -90, 0], tags: ['RaceGrid'], attrs: { Order: o.order ?? 1 } });
+    case 'fishing_spot':
+      return part(name, pos, o.size ?? [10, 1, 10], { color: [128, 222, 234], material: 'Neon', transparency: 0.75, canCollide: false, tags: ['FishingSpot'], attrs: { Zone: o.zone ?? 'Pond' }, children: [billboard(`🎣 ${o.zone ?? 'Pond'}`, [255, 255, 255], 3, [6, 1.6])] });
+    case 'resource_node': {
+      const node = String(o.node ?? 'Tree');
+      const attrs = { Node: node };
+      if (node === 'Rock') {
+        return model(name, [
+          part('Rock', [pos[0], pos[1] + 2, pos[2]], [7, 4, 6], { color: [125, 125, 130], material: 'Rock', rot: [8, (pos[0] * 37) % 360, 4] }),
+          part('Ore', [pos[0] + 1.5, pos[1] + 3.2, pos[2] + 0.5], [2, 1.6, 1.6], { color: [96, 125, 139], material: 'Slate' }),
+        ], { tags: ['ResourceNode'], attrs });
+      }
+      if (node === 'Bush') {
+        return model(name, [
+          part('Bush', [pos[0], pos[1] + 1.6, pos[2]], [5, 3.4, 5], { shape: 'Ball', color: [67, 130, 57], material: 'Grass' }),
+          part('Berry1', [pos[0] + 1.6, pos[1] + 2.4, pos[2] + 1.4], [0.8, 0.8, 0.8], { shape: 'Ball', color: [63, 81, 181], material: 'SmoothPlastic', canCollide: false }),
+          part('Berry2', [pos[0] - 1.4, pos[1] + 2.8, pos[2] + 1.2], [0.8, 0.8, 0.8], { shape: 'Ball', color: [63, 81, 181], material: 'SmoothPlastic', canCollide: false }),
+          part('Berry3', [pos[0], pos[1] + 3.2, pos[2] - 1.6], [0.8, 0.8, 0.8], { shape: 'Ball', color: [63, 81, 181], material: 'SmoothPlastic', canCollide: false }),
+        ], { tags: ['ResourceNode'], attrs });
+      }
+      const t = tree(name, pos, rng(o.seed ?? Math.round(pos[0] * 7 + pos[2] * 13)));
+      return { ...t, tags: ['ResourceNode'], attrs: { ...attrs, Node: node } };
+    }
+    case 'crafting_table':
+      return model(name, [
+        part('Table', [pos[0], pos[1] + 1.5, pos[2]], [7, 3, 4], { color: [141, 110, 99], material: 'WoodPlanks', tags: ['CraftingTable'], children: [billboard('🔨 CRAFT', [255, 255, 255], 3, [6, 1.8])] }),
+        part('Saw', [pos[0] + 2, pos[1] + 3.2, pos[2]], [2, 0.4, 1], { color: [176, 190, 197], material: 'Metal' }),
+        part('Logs', [pos[0] - 2, pos[1] + 3.5, pos[2]], [3, 1, 1], { shape: 'Cylinder', color: [109, 76, 65], material: 'Wood' }),
+      ]);
+    case 'campfire':
+      return model(name, [
+        part('Stones', [pos[0], pos[1] + 0.4, pos[2]], [0.8, 6, 6], { shape: 'Cylinder', rot: [0, 0, 90], color: [110, 110, 115], material: 'Slate' }),
+        part('Logs', [pos[0], pos[1] + 1.2, pos[2]], [3.4, 1, 1], { color: [101, 67, 33], material: 'Wood', canCollide: false, children: [{ name: 'Fire', className: 'Fire', props: {} }, light(26, 2, [255, 170, 80])] }),
+      ], { tags: ['GKCampfire'] });
     default:
       throw new Error(`Unknown piece "${kind}". Available: ${PIECES.join(', ')}`);
   }
@@ -548,7 +614,8 @@ export const PIECES = [
   'jump_pad', 'speed_pad', 'boost_pad', 'moving_platform', 'spinner', 'disappearing_platform',
   'falling_platform', 'conveyor', 'coin', 'shop_stand', 'leaderboard', 'enemy_spawner', 'sell_pad',
   'zone_gate', 'teleporter', 'teleport_target', 'key', 'tree', 'rock', 'lamp', 'crate',
-  'tower_pad', 'farm_plot', 'seed_stand', 'market',
+  'tower_pad', 'farm_plot', 'seed_stand', 'market', 'egg_stand', 'item_sell', 'quest_target',
+  'race_checkpoint', 'race_finish', 'race_grid', 'fishing_spot', 'resource_node', 'crafting_table', 'campfire',
   // decoration (also used by populate_world)
   'pine_tree', 'palm_tree', 'bush', 'flowers', 'fence', 'bench', 'barrel', 'crystal', 'mushroom', 'cactus',
 ];
@@ -969,7 +1036,166 @@ export function farm(o: { position?: Vec; plots?: number; crops?: string[] } = {
   return model('Farm', kids);
 }
 
-export const WORLDS = ['obby_course', 'lobby', 'arena', 'maze', 'tycoon_plots', 'simulator_world', 'decor_scatter', 'td_map', 'farm'] as const;
+// --- Race track ----------------------------------------------------------------------------
+
+/** Yaw (degrees) that points a part's X axis along (dx, dz). */
+const yawAlong = (dx: number, dz: number) => (Math.atan2(-dz, dx) * 180) / Math.PI;
+
+/**
+ * Oval kart track (two straights + two bends) with barriers, 3 checkpoints, a start/finish
+ * arch, a starting grid for `grid` racers, grandstands and a leaderboard. Race direction: +X
+ * on the near straight (z + radius).
+ */
+export function raceTrack(o: { position?: Vec; length?: number; radius?: number; width?: number; grid?: number; theme?: string } = {}): InstanceNode {
+  const [x, y, z] = o.position ?? [0, 0, 0];
+  const L = Math.max(60, Math.min(400, o.length ?? 180));
+  const R = Math.max(30, Math.min(150, o.radius ?? 60));
+  const W = Math.max(16, Math.min(60, o.width ?? 30));
+  const road: RGB = [55, 55, 60];
+  const kids: InstanceNode[] = [
+    part('Ground', [x, y - 1, z], [L + 2 * R + 120, 2, 2 * R + 140], { color: [106, 168, 79], material: 'Grass' }),
+  ];
+  const segments: InstanceNode[] = [];
+  const barriers: InstanceNode[] = [];
+  const addSegment = (ax: number, az: number, bx: number, bz: number, i: number, stripe: boolean) => {
+    const len = Math.hypot(bx - ax, bz - az) + 1.5;
+    const yaw = yawAlong(bx - ax, bz - az);
+    segments.push(part(`Road${i}`, [(ax + bx) / 2, y + 0.1, (az + bz) / 2], [len, 0.2, W], { color: road, material: 'Asphalt', rot: [0, yaw, 0] }));
+    // Barriers on both edges (offset along the segment normal).
+    const nx = -(bz - az) / (len - 1.5);
+    const nz = (bx - ax) / (len - 1.5);
+    for (const side of [-1, 1]) {
+      const off = side * (W / 2 + 1);
+      barriers.push(part(`Barrier${i}_${side > 0 ? 'A' : 'B'}`, [(ax + bx) / 2 + nx * off, y + 1.5, (az + bz) / 2 + nz * off], [len, 3, 1.2], {
+        color: stripe ? [229, 57, 53] : [245, 245, 245], material: 'SmoothPlastic', rot: [0, yaw, 0],
+      }));
+    }
+  };
+  // Near straight (+X), right bend, far straight (-X), left bend.
+  addSegment(x - L / 2, z + R, x + L / 2, z + R, 1, false);
+  const steps = 12;
+  let index = 2;
+  for (let k = 0; k < steps; k++) {
+    const a0 = Math.PI / 2 - (Math.PI * k) / steps;
+    const a1 = Math.PI / 2 - (Math.PI * (k + 1)) / steps;
+    addSegment(x + L / 2 + R * Math.cos(a0), z + R * Math.sin(a0), x + L / 2 + R * Math.cos(a1), z + R * Math.sin(a1), index++, k % 2 === 0);
+  }
+  addSegment(x + L / 2, z - R, x - L / 2, z - R, index++, false);
+  for (let k = 0; k < steps; k++) {
+    const a0 = -Math.PI / 2 - (Math.PI * k) / steps;
+    const a1 = -Math.PI / 2 - (Math.PI * (k + 1)) / steps;
+    addSegment(x - L / 2 + R * Math.cos(a0), z + R * Math.sin(a0), x - L / 2 + R * Math.cos(a1), z + R * Math.sin(a1), index++, k % 2 === 0);
+  }
+  kids.push(folder('Road', segments), folder('Barriers', barriers));
+  // Checkpoints in race order, then the finish line in the middle of the near straight.
+  kids.push(folder('Checkpoints', [
+    piece('race_checkpoint', [x + L / 2 + R, y + 8, z], { name: 'Checkpoint1', order: 1, yaw: 90, size: [4, 16, W + 4] }),
+    piece('race_checkpoint', [x, y + 8, z - R], { name: 'Checkpoint2', order: 2, yaw: 0, size: [4, 16, W + 4] }),
+    piece('race_checkpoint', [x - L / 2 - R, y + 8, z], { name: 'Checkpoint3', order: 3, yaw: 90, size: [4, 16, W + 4] }),
+  ]));
+  kids.push(piece('race_finish', [x, y + 8, z + R], { name: 'Finish', width: W + 4 }));
+  const grid: InstanceNode[] = [];
+  const racers = Math.max(2, Math.min(16, o.grid ?? 8));
+  for (let i = 0; i < racers; i++) {
+    const row = Math.floor(i / 2);
+    const lane = i % 2 === 0 ? -1 : 1;
+    grid.push(piece('race_grid', [x - 14 - row * 12, y + 0.3, z + R + lane * (W / 4)], { name: `Grid${i + 1}`, order: i + 1 }));
+  }
+  kids.push(folder('Grid', grid));
+  kids.push(part('Spawn', [x, y + 0.5, z + R + W / 2 + 22], [12, 1, 12], { className: 'SpawnLocation', color: [255, 255, 255], tags: ['LobbySpawn'], props: { Neutral: true, Duration: 3 } }));
+  // Grandstand along the near straight + boost pads on the straights.
+  for (let k = 0; k < 4; k++) {
+    kids.push(part(`Stand${k + 1}`, [x, y + (k + 1) * 0.75, z + R + W / 2 + 32 + k * 4], [80, (k + 1) * 1.5, 4], { color: k % 2 ? [158, 158, 158] : [120, 144, 156], material: 'Concrete' }));
+  }
+  kids.push(piece('boost_pad', [x + L / 4, y + 0.3, z + R], { name: 'Boost1', yaw: -90 }));
+  kids.push(piece('boost_pad', [x - L / 4, y + 0.3, z - R], { name: 'Boost2', yaw: 90 }));
+  kids.push(piece('leaderboard', [x + 56, y, z + R + W / 2 + 30], { name: 'WinsBoard', stat: 'Wins', title: 'Top Racers', yaw: 180 }));
+  return model('RaceTrack', kids);
+}
+
+// --- Fishing lake --------------------------------------------------------------------------
+
+function pond(name: string, cx: number, y: number, cz: number, diameter: number, rgb: RGB, zone: string, spots: number): InstanceNode {
+  const r = diameter / 2;
+  const kids: InstanceNode[] = [
+    part('Water', [cx, y + 0.35, cz], [0.7, diameter, diameter], { shape: 'Cylinder', rot: [0, 0, 90], color: rgb, material: 'Glass', transparency: 0.35, canCollide: false, reflectance: 0.1 }),
+    part('Bed', [cx, y + 0.02, cz], [0.1, diameter + 4, diameter + 4], { shape: 'Cylinder', rot: [0, 0, 90], color: [194, 178, 128], material: 'Sand', canCollide: false }),
+  ];
+  for (let i = 0; i < spots; i++) {
+    const a = (i / spots) * Math.PI * 2 + 0.4;
+    const dx = Math.cos(a);
+    const dz = Math.sin(a);
+    kids.push(piece('fishing_spot', [cx + dx * (r - 9), y + 0.4, cz + dz * (r - 9)], { name: `Spot${i + 1}`, zone }));
+    kids.push(part(`Dock${i + 1}`, [cx + dx * (r - 1), y + 1.2, cz + dz * (r - 1)], [14, 0.6, 5], { color: [141, 110, 99], material: 'WoodPlanks', rot: [0, yawAlong(dx, dz), 0] }));
+  }
+  for (let i = 0; i < 10; i++) {
+    const a = (i / 10) * Math.PI * 2;
+    kids.push(part(`Stone${i + 1}`, [cx + Math.cos(a) * (r + 2), y + 0.6, cz + Math.sin(a) * (r + 2)], [3, 1.4, 2.5], { color: [150, 150, 150], material: 'Rock', rot: [0, (i * 47) % 360, 0] }));
+  }
+  kids.push(part('Sign', [cx, y + 9, cz - r - 6], [14, 3, 0.6], { color: [93, 64, 55], material: 'Wood', children: [surfaceText(`🎣 ${zone}`, [255, 255, 255], 'Back', [93, 64, 55])] }));
+  return model(name, kids);
+}
+
+/** A pond (Zone Pond) and an ocean bay (Zone Ocean) with docks and fishing spots, a fish market, a shop and a leaderboard. */
+export function fishingLake(o: { position?: Vec; spots?: number } = {}): InstanceNode {
+  const [x, y, z] = o.position ?? [0, 0, 0];
+  const spots = Math.max(2, Math.min(10, o.spots ?? 5));
+  const kids: InstanceNode[] = [
+    part('Ground', [x, y - 1, z], [260, 2, 240], { color: [124, 179, 66], material: 'Grass' }),
+    part('Spawn', [x, y + 0.5, z - 80], [12, 1, 12], { className: 'SpawnLocation', color: [255, 236, 179], tags: ['LobbySpawn'], props: { Neutral: true, Duration: 3 } }),
+    part('Path', [x, y + 0.05, z - 50], [180, 0.2, 10], { color: [188, 170, 164], material: 'Pebble' }),
+    pond('Pond', x - 55, y, z + 10, 70, [79, 195, 247], 'Pond', spots),
+    pond('Ocean', x + 60, y, z + 30, 100, [21, 101, 192], 'Ocean', spots + 1),
+    piece('item_sell', [x - 20, y, z - 70], { name: 'FishMarket', text: '🐟 FISH MARKET' }),
+    piece('shop_stand', [x + 20, y, z - 70], { name: 'ShopStand' }),
+    piece('leaderboard', [x, y, z - 105], { name: 'FishBoard', stat: 'Fish', title: 'Best Anglers', yaw: 0 }),
+    piece('quest_target', [x + 60, y + 4, z + 90], { name: 'SecretCove', quest: 'SecretCove' }),
+  ];
+  kids.push(decorScatter({ position: [x, y, z], radius: 125, clear: 100, count: 30, seed: 11 }));
+  return model('FishingLake', kids);
+}
+
+// --- Survival camp ---------------------------------------------------------------------------
+
+/** Camp (spawn, crafting table, campfire) in a clearing, a forest of trees/rocks/berry bushes to gather, and enemy spawners at the edges. */
+export function survivalCamp(o: { position?: Vec; size?: number; nodes?: number; seed?: number } = {}): InstanceNode {
+  const [x, y, z] = o.position ?? [0, 0, 0];
+  const s = Math.max(120, Math.min(400, o.size ?? 220));
+  const r = rng(o.seed ?? 21);
+  const count = Math.max(10, Math.min(120, o.nodes ?? 45));
+  const kids: InstanceNode[] = [
+    part('Ground', [x, y - 1, z], [s, 2, s], { color: [96, 139, 60], material: 'Grass' }),
+    part('Clearing', [x, y + 0.03, z], [0.1, 44, 44], { shape: 'Cylinder', rot: [0, 0, 90], color: [150, 125, 90], material: 'Ground', canCollide: false }),
+    part('Spawn', [x, y + 0.5, z + 10], [10, 1, 10], { className: 'SpawnLocation', color: [255, 236, 179], tags: ['LobbySpawn'], props: { Neutral: true, Duration: 5 } }),
+    piece('campfire', [x, y, z], { name: 'CampFire' }),
+    piece('crafting_table', [x - 12, y, z - 4], { name: 'CraftingTable' }),
+    piece('shop_stand', [x + 14, y, z - 4], { name: 'ShopStand' }),
+    piece('leaderboard', [x, y, z - 22], { name: 'KillsBoard', stat: 'Kills', title: 'Top Survivors', yaw: 0 }),
+  ];
+  const nodes: InstanceNode[] = [];
+  const kinds = ['Tree', 'Tree', 'Rock', 'Bush'];
+  for (let i = 0; i < count; i++) {
+    const a = r() * Math.PI * 2;
+    const d = 30 + r() * (s / 2 - 42);
+    const node = kinds[i % kinds.length];
+    nodes.push(piece('resource_node', [x + Math.cos(a) * d, y, z + Math.sin(a) * d], { name: `${node}${i + 1}`, node, seed: i + 3 }));
+  }
+  kids.push(folder('Resources', nodes));
+  const edge = s / 2 - 8;
+  kids.push(folder('Spawners', [
+    piece('enemy_spawner', [x + edge, y + 1.5, z], { name: 'SpawnerEast' }),
+    piece('enemy_spawner', [x - edge, y + 1.5, z], { name: 'SpawnerWest' }),
+    piece('enemy_spawner', [x, y + 1.5, z + edge], { name: 'SpawnerSouth' }),
+    piece('enemy_spawner', [x, y + 1.5, z - edge], { name: 'SpawnerNorth' }),
+  ]));
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
+    kids.push(lamp(`Torch${i + 1}`, [x + Math.cos(a) * 20, y, z + Math.sin(a) * 20], true));
+  }
+  return model('SurvivalCamp', kids);
+}
+
+export const WORLDS = ['obby_course', 'lobby', 'arena', 'maze', 'tycoon_plots', 'simulator_world', 'decor_scatter', 'td_map', 'farm', 'race_track', 'fishing_lake', 'survival_camp'] as const;
 
 export function buildWorld(kind: string, options: Record<string, any> = {}): InstanceNode {
   switch (kind) {
@@ -982,6 +1208,9 @@ export function buildWorld(kind: string, options: Record<string, any> = {}): Ins
     case 'decor_scatter': return decorScatter(options);
     case 'td_map': return tdMap(options);
     case 'farm': return farm(options);
+    case 'race_track': return raceTrack(options);
+    case 'fishing_lake': return fishingLake(options);
+    case 'survival_camp': return survivalCamp(options);
     default: {
       const pos = (options.position as Vec) ?? [0, 5, 0];
       return piece(kind, pos, options);

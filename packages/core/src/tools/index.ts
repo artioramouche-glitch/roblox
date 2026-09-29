@@ -1,6 +1,7 @@
 import { StudioHttpClient } from './studio-client.js';
 import { GameKit, type GameKitHost } from '../gamekit/tools.js';
 import { revealGroup } from '../gamekit/profiles.js';
+import { tagLuau } from '../gamekit/activity.js';
 import { findPluginOutDir, readPluginModules } from '../plugin-reload.js';
 import { BridgeService } from '../bridge-service.js';
 import { runBuildExecutor, computeBoundsFromParts } from './build-executor.js';
@@ -78,7 +79,7 @@ export class RobloxStudioTools {
       // An edit peer that polled recently (instances go stale after 30s without a poll).
       isStudioConnected: () => this.bridge.getInstances().some((i) => i.role === 'edit' && Date.now() - i.lastActivity < 10000),
       runLuau: async (code: string) => {
-        const reply = await this.client.request('/api/execute-luau', { code }, 'edit');
+        const reply = await this.client.request('/api/execute-luau', { code: tagLuau(code) }, 'edit');
         if (reply && typeof reply === 'object' && typeof reply.error === 'string' && reply.success === undefined) {
           return { success: false, error: reply.error };
         }
@@ -99,6 +100,9 @@ export class RobloxStudioTools {
         return this.client.request('/api/stop-playtest', { endRequested }, 'edit');
       },
       getPlaytestOutput: () => this.client.request('/api/get-playtest-output', {}, 'edit'),
+      startMultiplayerTest: (numPlayers: number) => this.client.request('/api/multiplayer-test-start', { numPlayers, testArgs: { gameKitTest: true } }, 'edit'),
+      multiplayerTestState: () => this.client.request('/api/multiplayer-test-state', {}, 'edit'),
+      endMultiplayerTest: () => this.client.request('/api/multiplayer-test-end', { value: '{"endedByMcp":true}' }, 'server'),
       hasOpenCloudKey: () => this.openCloudClient.hasApiKey(),
       // Loaded lazily: http-server imports this module.
       callTool: async (name: string, args: Record<string, any>) => {

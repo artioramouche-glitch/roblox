@@ -26,6 +26,7 @@ import DebuggerHandlers from "./handlers/DebuggerHandlers";
 import EditorHandlers from "./handlers/EditorHandlers";
 import ReloadHandlers from "./handlers/ReloadHandlers";
 import MultiplayerTestHandlers from "./handlers/MultiplayerTestHandlers";
+import Activity from "./Activity";
 import { Connection, RequestPayload, PollResponse, ReadyResponse } from "../types";
 
 const instanceId = HttpService.GenerateGUID(false);
@@ -150,7 +151,11 @@ function processRequest(request: RequestPayload): unknown {
 	}
 	const handler = (routeOverride ?? routeMap)[endpoint];
 	if (handler) {
-		return handler(data as Record<string, unknown>);
+		// Feeds the AI panel. A throwing handler is still re-raised to the poll loop as before.
+		const [ok, result] = pcall(() => handler(data as Record<string, unknown>));
+		pcall(() => Activity.record(endpoint, data as Record<string, unknown>, ok ? result : undefined, ok ? undefined : tostring(result)));
+		if (!ok) error(result, 0);
+		return result;
 	} else {
 		return { error: `Unknown endpoint: ${endpoint}` };
 	}

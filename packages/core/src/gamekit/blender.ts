@@ -18,7 +18,7 @@ import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import type { GameKitHost, ToolDef } from './tools.js';
-import { errorMessage, resultJson, sleep, text, vec3, withImages, type ToolResult, type Vec3 } from './result.js';
+import { errorMessage, luauJson, resultJson, sleep, text, vec3, withImages, type ToolResult, type Vec3 } from './result.js';
 import { placeModelLuau } from './props.js';
 import { runLuauJson } from './installer.js';
 import { PathFinder } from '../managers/path-finder.js';
@@ -143,6 +143,8 @@ export interface ExportRequest {
   maxTriangles: number;
   decimate: boolean;
   textureMax: number;
+  /** Export armatures with their skinned meshes (characters, creatures). Default: when one is found. */
+  rig?: boolean;
 }
 
 /**
@@ -173,9 +175,32 @@ if REQ.get("objects"):
 else:
     picked = [o for o in scene.objects if o.visible_get()]
 meshes = []
+armatures = []
 for o in picked:
     if o.type == 'MESH' and o not in meshes:
         meshes.append(o)
+    if o.type == 'ARMATURE' and o not in armatures:
+        armatures.append(o)
+for o in list(meshes):
+    for mod in o.modifiers:
+        if mod.type == 'ARMATURE' and mod.object and mod.object not in armatures:
+            armatures.append(mod.object)
+rig = bool(armatures) and REQ.get("rig") is not False
+if rig:
+    # Roblox skinning limits: 4 bone influences per vertex, keep rigs under ~100 bones.
+    for a in armatures:
+        n = len(a.data.bones)
+        if n > 100:
+            out["warnings"].append("%s has %d bones: keep Roblox rigs under ~100 bones." % (a.name, n))
+    for o in meshes:
+        heavy = 0
+        for v in o.data.vertices:
+            if sum(1 for g in v.groups if g.weight > 0.001) > 4:
+                heavy += 1
+        if heavy:
+            out["warnings"].append("%s: %d vertices have more than 4 bone weights (Roblox keeps 4). Weight Paint > Limit Total (4)." % (o.name, heavy))
+    out["bones"] = sum(len(a.data.bones) for a in armatures)
+    out["armatures"] = [a.name for a in armatures]
 if not meshes:
     raise Exception("Nothing to export: no visible mesh (create/import a model first, or pass objects: [names]).")
 depsgraph = bpy.context.evaluated_depsgraph_get()
@@ -219,14 +244,15 @@ for o in bpy.context.view_layer.objects:
         o.select_set(False)
     except Exception:
         pass
-for o in meshes:
+for o in meshes + (armatures if rig else []):
     o.select_set(True)
-bpy.context.view_layer.objects.active = meshes[0]
+bpy.context.view_layer.objects.active = armatures[0] if rig else meshes[0]
 os.makedirs(os.path.dirname(REQ["path"]), exist_ok=True)
 try:
     if REQ["format"] == "fbx":
-        bpy.ops.export_scene.fbx(filepath=REQ["path"], use_selection=True, object_types={'MESH'}, use_mesh_modifiers=True,
-            apply_scale_options='FBX_SCALE_UNITS', axis_forward='-Z', axis_up='Y', path_mode='COPY', embed_textures=True, bake_anim=False)
+        bpy.ops.export_scene.fbx(filepath=REQ["path"], use_selection=True, object_types={'MESH', 'ARMATURE'} if rig else {'MESH'}, use_mesh_modifiers=True,
+            apply_scale_options='FBX_SCALE_UNITS', axis_forward='-Z', axis_up='Y', path_mode='COPY', embed_textures=True, bake_anim=False,
+            add_leaf_bones=False, use_armature_deform_only=True, primary_bone_axis='Y', secondary_bone_axis='X')
     else:
         bpy.ops.export_scene.gltf(filepath=REQ["path"], export_format='GLB', use_selection=True, export_apply=True)
 finally:
@@ -235,7 +261,7 @@ finally:
         if mod:
             o.modifiers.remove(mod)
 size = (hi - lo) * scene.unit_settings.scale_length
-out.update({"path": REQ["path"], "bytes": os.path.getsize(REQ["path"]), "meshes": len(meshes), "triangles": total,
+out.update({"path": REQ["path"], "bytes": os.path.getsize(REQ["path"]), "meshes": len(meshes), "triangles": total, "rigged": rig,
             "sizeMeters": [round(size.x, 3), round(size.y, 3), round(size.z, 3)]})
 print("${MARKER}" + json.dumps(out))
 `;
@@ -249,6 +275,225 @@ with open(${JSON.stringify(filePath)}, "rb") as f:
     f.seek(${offset})
     data = f.read(${length})
 print("${MARKER}" + json.dumps({"data": base64.b64encode(data).decode("ascii"), "n": len(data)}))
+`;
+}
+
+export interface AnimationRequest {
+  armature?: string;
+  action?: string;
+  fps: number;
+  maxFrames: number;
+  /** Meters -> studs for bone translations (the model is inserted at real size). */
+  scale: number;
+  /** Also export an FBX with this animation baked (Studio Animation Editor > Import > From FBX). */
+  fbxPath?: string;
+}
+
+/**
+ * Samples one Blender action: for every sampled frame, each bone's pose relative to its
+ * rest pose (matrix_basis: bone space, which the FBX export keeps for Roblox Bones).
+ */
+export function animationPython(req: AnimationRequest): string {
+  return `
+import bpy, json, os
+REQ = ${pyJson(req)}
+out = {"warnings": []}
+scene = bpy.context.scene
+arm = bpy.data.objects.get(REQ["armature"]) if REQ.get("armature") else None
+if arm is None:
+    arm = next((o for o in scene.objects if o.type == 'ARMATURE'), None)
+if arm is None or arm.type != 'ARMATURE':
+    raise Exception("No armature in the Blender scene (rig the character first, or pass armature: <name>).")
+if arm.animation_data is None:
+    arm.animation_data_create()
+previous = arm.animation_data.action
+action = bpy.data.actions.get(REQ["action"]) if REQ.get("action") else (previous or next(iter(bpy.data.actions), None))
+if action is None:
+    raise Exception("No animation (action) found. Animate the armature in Blender first, or pass action: <name>. Actions: " + ", ".join(a.name for a in bpy.data.actions))
+arm.animation_data.action = action
+fps = scene.render.fps / scene.render.fps_base
+start, end = int(action.frame_range[0]), int(action.frame_range[1])
+step = max(1, round(fps / REQ["fps"]))
+while (end - start) / step + 1 > REQ["maxFrames"]:
+    step += 1
+frames = list(range(start, end + 1, step))
+if frames[-1] != end:
+    frames.append(end)
+bones = [{"name": b.name, "parent": b.parent.name if b.parent else None} for b in arm.data.bones if b.use_deform or any(c.use_deform for c in b.children_recursive)]
+names = set(b["name"] for b in bones)
+current = scene.frame_current
+samples = []
+try:
+    for f in frames:
+        scene.frame_set(f)
+        poses = {}
+        for pb in arm.pose.bones:
+            if pb.name not in names:
+                continue
+            loc, rot, _ = pb.matrix_basis.decompose()
+            if loc.length < 1e-5 and abs(rot.w) > 0.999999:
+                continue
+            k = REQ["scale"]
+            poses[pb.name] = [round(loc.x * k, 4), round(loc.y * k, 4), round(loc.z * k, 4), round(rot.x, 5), round(rot.y, 5), round(rot.z, 5), round(rot.w, 5)]
+        samples.append({"t": round((f - start) / fps, 4), "p": poses})
+    if REQ.get("fbxPath"):
+        for o in bpy.context.view_layer.objects:
+            try:
+                o.select_set(False)
+            except Exception:
+                pass
+        arm.select_set(True)
+        for child in arm.children_recursive:
+            if child.type == 'MESH':
+                child.select_set(True)
+        bpy.context.view_layer.objects.active = arm
+        os.makedirs(os.path.dirname(REQ["fbxPath"]), exist_ok=True)
+        bpy.ops.export_scene.fbx(filepath=REQ["fbxPath"], use_selection=True, object_types={'ARMATURE', 'MESH'}, add_leaf_bones=False,
+            use_armature_deform_only=True, bake_anim=True, bake_anim_use_all_actions=False, bake_anim_use_nla_strips=False,
+            apply_scale_options='FBX_SCALE_UNITS', axis_forward='-Z', axis_up='Y', path_mode='COPY', embed_textures=True)
+        out["fbx"] = REQ["fbxPath"]
+finally:
+    scene.frame_set(current)
+    arm.animation_data.action = previous
+out.update({"armature": arm.name, "action": action.name, "actions": [a.name for a in bpy.data.actions], "fps": fps,
+            "length": round((end - start) / fps, 3), "frames": len(samples), "bones": bones, "samples": samples})
+print("${MARKER}" + json.dumps(out))
+`;
+}
+
+export interface KeyframeRequest {
+  name: string;
+  bones: Array<{ name: string; parent?: string | null }>;
+  samples: Array<{ t: number; p: Record<string, number[]> }>;
+  loop: boolean;
+  priority: string;
+  /** Studio path of the rigged model (its Bones decide the root pose name). */
+  rig?: string;
+}
+
+/**
+ * Builds a KeyframeSequence in ServerStorage/GameKit/Animations (poses follow the bone
+ * hierarchy under the part holding the bones), registers a temporary id to test it right
+ * away, and gives the rig an AnimationController + Animator when it has no Humanoid.
+ */
+export function keyframeLuau(req: KeyframeRequest): string {
+  return `
+local HttpService = game:GetService("HttpService")
+local ServerStorage = game:GetService("ServerStorage")
+local KeyframeSequenceProvider = game:GetService("KeyframeSequenceProvider")
+local req = HttpService:JSONDecode(${luauJson(req)})
+
+local function child(parent, name, className)
+	local found = parent:FindFirstChild(name)
+	if not found then
+		found = Instance.new(className)
+		found.Name = name
+		found.Parent = parent
+	end
+	return found
+end
+
+local result = { ok = true, warnings = {} }
+local rootName = "HumanoidRootPart"
+local rig = nil
+if req.rig then
+	rig = game
+	for segment in string.gmatch(req.rig, "[^/%.]+") do
+		if rig == game and segment == "game" then continue end
+		rig = if rig == game then game:FindFirstChild(segment) or game:GetService(segment) else rig:FindFirstChild(segment)
+		if not rig then break end
+	end
+	if not rig then
+		table.insert(result.warnings, "Rig not found: " .. req.rig)
+	else
+		local bone = rig:FindFirstChildWhichIsA("Bone", true)
+		local holder = bone and bone:FindFirstAncestorWhichIsA("BasePart")
+		if holder then
+			rootName = holder.Name
+		else
+			table.insert(result.warnings, "The rig has no Bones: import it with blender_to_roblox (a rigged FBX).")
+		end
+		if not rig:FindFirstChildWhichIsA("Humanoid", true) and not rig:FindFirstChildWhichIsA("AnimationController") then
+			local controller = Instance.new("AnimationController")
+			controller.Parent = rig
+			Instance.new("Animator").Parent = controller
+			result.addedAnimator = true
+		end
+	end
+end
+
+local parentOf = {}
+for _, b in req.bones do
+	parentOf[b.name] = b.parent
+end
+
+local kfs = Instance.new("KeyframeSequence")
+kfs.Name = req.name
+kfs.Loop = req.loop
+local okPriority, priority = pcall(function() return (Enum.AnimationPriority :: any)[req.priority] end)
+kfs.Priority = if okPriority and priority then priority else Enum.AnimationPriority.Action
+for _, sample in req.samples do
+	local keyframe = Instance.new("Keyframe")
+	keyframe.Time = sample.t
+	local root = Instance.new("Pose")
+	root.Name = rootName
+	root.Parent = keyframe
+	local poses = {}
+	local function poseFor(boneName)
+		if poses[boneName] then return poses[boneName] end
+		local pose = Instance.new("Pose")
+		pose.Name = boneName
+		local p = sample.p[boneName]
+		if p then
+			pose.CFrame = CFrame.new(p[1], p[2], p[3], p[4], p[5], p[6], p[7])
+		end
+		local parentName = parentOf[boneName]
+		pose.Parent = if parentName then poseFor(parentName) else root
+		poses[boneName] = pose
+		return pose
+	end
+	for _, b in req.bones do
+		poseFor(b.name)
+	end
+	keyframe.Parent = kfs
+end
+
+local folder = child(child(ServerStorage, "GameKit", "Folder"), "Animations", "Folder")
+local old = folder:FindFirstChild(req.name)
+if old then old:Destroy() end
+kfs.Parent = folder
+local okId, tempId = pcall(function() return KeyframeSequenceProvider:RegisterKeyframeSequence(kfs) end)
+local animation = Instance.new("Animation")
+animation.Name = "TestAnimation"
+animation.AnimationId = if okId then tempId else ""
+animation.Parent = kfs
+result.path = kfs:GetFullName()
+result.keyframes = #req.samples
+result.rootPose = rootName
+result.tempId = if okId then tempId else nil
+return HttpService:JSONEncode(result)
+`;
+}
+
+/** Gives a model an AnimationController + Animator unless it already animates (Humanoid). */
+export function animatorLuau(modelPath: string): string {
+  return `
+local HttpService = game:GetService("HttpService")
+local node = game
+for segment in string.gmatch(${luauJson(modelPath)}, "[^/%.]+") do
+	if node == game and segment == "game" then continue end
+	node = if node == game then game:FindFirstChild(segment) or game:GetService(segment) else node:FindFirstChild(segment)
+	if not node then break end
+end
+if not node then return HttpService:JSONEncode({ ok = false, error = "model not found" }) end
+local bones = node:FindFirstChildWhichIsA("Bone", true) ~= nil
+if node:FindFirstChildWhichIsA("Humanoid", true) or node:FindFirstChildWhichIsA("AnimationController", true) then
+	return HttpService:JSONEncode({ ok = true, bones = bones, added = false })
+end
+local controller = Instance.new("AnimationController")
+controller.Parent = node
+Instance.new("Animator").Parent = controller
+return HttpService:JSONEncode({ ok = true, bones = bones, added = true })
 `;
 }
 
@@ -321,8 +566,28 @@ export const BLENDER_TOOLS: ToolDef[] = [
         yaw: { type: 'number' },
         assetId: { type: 'number', description: 'Insert an existing Roblox model instead' },
         existing: { type: 'string', description: 'Only resize/place a model already in Studio' },
+        rig: { type: 'boolean', description: 'Export the armature too (default: when the model has one)' },
       },
       required: ['name'],
+    },
+  },
+  {
+    name: 'blender_animation',
+    category: 'write',
+    tier: 'blender',
+    description: 'Blender action (animation of an armature) -> Roblox KeyframeSequence in ServerStorage/GameKit/Animations, testable at once (temporary id), + an animated FBX for Animation Editor import. Import the rigged model first with blender_to_roblox.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        rig: { type: 'string', description: 'Studio path of the rigged model (from blender_to_roblox)' },
+        action: { type: 'string', description: 'Blender action (default: the current one)' },
+        armature: { type: 'string' },
+        name: { type: 'string', description: 'Animation name (default: the action name)' },
+        fps: { type: 'number', description: 'Keyframes per second (default 30)' },
+        loop: { type: 'boolean', description: 'default true' },
+        priority: { type: 'string', enum: ['Core', 'Idle', 'Movement', 'Action'] },
+        fbx: { type: 'boolean', description: 'Also export an animated FBX (default true)' },
+      },
     },
   },
   {
@@ -397,6 +662,7 @@ export class BlenderTools {
       case 'blender_assets': return this.assets(args);
       case 'blender_command': return text(await this.connected(() => this.client.command(String(args.type), args.params ?? {})));
       case 'blender_to_roblox': return this.toRoblox(args);
+      case 'blender_animation': return this.animation(args);
       default: throw new Error(`Unknown Blender tool: ${name}`);
     }
   }
@@ -517,6 +783,7 @@ export class BlenderTools {
     const steps: Record<string, unknown> = {};
     let assetId = Number(args.assetId) || 0;
     let sizeMeters: Vec3 | undefined;
+    let rigged = false;
 
     if (!assetId && !args.existing) {
       const format = args.format === 'glb' ? 'glb' : 'fbx';
@@ -529,7 +796,9 @@ export class BlenderTools {
         maxTriangles: Math.max(500, Number(args.maxTriangles ?? DEFAULT_MAX_TRIANGLES)),
         decimate: args.decimate !== false,
         textureMax: 1024,
+        rig: args.rig === false ? false : undefined,
       })));
+      rigged = exported.rigged === true;
       sizeMeters = exported.sizeMeters;
       steps.export = exported;
       const localFile = await this.ensureLocal(exported.path, exported.bytes);
@@ -588,15 +857,71 @@ export class BlenderTools {
       await sleep(Math.min(20000, 3000 * attempt));
     }
     steps.insert = inserted;
+    if (inserted?.ok && rigged && inserted.path) {
+      // A skinned model needs an Animator to play animations (Humanoid rigs already have one).
+      steps.animator = await runLuauJson(this.host, animatorLuau(String(inserted.path)), 'Add Animator').catch((e) => errorMessage(e));
+    }
     return text({
       ok: !!inserted?.ok,
       assetId,
       path: inserted?.path,
       sizeStuds: inserted?.size,
+      rigged: rigged || undefined,
       steps,
-      next: inserted?.ok
-        ? 'Check it with look_at_game (or capture_screenshot). Clone it around with populate_world {items:[{from: "<path>", count: 10}]}.'
-        : 'Roblox may still be processing/moderating the upload: wait a minute and call blender_to_roblox again with {"name", "assetId"}.',
+      next: !inserted?.ok
+        ? 'Roblox may still be processing/moderating the upload: wait a minute and call blender_to_roblox again with {"name", "assetId"}.'
+        : rigged
+          ? `Rigged model ready. Animate it: blender_animation {"rig": "${inserted.path}", "action": "<Blender action>"} for each animation (Idle, Walk, Attack...).`
+          : 'Check it with look_at_game (or capture_screenshot). Clone it around with populate_world {items:[{from: "<path>", count: 10}]}.',
+    });
+  }
+
+  async animation(args: Record<string, any>): Promise<ToolResult> {
+    const dir = path.join(os.tmpdir(), 'roblox-ultimate-mcp', 'blender');
+    const tag = String(args.name ?? args.action ?? 'Animation').replace(/[^\w-]/g, '_');
+    const sampled = await this.connected(() => this.client.pythonJson(animationPython({
+      armature: args.armature ? String(args.armature) : undefined,
+      action: args.action ? String(args.action) : undefined,
+      fps: Math.max(5, Math.min(60, Number(args.fps) || 30)),
+      maxFrames: 400,
+      scale: STUDS_PER_METER,
+      fbxPath: args.fbx === false ? undefined : path.join(dir, `${tag}-${Date.now()}.fbx`),
+    }), 300_000));
+    const name = String(args.name ?? sampled.action ?? 'Animation').replace(/[^\w -]/g, '').trim() || 'Animation';
+    let fbx: string | undefined;
+    if (sampled.fbx) {
+      try {
+        fbx = await this.ensureLocal(sampled.fbx, fs.existsSync(sampled.fbx) ? fs.statSync(sampled.fbx).size : 20 * 1024 * 1024);
+      } catch {
+        fbx = sampled.fbx;
+      }
+    }
+    const summary = { action: sampled.action, otherActions: (sampled.actions ?? []).filter((a: string) => a !== sampled.action), seconds: sampled.length, keyframes: sampled.frames, bones: sampled.bones?.length, warnings: sampled.warnings };
+    if (!this.host.isStudioConnected()) {
+      return text({ ok: false, ...summary, fbx, problem: 'Studio is not connected: the animation was sampled but not created.', next: 'Connect Studio and call blender_animation again.' });
+    }
+    const built = await runLuauJson(this.host, keyframeLuau({
+      name,
+      bones: sampled.bones ?? [],
+      samples: sampled.samples ?? [],
+      loop: args.loop !== false,
+      priority: String(args.priority ?? 'Action'),
+      rig: args.rig ? String(args.rig) : undefined,
+    }), 'Build animation');
+    return text({
+      ok: !!built?.ok,
+      ...summary,
+      keyframeSequence: built?.path,
+      rootPose: built?.rootPose,
+      testId: built?.tempId,
+      fbx,
+      warnings: [...(summary.warnings ?? []), ...(built?.warnings ?? [])],
+      play: `local animator = rig:FindFirstChildWhichIsA("Animator", true); local track = animator:LoadAnimation(animation); track:Play()`,
+      next: [
+        `Test now in Studio (Play): an Animation with AnimationId = testId (temporary, works in Studio only) is inside ${built?.path ?? 'the KeyframeSequence'}.`,
+        'For the live game, publish it: right-click the KeyframeSequence > Save to Roblox (or Animation Editor > ... > Publish to Roblox), then put the new rbxassetid in your script and run check_assets {ids: [id]}.',
+        fbx ? `If the pose looks wrong: Animation Editor > select the rig > ... > Import > From FBX Animation > ${fbx}.` : undefined,
+      ].filter(Boolean),
     });
   }
 

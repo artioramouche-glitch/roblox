@@ -43,7 +43,7 @@ try {
   }
   const start = await call('roblox_start_here');
   if (!start.studio?.connected) throw new Error('fake studio never connected');
-  for (const template of ['obby', 'tycoon', 'simulator', 'arena', 'survival', 'horror_escape', 'tower_defense', 'farming']) {
+  for (const template of ['obby', 'tycoon', 'simulator', 'arena', 'survival', 'horror_escape', 'tower_defense', 'farming', 'racing', 'fishing', 'craft_survival']) {
     const r = await call('create_game', { template, options: { title: `Test ${template}` } });
     if (r.install?.warnings?.length) { failed++; console.log(r.install.warnings); }
     if (template === 'tycoon') {

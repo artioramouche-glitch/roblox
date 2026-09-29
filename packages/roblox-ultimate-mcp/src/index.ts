@@ -1,12 +1,29 @@
 import { RobloxStudioMCPServer, getAllTools } from 'roblox-ultimate-mcp-core';
 import { createRequire } from 'module';
 
-if (process.argv.includes('--install-plugin')) {
+const command = process.argv[2];
+const fail = (err: unknown) => {
+  console.error(err instanceof Error ? err.message : String(err));
+  process.exitCode = 1;
+};
+
+if (command === 'setup') {
+  const { runSetup } = await import('./setup.js');
+  runSetup().catch(fail);
+} else if (command === 'help' || process.argv.includes('--help') || process.argv.includes('-h')) {
+  const { HELP } = await import('./setup.js');
+  console.log(HELP);
+} else if (process.argv.includes('--install-plugin')) {
   const { installPlugin } = await import('./install-plugin.js');
-  installPlugin().catch((err) => {
-    console.error(err instanceof Error ? err.message : String(err));
-    process.exitCode = 1;
-  });
+  installPlugin().catch(fail);
+} else if (process.argv.includes('--install-blender-addon')) {
+  const { installBlenderAddon } = await import('./setup.js');
+  console.log(installBlenderAddon().join('\n'));
+} else if (process.stdin.isTTY && process.argv.length <= 2) {
+  // A person typed the command in a terminal: AI apps start the server with pipes, not a TTY.
+  const { HELP } = await import('./setup.js');
+  console.log(HELP);
+  console.log('Pour tout installer : npx roblox-ultimate-mcp setup');
 } else {
   const flagValue = (flag: string): string | undefined => {
     const idx = process.argv.indexOf(flag);

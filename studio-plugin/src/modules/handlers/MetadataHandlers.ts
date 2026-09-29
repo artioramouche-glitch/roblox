@@ -1,6 +1,7 @@
-import { CollectionService } from "@rbxts/services";
+import { CollectionService, RunService } from "@rbxts/services";
 import Utils from "../Utils";
 import Recording from "../Recording";
+import Activity from "../Activity";
 
 const ChangeHistoryService = game.GetService("ChangeHistoryService");
 const Selection = game.GetService("Selection");
@@ -281,12 +282,18 @@ function executeLuau(requestData: Record<string, unknown>) {
 		oldWarn(...(args as [defined, ...defined[]]));
 	};
 
+	// GameKit changes are one undo step each ("MCP: AI create_game obby"), which the AI
+	// panel's "Undo last AI action" button reverts. A failed change is rolled back.
+	const tag = Activity.parseTag(code);
+	const recordingId = tag !== undefined && tag[0] && !RunService.IsRunning() ? beginRecording(`AI ${tag[1]}`) : undefined;
+
 	const [success, result] = pcall(() => {
 		const [fn, compileError] = loadstring(code);
 		if (!fn) error(`Compile error: ${compileError}`);
 		return fn();
 	});
 
+	finishRecording(recordingId, success);
 	env["print"] = oldPrint;
 	env["warn"] = oldWarn;
 

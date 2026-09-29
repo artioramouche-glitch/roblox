@@ -1,6 +1,7 @@
 import net from 'net';
 import { checkLuauSyntax } from '../luau-syntax.js';
-import { BlenderClient, BlenderTools, exportPython, safeModeViolation, STUDS_PER_METER } from '../blender.js';
+import { animationPython, animatorLuau, BlenderClient, BlenderTools, exportPython, keyframeLuau, safeModeViolation, STUDS_PER_METER } from '../blender.js';
+import { spawnSync } from 'child_process';
 import { analyse, farmingReport, nicePrice, simulate, suggestPrices, towerDefenseReport } from '../economy.js';
 import { JobRegistry, handleJobTool } from '../jobs.js';
 import { scatter, placeModelLuau, POPULATE_THEMES } from '../props.js';
@@ -12,6 +13,9 @@ import { revealGroup, setProfile } from '../profiles.js';
 import { getSystem } from '../catalog.js';
 import { farm, tdMap, DECOR_PIECES, piece } from '../world.js';
 import { GameKit, GAMEKIT_TOOLS, type GameKitHost } from '../tools.js';
+import { assetsLuau, assetVerdict, optimizeFindings, optimizeLuau } from '../quality.js';
+import { pickDevice, runPlaytest } from '../playtest.js';
+import { checkRobloxApi } from '../api-check.js';
 import type { InstanceNode } from '../installer.js';
 
 const parse = (result: any) => JSON.parse(result.content[0].text);
@@ -121,6 +125,49 @@ describe('Blender bridge', () => {
     expect(py).toContain('modifiers.remove');
     expect(py).toContain('export_scene.fbx');
     expect(STUDS_PER_METER).toBeCloseTo(3.57, 2);
+  });
+
+  test('rig and animation scripts are valid Python and Luau', async () => {
+    const scripts = {
+      export: exportPython({ format: 'fbx', path: '/tmp/a.fbx', maxTriangles: 20000, decimate: true, textureMax: 1024 }),
+      animation: animationPython({ fps: 30, maxFrames: 400, scale: STUDS_PER_METER, fbxPath: '/tmp/anim.fbx', action: "Walk'\"" }),
+    };
+    expect(scripts.export).toContain("'ARMATURE'");
+    expect(scripts.export).toContain('add_leaf_bones=False');
+    for (const [label, py] of Object.entries(scripts)) {
+      const check = spawnSync('python3', ['-c', 'import ast,sys; ast.parse(sys.stdin.read())'], { input: py, encoding: 'utf8' });
+      if (check.error) continue; // no Python on this machine
+      expect({ label, status: check.status, err: check.stderr }).toEqual({ label, status: 0, err: '' });
+    }
+    const kfs = keyframeLuau({
+      name: 'Walk', loop: true, priority: 'Movement', rig: 'Workspace/GameKit/Props/Knight',
+      bones: [{ name: 'Hips', parent: null }, { name: 'Leg', parent: 'Hips' }],
+      samples: [{ t: 0, p: { Leg: [0, 0, 0, 0, 0, 0.38, 0.92] } }, { t: 0.5, p: {} }],
+    });
+    for (const [label, code] of [['keyframes', kfs], ['animator', animatorLuau('Workspace/GameKit/Props/Knight')]] as const) {
+      await expectCompiles(code, label);
+      expect({ label, issues: checkRobloxApi(code) }).toEqual({ label, issues: [] });
+    }
+  });
+
+  test('blender_animation samples the action and builds the KeyframeSequence in Studio', async () => {
+    const sampled = { action: 'Walk', actions: ['Walk', 'Idle'], fps: 24, length: 1, frames: 2, warnings: [],
+      bones: [{ name: 'Hips', parent: null }], samples: [{ t: 0, p: {} }, { t: 1, p: { Hips: [0, 1, 0, 0, 0, 0, 1] } }] };
+    const addon = await fakeAddon(() => ({ status: 'success', result: { executed: true, result: `@@GAMEKIT@@${JSON.stringify(sampled)}\n` } }));
+    const host = recordingHost({
+      runLuau: async (code: string) => {
+        host.calls.push(code);
+        return { success: true, returnValue: JSON.stringify({ ok: true, path: 'ServerStorage.GameKit.Animations.Walk', rootPose: 'Body', tempId: 'rbxtemp://1', warnings: [] }) };
+      },
+    });
+    const tools = new BlenderTools(host, new BlenderClient('127.0.0.1', addon.port));
+    const result = parse(await tools.call('blender_animation', { rig: 'Workspace/Knight', fbx: false }));
+    expect(result.ok).toBe(true);
+    expect(result.testId).toBe('rbxtemp://1');
+    expect(result.otherActions).toEqual(['Idle']);
+    expect(host.calls[0]).toContain('KeyframeSequenceProvider');
+    expect(addon.seen[0].params.code).toContain('matrix_basis');
+    addon.close();
   });
 
   test('safe mode reuses the vendored validator', () => {
@@ -326,4 +373,114 @@ describe('Tower defense and farming worlds', () => {
       expect(names).toContain(n);
     }
   });
+});
+
+describe('Quality: assets, performance, multiplayer and phone tests', () => {
+  test('generated Luau compiles and only uses real Roblox APIs', async () => {
+    for (const [label, code] of [['assets', assetsLuau({ ids: [123], scan: true, max: 5 })], ['optimize', optimizeLuau(['all'])]] as const) {
+      await expectCompiles(code, label);
+      expect({ label, issues: checkRobloxApi(code) }).toEqual({ label, issues: [] });
+    }
+  });
+
+  test('asset verdicts', () => {
+    expect(assetVerdict({ id: 1, kind: 'Audio', status: 'Failure' }).verdict).toBe('broken');
+    expect(assetVerdict({ id: 1, kind: 'Audio', status: 'Success', seconds: 0 }).verdict).toBe('broken');
+    expect(assetVerdict({ id: 1, kind: 'Audio', status: 'Success', seconds: 12, byRoblox: false, byOwner: false }).verdict).toBe('ok');
+    expect(assetVerdict({ id: 1, kind: 'Animation', status: 'Success', byRoblox: false, byOwner: false, creator: 'Someone' }).verdict).toBe('risky');
+    expect(assetVerdict({ id: 1, kind: 'Animation', status: 'Success', byRoblox: true }).verdict).toBe('ok');
+    expect(assetVerdict({ id: 1, kind: 'Animation', status: 'Success', byOwner: true }).verdict).toBe('ok');
+    expect(assetVerdict({ id: 1, infoError: 'HTTP 400', status: 'Failure' }).why).toMatch(/Unknown asset/);
+  });
+
+  test('performance findings follow the phone budget', () => {
+    const light = optimizeFindings({ stats: { parts: 2000 }, lighting: { technology: 'ShadowMap', globalShadows: true }, streaming: false });
+    expect(light).toEqual([]);
+    const heavy = optimizeFindings({
+      stats: { parts: 30000, unanchored: 2000, smallShadowCasters: 900, shadowLights: 30, particles: 80, particleRate: 4000, humanoids: 10 },
+      lighting: { technology: 'Future', globalShadows: true }, streaming: false, perFrame: ['ServerScriptService.Loop'],
+    });
+    const topics = heavy.map((f) => f.topic);
+    for (const t of ['parts', 'streaming', 'physics', 'shadows', 'lights', 'particles', 'technology', 'scripts']) expect(topics).toContain(t);
+    expect(heavy.filter((f) => f.level === 'red').length).toBeGreaterThan(0);
+  });
+
+  test('check_assets and optimize_game classify what Studio returns', async () => {
+    const host = recordingHost({
+      runLuau: async (code: string) => {
+        if (code.includes('ContentProvider:PreloadAsync')) {
+          return { success: true, returnValue: JSON.stringify({ owner: { id: 5, type: 'User' }, checked: 3, results: [
+            { id: 11, kind: 'Audio', name: 'Music', status: 'Success', seconds: 90, byOwner: true, uses: ['Workspace.Music'] },
+            { id: 12, kind: 'Audio', name: 'Gone', status: 'Failure', uses: ['SoundService.Boom'] },
+            { id: 13, kind: 'Animation', name: 'Dance', status: 'Success', creator: 'Other', byOwner: false, byRoblox: false },
+          ] }) };
+        }
+        return { success: true, returnValue: JSON.stringify({ stats: { parts: 12000, shadowLights: 12 }, lighting: { technology: 'Future', globalShadows: true }, streaming: false, fixed: {} }) };
+      },
+    });
+    const kit = new GameKit(host);
+    const assets = parse(await kit.call('check_assets', {}));
+    expect(assets.verdict).toBe('FIX');
+    expect(assets.broken[0].usedIn).toEqual(['SoundService.Boom']);
+    expect(assets.risky).toHaveLength(1);
+    const perf = parse(await kit.call('optimize_game', {}));
+    expect(perf.phone).toMatch(/ORANGE/);
+    expect(perf.next).toMatch(/apply/);
+  });
+
+  test('phone device picking prefers small phones', () => {
+    const devices = [{ DeviceId: 'iPad Pro' }, { DeviceId: 'iPhone 14 Pro Max' }, { DeviceId: 'iPhone SE' }, { DeviceId: 'Samsung Galaxy S9' }];
+    expect(pickDevice(devices, 'phone')).toBe('iPhone SE');
+    expect(pickDevice(devices, 'tablet')).toBe('iPad Pro');
+    expect(pickDevice(devices, 'Samsung Galaxy S9')).toBe('Samsung Galaxy S9');
+    expect(pickDevice([{ DeviceId: 'Laptop' }], 'phone')).toBeUndefined();
+  });
+
+  test('multiplayer test: start, poll, read the runner report, check each client', async () => {
+    const report = {
+      serverErrors: [], clientErrors: [], serverWarnings: [], probes: [{ name: 'players joined', ok: true, detail: '2/2' }],
+      facts: { characterSpawned: true, dataLoaded: true, aliveAfter3s: true },
+      clientFacts: { hudPresent: true, ui: { tooSmall: [], offscreen: [] } },
+      clients: { Player1: { playersSeen: 2, ui: { tooSmall: ['GameKitHUD.Close (20x20)'] } }, Player2: { playersSeen: 2 } },
+    };
+    let polls = 0;
+    const started: number[] = [];
+    const host = recordingHost({
+      getPlaytestOutput: async () => ({ isRunning: false, output: [] }),
+      startMultiplayerTest: async (n: number) => { started.push(n); return { success: true }; },
+      multiplayerTestState: async () => ({ session: polls++ < 1 ? { phase: 'running' } : { phase: 'completed', result: JSON.stringify(report) } }),
+    });
+    const result = await runPlaytest(host, { seconds: 8, players: 2 });
+    expect(started).toEqual([2]);
+    expect(result.verdict).toBe('PASS');
+    expect(result.summary).toMatch(/2 players/);
+    expect(result.warnings.join(' ')).toMatch(/too small/);
+    const installed = host.calls.find((c) => c.includes('__GameKitTestRunner'))!;
+    expect(installed).toMatch(/Players/);
+  }, 30000);
+
+  test('phone test: switches the simulator, fails on UI problems, restores it', async () => {
+    const simulator: string[] = [];
+    const host = recordingHost({
+      runLuau: async (code: string) => {
+        if (code.includes('StudioDeviceSimulatorService')) {
+          const payload = code.replace(/\\/g, '');
+          const op = /"operation":"(\w+)"/.exec(payload)?.[1] ?? '?';
+          simulator.push(op + (payload.includes('"stopSimulation":true') ? ':stop' : ''));
+          return { success: true, returnValue: JSON.stringify(op === 'get' ? { isSimulating: false, activeDeviceId: 'default', devices: [{ DeviceId: 'iPhone SE' }] } : { success: true }) };
+        }
+        return { success: true, returnValue: JSON.stringify({ ok: true, created: 1, replaced: 0, kept: 0, merged: 0, deleted: 0, warnings: [], roots: [] }) };
+      },
+      getPlaytestOutput: (() => {
+        let n = 0;
+        return async () => (n++ === 0 ? { isRunning: false } : { isRunning: false, output: [], testResult: JSON.stringify({ probes: [], facts: { characterSpawned: true }, clientFacts: { hudPresent: true, ui: { offscreen: ['Shop.Window'] } } }) });
+      })(),
+    });
+    const result = await runPlaytest(host, { seconds: 8, device: 'phone' });
+    expect(result.verdict).toBe('FAIL');
+    expect(result.issues.join(' ')).toMatch(/off the screen/);
+    expect(result.summary).toMatch(/iPhone SE/);
+    expect(simulator[0]).toBe('get');
+    expect(simulator[simulator.length - 1]).toBe('set:stop');
+  }, 30000);
 });

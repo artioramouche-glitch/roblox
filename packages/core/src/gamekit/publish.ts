@@ -7,7 +7,15 @@
 import type { GameKitHost, ToolDef } from './tools.js';
 import { analyseAudit, collectAudit } from './doctor.js';
 import { runLuauJson } from './installer.js';
+import { assetsLuau, assetVerdict, optimizeFindings, optimizeLuau, type AssetRow, type OptimizeReport } from './quality.js';
 import { errorMessage, text, type ToolResult } from './result.js';
+
+export interface TestRecord {
+  verdict: string;
+  at: number;
+  players?: number;
+  device?: string;
+}
 
 export const PUBLISH_TOOLS: ToolDef[] = [
   {
@@ -81,7 +89,8 @@ facts.lighting = game:GetService("Lighting"):FindFirstChildWhichIsA("Sky") ~= ni
 return HttpService:JSONEncode(facts)
 `;
 
-export async function publishChecklist(host: GameKitHost, lastTest?: { verdict: string; at: number }): Promise<ToolResult> {
+export async function publishChecklist(host: GameKitHost, tests: TestRecord[] = []): Promise<ToolResult> {
+  const lastTest = tests[tests.length - 1];
   const checks: Check[] = [];
   const facts = await runLuauJson<any>(host, FACTS_LUAU, 'Publish facts');
   checks.push(facts.placeId > 0
@@ -100,6 +109,34 @@ export async function publishChecklist(host: GameKitHost, lastTest?: { verdict: 
   }
   if (!lastTest) checks.push({ item: 'Playtest passes (test_game)', status: 'todo', how: 'Run test_game until PASS.' });
   else checks.push({ item: 'Playtest passes (test_game)', status: lastTest.verdict === 'PASS' ? 'ok' : 'todo', detail: `last result ${lastTest.verdict}, ${Math.round((Date.now() - lastTest.at) / 60000)} min ago`, how: lastTest.verdict === 'PASS' ? undefined : 'Fix the reported errors and run test_game again.' });
+  const passed = (match: (t: TestRecord) => boolean) => tests.some((t) => t.verdict === 'PASS' && match(t));
+  checks.push(passed((t) => (t.players ?? 1) > 1)
+    ? { item: 'Tested with 2 players', status: 'ok' }
+    : { item: 'Tested with 2 players', status: 'todo', how: 'test_game {"players": 2} (rounds, trading, co-op and PvP only break with several players).' });
+  checks.push(passed((t) => !!t.device)
+    ? { item: 'Tested on a phone screen', status: 'ok' }
+    : { item: 'Tested on a phone screen', status: 'todo', how: 'test_game {"device": "phone"}: most players are on phones.' });
+  try {
+    const perf = await runLuauJson<OptimizeReport>(host, optimizeLuau([]), 'Performance');
+    const findings = optimizeFindings(perf);
+    const red = findings.filter((f) => f.level === 'red');
+    checks.push(red.length
+      ? { item: 'Runs on low-end phones', status: 'todo', detail: red.map((f) => f.problem).join(' '), how: 'optimize_game shows the fixes.' }
+      : { item: 'Runs on low-end phones', status: findings.length ? 'warn' : 'ok', detail: `${perf.stats?.parts ?? 0} parts${findings.length ? `, ${findings.length} things to lighten` : ''}`, how: findings.length ? 'optimize_game' : undefined });
+  } catch (error) {
+    checks.push({ item: 'Runs on low-end phones', status: 'warn', detail: errorMessage(error), how: 'optimize_game' });
+  }
+  try {
+    const assets = await runLuauJson<{ results: AssetRow[] }>(host, assetsLuau({ scan: true, max: 30 }), 'Assets');
+    const rows = Array.isArray(assets.results) ? assets.results : [];
+    const bad = rows.map((r) => ({ r, v: assetVerdict(r) })).filter((x) => x.v.verdict !== 'ok');
+    const broken = bad.filter((x) => x.v.verdict === 'broken');
+    checks.push(bad.length
+      ? { item: 'Sounds and animations load', status: broken.length ? 'todo' : 'warn', detail: bad.slice(0, 4).map((x) => `${x.r.kind ?? '?'} ${x.r.id}: ${x.v.why}`).join(' '), how: 'check_assets lists them with where they are used.' }
+      : { item: 'Sounds and animations load', status: 'ok', detail: `${rows.length} assets checked` });
+  } catch (error) {
+    checks.push({ item: 'Sounds and animations load', status: 'warn', detail: errorMessage(error), how: 'check_assets' });
+  }
   if (facts.monetizationPlaceholders > 0) checks.push({ item: 'Monetization ids', status: 'todo', detail: `${facts.monetizationPlaceholders} products/passes still have Id 0`, how: 'Create them in Creator Dashboard > your experience > Monetization, then put the ids in ReplicatedStorage/GameKit/Config/Monetization.' });
   if (facts.openTasks > 0) checks.push({ item: 'Team board', status: 'warn', detail: `${facts.openTasks} tasks not done`, how: 'team {"action": "list"}' });
   checks.push(facts.wideOffsetGuis > 0

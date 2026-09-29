@@ -9,7 +9,10 @@
   },
   "files": [
     "dist/**/*",
-    "studio-plugin/**/*"
+    "studio-plugin/*.rbxmx",
+    "blender/**/*",
+    "README.md",
+    "LICENSE"
   ],
   "scripts": {
     "build": "tsup",
@@ -43,8 +46,13 @@
     "node-fetch": "^3.3.2",
     "uuid": "^9.0.1",
     "ws": "^8.14.2",
-    "roblox-ultimate-mcp-core": "4.0.0",
     "luau-web": "^1.4.0",
     "fzstd": "^0.1.1"
+  },
+  "devDependencies": {
+    "roblox-ultimate-mcp-core": "4.0.0"
+  },
+  "engines": {
+    "node": ">=18"
   }
 }

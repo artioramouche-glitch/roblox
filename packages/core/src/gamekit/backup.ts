@@ -197,7 +197,8 @@ elseif action == "delete" then
 elseif action == "restore" then
 	local backup = if req.id then root:FindFirstChild(req.id) else sorted()[1]
 	if not backup then return HttpService:JSONEncode({ ok = false, error = "No backup to restore" }) end
-	local recording = ChangeHistoryService:TryBeginRecording("GameKit: restore " .. backup.Name)
+	local okRecording, recording = pcall(function() return ChangeHistoryService:TryBeginRecording("GameKit: restore " .. backup.Name) end)
+	if not okRecording then recording = nil end
 	local ok, err = pcall(function()
 		for _, target in TARGETS do
 			local container = resolve(target.path)

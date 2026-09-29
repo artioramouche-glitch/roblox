@@ -29,6 +29,8 @@ local config = Util.config("Hud", {
 		Keys = "🔑",
 		Wave = "🌊",
 		Basket = "🧺",
+		XP = "✨",
+		Fish = "🐟",
 	},
 })
 

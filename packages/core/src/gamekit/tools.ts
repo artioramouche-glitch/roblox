@@ -20,12 +20,15 @@ import { BLENDER_TOOLS, BlenderTools } from './blender.js';
 import { ECONOMY_TOOLS, handleEconomy } from './economy.js';
 import { handleJobTool, JOB_TOOLS, JobRegistry } from './jobs.js';
 import { POPULATE_TOOLS, populateWorld } from './props.js';
-import { PUBLISH_TOOLS, publishChecklist } from './publish.js';
+import { PUBLISH_TOOLS, publishChecklist, type TestRecord } from './publish.js';
 import { errorMessage, toJson, type ToolResult } from './result.js';
 import { findZone, handleTeam, TEAM_TOOLS } from './team.js';
 import { lookAtGame, VISUAL_TOOLS } from './visual.js';
 import { CODE_TOOLS, handleCodeOutline, handleEditScript, handleReadScript, prepareLuau, readScript } from './code.js';
 import { handleRecipe, RECIPE_TOOLS } from './recipes.js';
+import { activityContext, activityLabel } from './activity.js';
+import { checkAssets, optimizeGame, QUALITY_TOOLS } from './quality.js';
+import { formatNotes, handleNotes, NOTES_TOOLS, readNotes, recordHistory } from './notes.js';
 
 export interface GameKitHost extends PlaytestBridge {
   /** True when the Studio plugin polled recently. */
@@ -161,12 +164,16 @@ export const GAMEKIT_TOOLS: ToolDef[] = [
   {
     name: 'test_game',
     category: 'write',
-    description: 'Automatic playtest: plays the game, reports server+client errors with script, line and fix, then stops. Repeat after every change until PASS.',
+    description: 'Automatic playtest: plays the game, reports server+client errors with script, line and fix, then stops. Repeat after every change until PASS. players: 2 = multiplayer test; device: "phone" = mobile screen + UI checks.',
     inputSchema: obj({
       seconds: { type: 'number', description: '8-120, default 20' },
       autoplay: { type: 'boolean' },
+      players: { type: 'number', description: '1-4 (2+ = server + clients)' },
+      device: { type: 'string', description: 'phone | tablet | Studio device id' },
     }),
   },
+  ...NOTES_TOOLS,
+  ...QUALITY_TOOLS,
   ...CODE_TOOLS,
   ...RECIPE_TOOLS,
   ...POPULATE_TOOLS,
@@ -231,7 +238,7 @@ export interface GameKitOptions {
 export class GameKit {
   readonly jobs = new JobRegistry();
   readonly blender: BlenderTools;
-  private lastTest?: { verdict: string; at: number };
+  private tests: TestRecord[] = [];
 
   constructor(private host: GameKitHost, options: GameKitOptions = {}) {
     this.blender = new BlenderTools(host, undefined, { onConnected: options.onBlenderConnected });
@@ -247,13 +254,44 @@ export class GameKit {
   /** Like call(), but failures come back as an error result the model can read. */
   async run(name: string, args: Record<string, any> = {}) {
     try {
-      return await this.call(name, args);
+      const result = await this.call(name, args);
+      await this.remember(name, args, result);
+      return result;
     } catch (error) {
       return { content: [{ type: 'text', text: `Error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
     }
   }
 
+  /** Writes a line to the project history (game_notes) after a successful change. */
+  private async remember(name: string, args: Record<string, any>, result: any) {
+    const describe: Record<string, () => string> = {
+      create_game: () => `create_game ${args.template}`,
+      add_system: () => `add_system ${args.system}${args.config ? ' (config changed)' : ''}`,
+      write_script: () => `write_script ${args.path}`,
+      edit_script: () => `edit_script ${args.path}`,
+      code_recipe: () => `code_recipe ${args.recipe}${args.params?.target ? ` on ${args.params.target}` : ''}`,
+      blender_to_roblox: () => `blender_to_roblox ${args.name}`,
+      build_ui: () => `build_ui ${args.spec?.name ?? ''}`,
+    };
+    if (!describe[name] || args.preview || (name === 'code_recipe' && !args.recipe)) return;
+    if (!this.host.isStudioConnected()) return;
+    let body: any;
+    try {
+      body = JSON.parse(result?.content?.[0]?.text ?? '{}');
+    } catch {
+      return;
+    }
+    if (result?.isError || body?.ok === false || body?.written === false) return;
+    await recordHistory(this.host, describe[name]());
+  }
+
   async call(name: string, args: Record<string, any> = {}) {
+    const def = GAMEKIT_TOOLS.find((t) => t.name === name);
+    const write = def?.category === 'write' && !args.preview && !(name === 'game_notes' && (args.action ?? 'read') === 'read');
+    return activityContext.run({ label: activityLabel(name, args), write }, () => this.dispatch(name, args));
+  }
+
+  private async dispatch(name: string, args: Record<string, any>) {
     switch (name) {
       case 'roblox_start_here': return this.startHere();
       case 'roblox_guide': return text(guideText(String(args.topic ?? 'workflow')));
@@ -267,6 +305,9 @@ export class GameKit {
       case 'check_luau': return this.checkLuau(args);
       case 'check_game': return this.checkGame(args);
       case 'test_game': return this.testGame(args);
+      case 'game_notes': this.requireStudio(); return handleNotes(this.host, args);
+      case 'check_assets': this.requireStudio(); return checkAssets(this.host, args);
+      case 'optimize_game': this.requireStudio(); return optimizeGame(this.host, args);
       case 'read_script': this.requireStudio(); return handleReadScript(this.host, args);
       case 'edit_script': this.requireStudio(); return handleEditScript(this.host, args);
       case 'code_outline': this.requireStudio(); return handleCodeOutline(this.host, args);
@@ -281,7 +322,7 @@ export class GameKit {
       case 'balance_economy':
         if (args.fromGame) this.requireStudio();
         return handleEconomy(this.host, args);
-      case 'publish_checklist': this.requireStudio(); return publishChecklist(this.host, this.lastTest);
+      case 'publish_checklist': this.requireStudio(); return publishChecklist(this.host, this.tests);
       default:
         if (BLENDER_NAMES.has(name)) return this.blender.call(name, args);
         throw new Error(`Unknown GameKit tool: ${name}`);
@@ -301,10 +342,10 @@ export class GameKit {
 
   async startHere() {
     const plan = [
-      'Pick a template for the idea and call create_game (obby, tycoon, simulator, arena, survival, horror_escape).',
+      'Pick a template for the idea and call create_game (catalog: gamekit_catalog). Write the idea and a TODO list with game_notes.',
       'Call test_game; fix every error it reports; repeat until PASS.',
       'Customise with add_system {config}, build_world, build_ui, set_environment (no code).',
-      'Write custom code only with write_script (it validates Luau first).',
+      'Code: code_recipe first, then write_script / edit_script (they check the Luau). Read roblox_guide coding.',
       'Look at it with look_at_game, decorate with populate_world (themes), save with backup_game before big changes.',
       'Finish with check_game, then polish using roblox_guide design; publish_checklist before publishing.',
       'Custom 3D models: blender_status (Blender link) then blender_to_roblox. Several AIs at once: team {action: "plan"}, then each one claims tasks and zones.',
@@ -330,10 +371,20 @@ for _, d in workspace:GetDescendants() do if d:IsA("BasePart") then parts += 1 e
 return HttpService:JSONEncode({ place = game.Name, placeId = game.PlaceId, gameKit = kit ~= nil,
   installedSystems = installed, worldPieces = pieces, scripts = scripts, parts = parts,
   httpEnabled = HttpService.HttpEnabled })`, 'Studio state');
-      const next = state.gameKit
-        ? 'GameKit is already installed: run test_game, then keep improving (add_system / build_world / build_ui).'
-        : 'Empty or custom place: call create_game with the template closest to the idea.';
-      return text({ ...base, studio: { connected: true, ...state }, next });
+      // The project memory: a new session resumes from it instead of re-reading everything.
+      let memory: string | undefined;
+      try {
+        const notes = await readNotes(this.host);
+        if (Object.values(notes).some((list) => list.length)) memory = formatNotes(notes);
+      } catch {
+        memory = undefined;
+      }
+      const next = memory
+        ? 'Continue from the project memory above (TODO first). Keep it updated with game_notes.'
+        : state.gameKit
+          ? 'GameKit is already installed: run test_game, then keep improving (add_system / build_world / build_ui). Write the idea and a TODO list with game_notes.'
+          : 'Empty or custom place: call create_game with the template closest to the idea, then write the idea and TODO with game_notes.';
+      return text({ ...base, studio: { connected: true, ...state }, memory, next });
     } catch (err) {
       return text({ ...base, studio: { connected: true, error: err instanceof Error ? err.message : String(err) } });
     }
@@ -534,8 +585,8 @@ return HttpService:JSONEncode({ place = game.Name, placeId = game.PlaceId, gameK
 
   async testGame(args: Record<string, any>) {
     this.requireStudio();
-    const result = await runPlaytest(this.host, { seconds: args.seconds, autoplay: args.autoplay });
-    this.lastTest = { verdict: String(result.verdict), at: Date.now() };
+    const result = await runPlaytest(this.host, { seconds: args.seconds, autoplay: args.autoplay, players: args.players, device: args.device });
+    this.tests = [...this.tests.slice(-9), { verdict: String(result.verdict), at: Date.now(), players: Number(args.players) || 1, device: args.device ? String(args.device) : undefined }];
     // Show the failing lines of the first errors: the fix can be made straight away.
     const withCode = (Array.isArray(result.errors) ? result.errors : []).filter((e: any) => e.script && e.line).slice(0, 3);
     for (const error of withCode) {
@@ -549,7 +600,9 @@ return HttpService:JSONEncode({ place = game.Name, placeId = game.PlaceId, gameK
     return text({
       ...result,
       next: result.verdict === 'PASS'
-        ? 'Great. Improve the game (roblox_guide design) and test again after each change.'
+        ? (args.players > 1 || args.device
+          ? 'Great. Improve the game (roblox_guide design) and test again after each change.'
+          : 'Great. Before publishing also run test_game {players: 2} and test_game {device: "phone"}, then optimize_game.')
         : 'Fix the first error with edit_script (its code is shown; read_script { path, find } for more), then run test_game again.',
     });
   }

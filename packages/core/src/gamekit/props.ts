@@ -174,7 +174,8 @@ export function placeModelLuau(req: PlaceModelRequest): string {
   const payload = { ...req, parent: splitPath(req.parent), existing: req.existing ? splitPath(req.existing) : undefined };
   return `${PRELUDE}
 local req = HttpService:JSONDecode(${luauJson(payload)})
-local recording = ChangeHistoryService:TryBeginRecording("GameKit: place " .. req.name)
+local okRecording, recording = pcall(function() return ChangeHistoryService:TryBeginRecording("GameKit: place " .. req.name) end)
+if not okRecording then recording = nil end
 local ok, result = pcall(function()
 	local parent = ensurePath(req.parent)
 	local model
@@ -378,7 +379,8 @@ export async function populateWorld(host: GameKitHost, args: Record<string, any>
   const placed = await runLuauJson<any>(host, `${PRELUDE}
 local req = HttpService:JSONDecode(${luauJson(pass)})
 local folder = findPath(req.folder)
-local recording = ChangeHistoryService:TryBeginRecording("GameKit: place decor")
+local okRecording, recording = pcall(function() return ChangeHistoryService:TryBeginRecording("GameKit: place decor") end)
+if not okRecording then recording = nil end
 local stats = { placed = 0, snapped = 0, removed = 0, errors = {} }
 local ok, err = pcall(function()
 	for _, item in req.items do

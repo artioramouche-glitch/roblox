@@ -18,6 +18,8 @@ local ScriptContext = game:GetService("ScriptContext")
 local duration = script:GetAttribute("Duration")
 local DURATION = if type(duration) == "number" then duration else 15
 local autoplay = script:GetAttribute("Autoplay") ~= false
+local expectedPlayers = script:GetAttribute("Players")
+local EXPECTED = if type(expectedPlayers) == "number" then expectedPlayers else 1
 
 type Probe = { name: string, ok: boolean, detail: string }
 
@@ -26,6 +28,7 @@ local report = {
 	serverWarnings = {},
 	clientErrors = {},
 	clientFacts = {},
+	clients = {},
 	facts = {},
 	probes = {} :: { Probe },
 }
@@ -56,11 +59,13 @@ end)
 local probeRemote = Instance.new("RemoteEvent")
 probeRemote.Name = "__GameKitTestProbe"
 probeRemote.Parent = ReplicatedStorage
-probeRemote.OnServerEvent:Connect(function(_, kind, data)
+probeRemote.OnServerEvent:Connect(function(player, kind, data)
 	if kind == "error" and type(data) == "table" then
+		data.player = player.Name
 		push(report.clientErrors, data)
 	elseif kind == "facts" and type(data) == "table" then
 		report.clientFacts = data
+		report.clients[player.Name] = data
 	end
 end)
 
@@ -166,6 +171,85 @@ local function autoplayChecks(player: Player, character: Model)
 			if ok then `planted {tostring(result.planted)}, harvested {tostring(result.harvested)}, earned {tostring(result.earned)}` else tostring(result))
 	end
 
+	-- Inventory: give then take an item.
+	local inventoryHook = hookOf("InventoryServer")
+	if inventoryHook then
+		local ok, result = pcall(function()
+			local given = inventoryHook:Invoke("give", player, "__TestItem", 2)
+			local taken = inventoryHook:Invoke("take", player, "__TestItem", 2)
+			return { given = given, taken = taken }
+		end)
+		probe("inventory", ok and result.given == 2 and result.taken == true, if ok then `give -> {tostring(result.given)}, take -> {tostring(result.taken)}` else tostring(result))
+	end
+
+	-- Levels: enough XP for level 2 must level up.
+	local levelsHook = hookOf("Levels")
+	if levelsHook then
+		local ok, result = pcall(function()
+			local needed = levelsHook:Invoke("totalFor", player, 2)
+			return levelsHook:Invoke("xp", player, needed)
+		end)
+		probe("level up", ok and type(result) == "number" and result >= 2, if ok then `level after XP: {tostring(result)}` else tostring(result))
+	end
+
+	-- Quests: completing the first active quest must move on.
+	local questsHook = hookOf("Quests")
+	if questsHook then
+		local ok, result = pcall(function()
+			local before = questsHook:Invoke("active", player)
+			local completed = questsHook:Invoke("completeFirst", player)
+			return { before = before, completed = completed }
+		end)
+		probe("quest complete", ok and result.completed ~= nil and result.completed == result.before, if ok then `completed {tostring(result.completed)}` else tostring(result))
+	end
+
+	-- Pets: hatching an egg gives a pet and a reward multiplier.
+	local petsHook = hookOf("Pets")
+	if petsHook then
+		local ok, result = pcall(function()
+			local pet = petsHook:Invoke("hatch", player)
+			return { pet = pet, multiplier = petsHook:Invoke("multiplier", player) }
+		end)
+		probe("egg hatch", ok and result.pet ~= nil and type(result.multiplier) == "number" and result.multiplier > 1, if ok then `pet {tostring(result.pet)}, multiplier {tostring(result.multiplier)}` else tostring(result))
+	end
+
+	-- Racing: a complete track (checkpoints, grid, finish) and a kart that builds.
+	local racingHook = hookOf("Racing")
+	if racingHook then
+		local ok, result = pcall(function()
+			local track = racingHook:Invoke("track")
+			return { track = track, kart = racingHook:Invoke("kart") }
+		end)
+		local track = ok and result.track
+		probe("race track", ok and type(track) == "table" and track.checkpoints > 0 and track.grid > 0 and track.finish > 0,
+			if type(track) == "table" then `{track.checkpoints} checkpoints, {track.grid} grid slots, {track.finish} finish line(s)` else tostring(result))
+		probe("kart", ok and result.kart == true, if ok then `kart built: {tostring(result.kart)}` else tostring(result))
+	end
+
+	-- Fishing: a catch lands in the inventory.
+	local fishingHook = hookOf("Fishing")
+	if fishingHook then
+		local ok, result = pcall(function()
+			return fishingHook:Invoke("catch", player)
+		end)
+		local count = if ok and type(result) == "string" then player:GetAttribute("Inv_" .. result) else nil
+		probe("fishing catch", ok and type(count) == "number" and count > 0, if ok then `caught {tostring(result)}, bag count {tostring(count)}` else tostring(result))
+	end
+
+	-- Crafting: a resource node gives items and a recipe crafts.
+	local craftingHook = hookOf("Crafting")
+	if craftingHook then
+		local ok, result = pcall(function()
+			return { gathered = craftingHook:Invoke("gather", player), crafted = craftingHook:Invoke("craft", player) }
+		end)
+		if ok and result.gathered ~= -1 then
+			probe("gather", type(result.gathered) == "number" and result.gathered > 0, `items from one node: {tostring(result.gathered)}`)
+		end
+		if not ok or result.crafted ~= nil then
+			probe("craft", ok and result.crafted == true, if ok then `crafted first item recipe: {tostring(result.crafted)}` else tostring(result))
+		end
+	end
+
 	-- Kill parts: standing on one should kill (checked last; the character respawns).
 	local kill = CollectionService:GetTagged("KillPart")[1]
 	local humanoid = character:FindFirstChildOfClass("Humanoid")
@@ -180,6 +264,12 @@ task.spawn(function()
 	local started = os.clock()
 	local player = Players:GetPlayers()[1] or Players.PlayerAdded:Wait()
 	report.facts.playerJoined = player ~= nil
+	-- Multiplayer test: wait for every client, then check they all spawned and loaded.
+	while #Players:GetPlayers() < EXPECTED and os.clock() - started < 30 do
+		task.wait(0.5)
+	end
+	report.facts.expectedPlayers = EXPECTED
+	report.facts.playersJoined = #Players:GetPlayers()
 	local character = player.Character or player.CharacterAdded:Wait()
 	local root = character:WaitForChild("HumanoidRootPart", 10) :: BasePart?
 	report.facts.characterSpawned = root ~= nil
@@ -218,6 +308,32 @@ task.spawn(function()
 		task.wait(remaining)
 	end
 	report.facts.playersAtEnd = #Players:GetPlayers()
+	if EXPECTED > 1 then
+		local all = Players:GetPlayers()
+		probe("players joined", #all >= EXPECTED, `{#all}/{EXPECTED} players in the server`)
+		local loaded, spawned, alive = 0, 0, 0
+		for _, other in all do
+			if other:GetAttribute("GK_DataLoaded") == true then
+				loaded += 1
+			end
+			local otherHumanoid = other.Character and other.Character:FindFirstChildOfClass("Humanoid")
+			if otherHumanoid then
+				spawned += 1
+				if otherHumanoid.Health > 0 then
+					alive += 1
+				end
+			end
+		end
+		probe("every player loaded", loaded == #all, `{loaded}/{#all} players have their data loaded`)
+		probe("every player spawned", spawned == #all, `{spawned}/{#all} characters, {alive} alive at the end`)
+		local seen = 0
+		for _, facts in report.clients do
+			if type(facts.playersSeen) == "number" and facts.playersSeen >= EXPECTED then
+				seen += 1
+			end
+		end
+		probe("clients see each other", seen >= math.min(#all, EXPECTED), `{seen} client(s) see all {EXPECTED} players`)
+	end
 	if kit and kit:GetAttribute("Wave") ~= nil then
 		report.facts.towerDefense = { wave = kit:GetAttribute("Wave"), baseHealth = kit:GetAttribute("BaseHealth"), enemiesAlive = kit:GetAttribute("EnemiesAlive") }
 	end

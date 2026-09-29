@@ -43,6 +43,7 @@ local config = Util.config("Enemies", {
 		GrowthPerWave = 2,
 		BreakSeconds = 10,
 		SurviveRewards = { Coins = 20 },
+		DayNight = false,
 	},
 })
 
@@ -437,6 +438,14 @@ else
 		return false
 	end
 
+	-- DayNight = true: day during breaks, night during waves (turn off Atmosphere.DayNightCycle).
+	local function setSky(clockTime: number)
+		if waves.DayNight then
+			local Lighting = game:GetService("Lighting")
+			game:GetService("TweenService"):Create(Lighting, TweenInfo.new(3), { ClockTime = clockTime }):Play()
+		end
+	end
+
 	task.spawn(function()
 		local wave = 0
 		while true do
@@ -445,12 +454,14 @@ else
 				task.wait(2)
 				continue
 			end
+			setSky(14)
 			for remaining = waves.BreakSeconds, 1, -1 do
 				kit:SetAttribute("Status", `Wave {wave + 1} incoming`)
 				kit:SetAttribute("Timer", remaining)
 				task.wait(1)
 			end
 			kit:SetAttribute("Timer", 0)
+			setSky(0)
 			wave += 1
 			kit:SetAttribute("Wave", wave)
 			local list = spawners()

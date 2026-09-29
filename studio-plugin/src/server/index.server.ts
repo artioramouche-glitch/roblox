@@ -7,6 +7,7 @@ import BreakpointHandlers from "../modules/handlers/BreakpointHandlers";
 import EditorHandlers from "../modules/handlers/EditorHandlers";
 import ReloadHandlers from "../modules/handlers/ReloadHandlers";
 import { cleanupLegacyEditBridges, ensureRuntimeBridgeInstalled } from "../modules/EvalBridges";
+import ActivityPanel from "../modules/ActivityPanel";
 
 // Attach the per-peer LogService listener before anything else, so boot-time prints from
 // the place's own scripts are captured rather than missed. Idempotent.
@@ -34,6 +35,12 @@ function peerRole(): "edit" | "server" | "client" {
 
 const toolbar = plugin.CreateToolbar("__TOOLBAR_NAME__");
 const button = toolbar.CreateButton("__BUTTON_TITLE__", "__BUTTON_TOOLTIP__", "rbxassetid://__BUTTON_ICON_ID__");
+
+// The AI panel only makes sense where the AI edits the place: the edit DataModel.
+if (peerRole() === "edit") {
+	const [panelOk, panelError] = pcall(() => ActivityPanel.init(plugin, toolbar));
+	if (!panelOk) warn(`[robloxstudio-mcp] AI panel failed to start: ${panelError}`);
+}
 
 
 // Remembered across Studio restarts. Without this the plugin came up DISCONNECTED every

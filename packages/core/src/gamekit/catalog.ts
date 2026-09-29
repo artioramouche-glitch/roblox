@@ -87,7 +87,7 @@ export const SYSTEMS: SystemDef[] = [
       name: 'Hud',
       defaults: {
         ShowLeaderstats: true, ExtraStats: [], HiddenStats: [], ShowStatus: true,
-        Icons: { Coins: '💰', Cash: '💵', Gems: '💎', Wins: '🏆', Stage: '🚩', Kills: '⚔️', Level: '⭐', Power: '⚡', Rebirths: '🔁', Keys: '🔑', Wave: '🌊', Basket: '🧺' },
+        Icons: { Coins: '💰', Cash: '💵', Gems: '💎', Wins: '🏆', Stage: '🚩', Kills: '⚔️', Level: '⭐', Power: '⚡', Rebirths: '🔁', Keys: '🔑', Wave: '🌊', Basket: '🧺', XP: '✨', Fish: '🐟' },
       },
       docs: {
         ExtraStats: 'Stats not on the leaderboard to show anyway, e.g. { "Power" }.',
@@ -213,12 +213,12 @@ export const SYSTEMS: SystemDef[] = [
         },
         WalkAnimation: 'rbxassetid://507777826',
         MaxTotal: 30,
-        Waves: { Enabled: false, FirstWaveSize: 3, GrowthPerWave: 2, BreakSeconds: 10, SurviveRewards: { Coins: 20 } },
+        Waves: { Enabled: false, FirstWaveSize: 3, GrowthPerWave: 2, BreakSeconds: 10, SurviveRewards: { Coins: 20 }, DayNight: false },
       },
       docs: {
         Types: 'Enemy types by name. Spawners pick one with their "Enemy" attribute.',
         WalkAnimation: 'Walk animation id (Roblox default R15 walk).',
-        Waves: 'Enabled = true turns spawners into a wave survival game.',
+        Waves: 'Enabled = true turns spawners into a wave survival game. DayNight = true: day during breaks, night during waves.',
       },
     }],
     tags: { EnemySpawner: 'attributes Enemy, MaxAlive, RespawnSeconds' },
@@ -460,6 +460,215 @@ SYSTEMS.push(
     }],
     tags: { FarmPlot: 'soil part to plant on', SeedStand: 'attribute Crop: unlock/choose seeds', CropSell: 'market: sells the basket' },
     usage: 'build_world "farm" builds fields, seed stands and the market. The HUD shows "Basket" when Config.Hud ExtraStats includes it.',
+  },
+  {
+    id: 'inventory',
+    title: 'Inventory',
+    category: 'economy',
+    summary: 'Saved item counts (wood, fish, potions...) with a 🎒 window, selling (buttons or "ItemSell" parts) and a server API used by fishing, crafting and quests.',
+    files: ['systems/inventory/Inventory.luau', 'systems/inventory/InventoryServer.server.luau', 'systems/inventory/Inventory.client.luau'],
+    requires: ['core', 'hud'],
+    configs: [{
+      name: 'Inventory',
+      defaults: {
+        Items: { Wood: { Name: 'Wood', Icon: '🪵', SellPrice: 1 }, Stone: { Name: 'Stone', Icon: '🪨', SellPrice: 2 } },
+        MaxStack: 999, SellCurrency: 'Coins', ShowButton: true,
+      },
+      docs: {
+        Items: 'Item definitions: Id = { Name, Icon, SellPrice, Rarity, Description }. Other systems add their own (fish, crafted items).',
+        SellCurrency: 'Stat paid when selling.',
+      },
+    }],
+    tags: { ItemSell: 'market part: sells every item that has a SellPrice' },
+    usage: 'Server scripts: local Inventory = require(game.ServerScriptService.GameKit.Inventory); Inventory.give(player, "Wood", 3); Inventory.take(player, "Wood", 2); Inventory.count(player, "Wood"). Clients read player:GetAttribute("Inv_Wood").',
+  },
+  {
+    id: 'levels',
+    title: 'Levels & XP',
+    category: 'gameplay',
+    summary: 'XP and levels with a growing curve, an XP bar, level-up toast + sparkles and rewards. XP comes from any reward ({ XP = 25 }) or automatically from other stats.',
+    files: ['systems/levels/Levels.server.luau', 'systems/levels/Levels.client.luau'],
+    requires: ['core', 'hud'],
+    configs: [{
+      name: 'Levels',
+      defaults: { XPStat: 'XP', LevelStat: 'Level', BaseXP: 100, Growth: 1.25, MaxLevel: 100, XPFrom: { Coins: 0.2 }, LevelRewards: { Coins: 25 }, Effect: true },
+      docs: {
+        BaseXP: 'XP needed for level 2; each next level needs Growth times more.',
+        XPFrom: 'Automatic XP from other stats: { Coins = 0.2 } gives 1 XP per 5 coins earned. {} to turn off.',
+        LevelRewards: 'Given at each level-up, multiplied by the new level.',
+      },
+    }],
+    usage: 'Give XP with any reward table ({ XP = 50 }) or PlayerData.reward(player, "XP", 50). Gate content with the Level stat (e.g. code_recipe door requireStat "Level").',
+  },
+  {
+    id: 'quests',
+    title: 'Quests',
+    category: 'gameplay',
+    summary: 'Missions with rewards and a tracker panel: earn a stat, reach a value, own items, or touch a secret place. Chain mode guides new players step by step.',
+    files: ['systems/quests/Quests.server.luau', 'systems/quests/Quests.client.luau'],
+    requires: ['core', 'hud'],
+    configs: [{
+      name: 'Quests',
+      defaults: {
+        Mode: 'Chain',
+        List: [
+          { Id: 'FirstCoins', Title: 'Collect 25 coins', Type: 'Earn', Stat: 'Coins', Amount: 25, Rewards: { XP: 50 } },
+          { Id: 'MoreCoins', Title: 'Collect 200 coins', Type: 'Earn', Stat: 'Coins', Amount: 200, Rewards: { XP: 150, Coins: 50 } },
+        ],
+        ShowTracker: true,
+      },
+      docs: {
+        Mode: '"Chain" = one quest at a time in order, "All" = all at once.',
+        List: 'Each quest: Id, Title, Type (Earn | Reach | Have | Touch), Stat or Item, Amount, Rewards. Touch quests: tag a part "QuestTarget" with attribute Quest = Id.',
+      },
+    }],
+    tags: { QuestTarget: 'attribute Quest = quest Id (Touch quests)' },
+    usage: 'Write quests that teach the game in order (Chain): first action, first purchase, first zone... Rewards can include XP (levels system).',
+  },
+  {
+    id: 'pets',
+    title: 'Eggs & pets',
+    category: 'economy',
+    summary: 'Hatch eggs for random pets (chances, rarities), equip the best ones to multiply rewards, pets follow you, 🐾 window, hatch animation. Saved.',
+    files: ['systems/pets/Pets.server.luau', 'systems/pets/Pets.client.luau'],
+    requires: ['core', 'hud'],
+    configs: [{
+      name: 'Pets',
+      defaults: {
+        Stat: 'Coins', MaxEquipped: 3, MaxOwned: 60,
+        Eggs: {
+          Basic: {
+            Price: 100, Currency: 'Coins', Color: '#F5F5F5',
+            Pets: [
+              { Id: 'Dog', Name: 'Dog', Chance: 55, Multiplier: 1.2, Rarity: 'Common', Color: '#C8A165' },
+              { Id: 'Cat', Name: 'Cat', Chance: 35, Multiplier: 1.5, Rarity: 'Rare', Color: '#F5A623' },
+              { Id: 'Dragon', Name: 'Dragon', Chance: 10, Multiplier: 3, Rarity: 'Legendary', Color: '#E53935' },
+            ],
+          },
+        },
+        RarityColors: { Common: '#B0BEC5', Rare: '#42A5F5', Epic: '#AB47BC', Legendary: '#FFCA28' },
+      },
+      docs: {
+        Stat: 'Stat multiplied by equipped pets (a pet can override it with its own Stat).',
+        Eggs: 'Egg name = { Price, Currency, Color, Pets = { { Id, Name, Chance, Multiplier, Rarity, Color } } }. Chances are relative weights.',
+      },
+    }],
+    tags: { EggStand: 'attribute Egg = an egg name from Config.Pets.Eggs' },
+    usage: 'build_world piece "egg_stand" {egg: "Basic"}. Put better eggs in later zones with higher prices.',
+  },
+  {
+    id: 'racing',
+    title: 'Racing',
+    category: 'gameplay',
+    summary: 'Race rounds on a track: grid, 3-2-1-GO, laps through checkpoints in order, positions, best lap saved, place rewards. Arcade karts (keyboard, gamepad, mobile) or running races.',
+    files: ['systems/racing/Racing.server.luau', 'systems/racing/Racing.client.luau'],
+    requires: ['core', 'hud'],
+    configs: [{
+      name: 'Racing',
+      defaults: {
+        Laps: 3, MinPlayers: 1, IntermissionSeconds: 15, TimeLimit: 240,
+        UseKarts: true, KartSpeed: 70, KartTurnSpeed: 2.4, KartColor: '#E53935',
+        PlaceRewards: [{ Wins: 1, Coins: 100 }, { Coins: 60 }, { Coins: 40 }],
+        FinishRewards: { Coins: 15 },
+      },
+      docs: {
+        UseKarts: 'true = everyone drives a kart (VehicleSeat: WASD, thumbstick). false = running race.',
+        PlaceRewards: 'Rewards for 1st, 2nd, 3rd... finishers (list order).',
+        FinishRewards: 'Given to everyone who finishes.',
+        TimeLimit: 'Seconds before the race ends for those still racing.',
+      },
+    }],
+    tags: {
+      RaceCheckpoint: 'attribute Order (1, 2, 3...): pass them in order each lap',
+      RaceFinish: 'start/finish line (a lap counts after all checkpoints)',
+      RaceGrid: 'attribute Order: starting slots (the part faces the race direction)',
+    },
+    usage: 'build_world race_track {length, radius, width, grid} makes a complete oval. Player attributes RaceLap, RacePosition, BestLap for UIs.',
+  },
+  {
+    id: 'fishing',
+    title: 'Fishing',
+    category: 'gameplay',
+    summary: 'Cast at fishing spots, wait for the bite, press REEL in time. Fish by zone with rarities go to the inventory to sell. Rod level (shop upgrade) bites faster, finds rarer fish and unlocks zones.',
+    files: ['systems/fishing/Fishing.server.luau', 'systems/fishing/Fishing.client.luau'],
+    requires: ['core', 'hud', 'inventory'],
+    configs: [{
+      name: 'Fishing',
+      defaults: {
+        Zones: {
+          Pond: {
+            MinRod: 0,
+            Fish: [
+              { Id: 'Minnow', Name: 'Minnow', Icon: '🐟', Chance: 60, SellPrice: 3, Rarity: 'Common' },
+              { Id: 'Salmon', Name: 'Salmon', Icon: '🐠', Chance: 30, SellPrice: 12, Rarity: 'Rare' },
+              { Id: 'GoldenKoi', Name: 'Golden Koi', Icon: '✨', Chance: 10, SellPrice: 60, Rarity: 'Legendary' },
+            ],
+          },
+          Ocean: {
+            MinRod: 2,
+            Fish: [
+              { Id: 'Pufferfish', Name: 'Pufferfish', Icon: '🐡', Chance: 50, SellPrice: 15, Rarity: 'Common' },
+              { Id: 'Tuna', Name: 'Tuna', Icon: '🐟', Chance: 38, SellPrice: 30, Rarity: 'Rare' },
+              { Id: 'Shark', Name: 'Shark', Icon: '🦈', Chance: 12, SellPrice: 150, Rarity: 'Epic' },
+            ],
+          },
+        },
+        RodStat: 'RodLevel', BiteSeconds: [2, 6], ReelWindow: 1.6, FasterPerRod: 0.15, LuckPerRod: 0.1,
+        CatchStat: 'Fish', CatchRewards: { XP: 5 },
+      },
+      docs: {
+        Zones: 'Zone name = { MinRod, Fish = { { Id, Name, Icon, Chance, SellPrice, Rarity } } }. FishingSpot parts pick a zone with their Zone attribute.',
+        RodStat: 'Rod level stat. Sell rods with a Shop item { Kind = "Upgrade", Stat = "RodLevel", Value = 1 }.',
+        BiteSeconds: '{ min, max } seconds before a bite (divided by 1 + FasterPerRod x rod level).',
+        ReelWindow: 'Seconds to press REEL after the bite.',
+        LuckPerRod: 'Non-common fish weight bonus per rod level (0.1 = +10%).',
+      },
+    }],
+    tags: { FishingSpot: 'attribute Zone = a zone of Config.Fishing.Zones (the bobber lands on this part)' },
+    usage: 'build_world fishing_lake makes a pond + ocean with docks. Quests: { Type = "Earn", Stat = "Fish", Amount = 10 } or { Type = "Have", Item = "Salmon" }.',
+  },
+  {
+    id: 'crafting',
+    title: 'Gathering & crafting (survival)',
+    category: 'gameplay',
+    summary: 'Gather wood, stone and berries from resource nodes, craft items, tools (weapons, better axes), builds (campfire heals, walls, spikes vs enemies) and bandages in a 🔨 window. Optional hunger.',
+    files: ['systems/crafting/Crafting.server.luau', 'systems/crafting/Crafting.client.luau'],
+    requires: ['core', 'hud', 'inventory'],
+    configs: [{
+      name: 'Crafting',
+      defaults: {
+        Items: { Berry: { Name: 'Berry', Icon: '🫐', SellPrice: 1 }, Planks: { Name: 'Planks', Icon: '🟫', SellPrice: 3 } },
+        Nodes: {
+          Tree: { Item: 'Wood', Amount: 2, Hits: 3, Respawn: 20, Action: 'Chop' },
+          Rock: { Item: 'Stone', Amount: 2, Hits: 4, Respawn: 25, Action: 'Mine' },
+          Bush: { Item: 'Berry', Amount: 3, Hits: 1, Respawn: 15, Action: 'Pick' },
+        },
+        Recipes: [
+          { Id: 'Planks', Needs: { Wood: 2 }, Gives: 3 },
+          { Id: 'StoneAxe', Name: 'Stone Axe', Icon: '🪓', Kind: 'Tool', Needs: { Wood: 3, Stone: 2 }, Damage: 20, Gather: 2 },
+          { Id: 'StoneSword', Name: 'Stone Sword', Icon: '🗡', Kind: 'Tool', Needs: { Planks: 2, Stone: 4 }, Damage: 35, Gather: 1 },
+          { Id: 'Campfire', Name: 'Campfire', Icon: '🔥', Kind: 'Build', Needs: { Wood: 5, Stone: 3 } },
+          { Id: 'Wall', Name: 'Wooden Wall', Icon: '🧱', Kind: 'Build', Needs: { Planks: 4 } },
+          { Id: 'Spikes', Name: 'Spikes', Icon: '📌', Kind: 'Build', Needs: { Planks: 2, Stone: 2 } },
+          { Id: 'Bandage', Name: 'Bandage', Icon: '🩹', Kind: 'Heal', Needs: { Berry: 4 }, Heal: 40 },
+        ],
+        RequireTable: false, MaxBuilds: 25, CraftRewards: { XP: 5 },
+        Hunger: { Enabled: false, Max: 100, DrainPerMinute: 6, StarveDamage: 4, Food: { Berry: 12 } },
+      },
+      docs: {
+        Items: 'Extra inventory items (Id = { Name, Icon, SellPrice }). Wood and Stone come from Config.Inventory.',
+        Nodes: 'Resource types: Item given, Amount, Hits needed (tools with a Gather attribute hit harder), Respawn seconds, Action (prompt text).',
+        Recipes: 'Kind: "Item" (default, Gives = amount), "Tool" (Damage, Gather: melee weapon/axe), "Build" (Campfire, Wall or Spikes placed in front of you), "Heal" (Heal = health).',
+        RequireTable: 'true = craft only near a "CraftingTable" part.',
+        Hunger: 'Enabled = true: hunger drains (DrainPerMinute), hurts at 0 (StarveDamage every 5 s); Food = { Item = food value } eaten from the 🔨 window.',
+      },
+    }],
+    tags: {
+      ResourceNode: 'part or model, attribute Node = a node type (Tree, Rock, Bush)',
+      CraftingTable: 'opens the crafting window (required when RequireTable)',
+      GKCampfire: 'model that heals players within 16 studs',
+    },
+    usage: 'build_world survival_camp makes a camp + forest of resources + enemy spawners. Combine with enemies (Waves.DayNight) and combat for co-op survival.',
   },
 );
 
