@@ -1,6 +1,6 @@
 # 📊 PROGRESS — SABL — MAJ 2026-10-02
 
-**Session cloud du 02/10 (sans Studio) :** configuration des lots B et C de l'étape 10, du lot A de l'étape 11 et des lots B et C de l'étape 12 écrite et testée hors de Studio (CLI Luau), dans la branche GitHub `sabl` (PR #2, #3, #5, #6) ; **à copier dans Studio** (dette 25). Étapes 11 et 12 ouvertes en parallèle (décisions 72 et 82).
+**Session cloud du 02/10 (sans Studio) :** configuration des lots B et C de l'étape 10, du lot A de l'étape 11 et de l'étape 12 (lots A à D) écrite et testée hors de Studio (CLI Luau), dans la branche GitHub `sabl` (PR #2, #3, #5, #6) ; **à copier dans Studio** (dette 25). Étapes 11 et 12 ouvertes en parallèle (décisions 72 et 82).
 
 **Étape courante :** 10 — Rétention, ouverte en parallèle (décision 55) : lots 0 et A livrés (sirène de l'alarme ; quêtes quotidiennes C5 côté serveur, écran Réglages, sons A7) ; prochain lot B (série de 7 jours, décision 58). L'étape 9 — Rebirth + upgrades a tous ses lots (A à F : tout A5 a son effet) ; reste son critère H2, prouvé par le rebirth réel. Le rebirth réel attend la poursuite à 2 joueurs, puis ta confirmation (Loi 11). L'étape 5 reste ouverte sur son seul lot E (poursuite réelle à 2 joueurs)
 **Étapes validées ✅ :** 0, 1, 2, 3, 4, 8 — la 5 attend la session à 2 joueurs, les 6 et 7 le regard sur les silhouettes
@@ -86,13 +86,14 @@
 | Monétisation (configuration) : `MonetizationConfig`, 6 passes, 3 produits (spins en 3 paquets), roulette, boosts ; identifiants à 0 jusqu'à H-4 | 11 | ⚠️ | `TestMonetizationConfig` **38 OK / 0 FAIL** hors Studio (CLI Luau, 02/10), 9 mutants détectés ; pas encore dans Studio |
 | Anti-triche (configuration) : `AntiCheatConfig`, escalade avertissement → exclusion 60 s → ban 24 h, contrôle de 50 studs par image | 12 | ⚠️ | `TestAntiCheatConfig` **22 OK / 0 FAIL** hors Studio (CLI Luau, 02/10), 3 mutants détectés ; pas encore dans Studio |
 | Classements du hub (configuration) : `LeaderboardConfig`, Revenus (`Stats.Earned`, score en logarithme) et Vols (`Stats.Steals`), 10 lignes, 60 s | 12 | ⚠️ | `TestLeaderboardConfig` **12 OK / 0 FAIL** hors Studio (CLI Luau, 02/10), 2 mutants détectés ; pas encore dans Studio |
+| Annonces et Musée (configuration) : `AnnouncementConfig`, Secret (bannière, 1 s de silence, sting, secousse) et vol réussi (bandeau), Musée des 6 derniers Secrets du serveur | 12 | ⚠️ | `TestAnnouncementConfig` **14 OK / 0 FAIL** hors Studio (CLI Luau, 02/10), 2 mutants détectés ; pas encore dans Studio |
 
 ### Arborescence réelle (Studio et dépôt, identiques à l'octet près — 83 scripts)
 
 ```
 ReplicatedStorage/Config      = CreatureConfig, DefaultProfile, EconomyConfig, EggConfig, MapConfig,
                                 ProgressionConfig, QuestConfig, RebirthConfig, RemoteConfig, StealConfig, UpgradeConfig
-                                (+ sur `sabl` seulement, le 02/10 : AntiCheatConfig, EventConfig, LeaderboardConfig,
+                                (+ sur `sabl` seulement, le 02/10 : AnnouncementConfig, AntiCheatConfig, EventConfig, LeaderboardConfig,
                                 MonetizationConfig ; QuestConfig modifié)
 ReplicatedStorage/Shared      = CombatUtil, EconomyUtil, ErrorMessages, NumberFormatter, TableUtil, WeightedRandom
                                 (+ sur `sabl` seulement, le 02/10 : LuckUtil)
@@ -224,6 +225,9 @@ Workspace/Map_Monde1/Decor    = Hub, Ruelles (Ruelle1..12), EggShop, BossArena, 
 | 85 | **Q3 (étape 12)** — Classements du hub : Revenus = `Stats.Earned`, Vols = `Stats.Steals` ; 10 lignes ; écrits et relus toutes les 60 s | 12 | Totaux qui ne font que monter, intacts après un rebirth | ✅ Producer (option A, 02/10) |
 | 86 | Score des Revenus encodé en logarithme (`ln(valeur + 1) × 10^13`, entier sous 2^53) pour le classement trié de Roblox, qui n'accepte que des entiers sur 64 bits ; ordre conservé, décodé à 10^-12 près | 12 | `Stats.Earned` dépasse 10^19 dans les mondes 3 et 4 | ⏳ déclaré |
 | 87 | « 2 exclusions en 24 h → ban » se lit : la 2e exclusion méritée dans les 24 h devient un ban de 24 h | 12 | G3 ne précise pas | ⏳ déclaré |
+| 88 | **Q4 (étape 12)** — Annonces à tout le serveur : Secret obtenu (grande bannière, 1 s de silence, sting, secousse, A7) et vol réussi (bandeau simple « X a volé Y à Z ») ; rien pour les Brainrot God | 12 | Le doc ne cite que les Secrets et les vols | ✅ Producer (option A, 02/10) |
+| 89 | **Q5 (étape 12)** — Musée des Secrets : les 6 derniers Secrets obtenus sur ce serveur depuis son ouverture, avec le nom du joueur, le plus récent en premier ; vide au démarrage | 12 | Lecture littérale de D1.3 Z5 ; un passage à tous les serveurs ne toucherait que le service | ✅ Producer (option A, 02/10) |
+| 90 | Textes des annonces en français : « 🌟 {player} a obtenu un SECRET : {creature} ! » et « {thief} a volé {creature} à {victim} ! » ; les pseudos sont insérés tels quels | 12 | Cosmétique (Loi 9) | ⏳ déclaré |
 
 ---
 
@@ -301,6 +305,7 @@ Workspace/Map_Monde1/Decor    = Hub, Ruelles (Ruelle1..12), EggShop, BossArena, 
 | 68 | C6 | Rare du Starter Pack tiré dans le monde 1 | Décision 79 |
 | 69 | G1 | + `Config/AntiCheatConfig` et `Config/LeaderboardConfig` (02/10) | Loi 4 : les seuils de G3 et des classements ne peuvent être en dur |
 | 70 | G3 / D1.3 Z1 | Lecture de « 2 exclusions en 24 h » et score des Revenus en logarithme | Décisions 87 et 86 |
+| 71 | G1 / A7 | + `Config/AnnouncementConfig` (02/10) ; textes des annonces choisis | Décision 90 |
 
 ---
 
@@ -334,7 +339,7 @@ Workspace/Map_Monde1/Decor    = Hub, Ruelles (Ruelle1..12), EggShop, BossArena, 
 | 22 | ~~Les rebirths factices de `TestRebirthService` et `TestTrainingRing` journalisaient `[REBIRTH] user=…` sous l'identifiant du testeur~~ — résolu à l'étape 10, lot 0 : option `Log` de `RebirthService`, captée par `TestRebirthService`, coupée dans `TestTrainingRing` | 9 | résolu le 24/09 |
 | 23 | Quête « Utiliser 5 capacités PvP » : son compteur `Stats.AbilitiesUsed` n'est pas dans le profil G2 ; il naîtra avec les capacités, et la quête n'est pas tirée d'ici là | 10 | mineur (à l'étape 13) |
 | 24 | La fanfare de fusion n'a pas encore été entendue sur une vraie fusion : elle consommerait 3 brainrots identiques du profil de test | 10 | mineur (test réel sur ton accord) |
-| 25 | **Studio en retard sur `sabl`** : copier dans Studio `QuestConfig` (5 370 o), `EventConfig` (6 623 o), `LuckUtil` (2 544 o), `MonetizationConfig` (6 697 o), `AntiCheatConfig` (3 770 o), `LeaderboardConfig` (2 521 o) et les tests `TestQuestConfig` (5 541 o), `TestEventConfig` (10 487 o), `TestMonetizationConfig` (9 494 o), `TestAntiCheatConfig` (4 783 o), `TestLeaderboardConfig` (3 350 o) — tailles sans `\r` —, puis les lancer dans Studio | 10, 11 | **majeur** (avant toute suite en local) |
+| 25 | **Studio en retard sur `sabl`** : copier dans Studio `QuestConfig` (5 370 o), `EventConfig` (6 623 o), `LuckUtil` (2 544 o), `MonetizationConfig` (6 697 o), `AntiCheatConfig` (3 770 o), `LeaderboardConfig` (2 521 o), `AnnouncementConfig` (3 093 o) et les tests `TestQuestConfig` (5 541 o), `TestEventConfig` (10 487 o), `TestMonetizationConfig` (9 494 o), `TestAntiCheatConfig` (4 783 o), `TestLeaderboardConfig` (3 350 o), `TestAnnouncementConfig` (3 496 o) — tailles sans `\r` —, puis les lancer dans Studio | 10, 11 | **majeur** (avant toute suite en local) |
 | 26 | Deux dépôts : le dossier local (GitLab) et la branche GitHub `sabl` ; les scripts serveur et client (`ServerScriptService`, `StarterPlayer`) ne sont que dans le local | — | majeur (à synchroniser) |
 | 27 | Le harnais CLI Luau des tests de configuration n'est pas versionné (il vivait dans le dossier temporaire de la session cloud) | — | mineur |
 | 28 | Partie serveur restante : lot B (`Quests.Spins` v4, versement dans `QuestService`, remote de réclamation), lot C (`EventService`, Boss, ciel étoilé, `LuckUtil` dans `EggService` **et** la boutique, revenus ×2 dans `IncomeService`), lot D (écran des quêtes) ; étape 11 lots C-D (`MonetizationService`, roulette, 6e rangée de piédestaux, achats de test) ; étape 12 (`AnnouncementService`, `LeaderboardService` et ses 2 panneaux, `AntiCheatService` avec `BanAsync`, Musée des Secrets) | 10, 11, 12 | majeur |
@@ -396,6 +401,6 @@ Aucune. Q1 à Q3 de l'étape 10 sont tranchées le 24/09 (options A, décisions 
 
 ## ➡️ Prochaine action
 
-**02/10 :** en session locale, copier dans Studio les fichiers du 02/10 (dette 25), vérifier leurs tailles et lancer leurs tests (11 fichiers depuis l'étape 12) ; puis la partie serveur des lots B et C de l'étape 10 (dette 28).
+**02/10 :** en session locale, copier dans Studio les fichiers du 02/10 (dette 25), vérifier leurs tailles et lancer leurs tests (13 fichiers) ; puis la partie serveur des lots B et C de l'étape 10 (dette 28).
 
 Étape 10 ouverte en parallèle (décision 55) : lots 0 et A livrés (sirène ; quêtes quotidiennes côté serveur, écran Réglages, sons A7) ; prochain lot B (série de 7 jours, décision 58), puis C (événements et chance, décision 59) et D (écran des quêtes, annonces). Étape 9, lots A à F livrés : les upgrades de base s'achètent, le rebirth fonctionne (R1 à 1M, ×2 vérifié au calcul, Réserve d'or sans perte, monde 2 à R3, persistance relue), l'anneau renforce les brainrots posés, l'écran ♻️ montre gains et pertes avant confirmation, le coffre-fort verse le revenu d'absence et prévient quand il est plein, la tourelle tire et suit sa cible, la colle ralentit le voleur, l'alarme prévient tout le serveur. Tous les lots de l'étape sont faits ; reste son critère H2 (« Rebirth 1 → ×2 vérifié »), à prouver par le rebirth réel : le rebirth réel vient après la poursuite à 2 joueurs, sur « GO REBIRTH ». Restent dus la sauvegarde du `.rbxl`, la session à 2 joueurs (étape 5) et le regard sur les 8 silhouettes larges (étape 7).
