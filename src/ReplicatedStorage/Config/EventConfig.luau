@@ -5,16 +5,20 @@
      Doc     : GAME_MASTER_V2 C4, C3 (+10 % chance), D1.3 Z3 et D1.6 (Boss Arena) ; PROMPT_EXECUTION_SABL_V4
                §31.10 lot C ; décision 59 ; Q1-Q3 du lot C (02/10, options A) ; Q4-Q6 du Boss (02/10 : A, B, A)
      Étape   : 10, lot C (configuration seule)
-     Dépend  : aucun
+     Dépend  : Shared/SlotRandom (minute de la pluie, sortie de ce module à l'étape 16)
      Exposé  : configuration immuable ; Frenzy, Boss, Confetti, Weekend, LuckCap ;
                FrenzyAt(now), BossAt(now), ConfettiAt(now), WeekendAt(now) → actif ?, début, fin (l'occurrence en
                cours, sinon la prochaine) ; LuckMultiplier(now, rebirthBonus) ; InBossArena(dx, dz) ; BossTop(scores)
      Limite  : module absent de G1, comme EconomyConfig ; écart déclaré. Toutes les horloges sont en UTC (Q1) : le
                calendrier est le même sur tous les serveurs. La minute de chaque pluie est tirée d'un brassage du
-               numéro de sa tranche : fixe pour la tranche, sur tous les serveurs et après un redémarrage.
+               numéro de sa tranche (Shared/SlotRandom) : fixe pour la tranche, sur tous les serveurs et après un
+               redémarrage.
                Boss : la position du joueur et le centre de l'arène sont lus par le serveur (Loi 2) ; ce module ne
                dit que le rayon et la règle. Double Colisée (C4) viendra avec l'arène PvP (étape 13).
 ]]
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local SlotRandom = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("SlotRandom"))
+
 local EventConfig = {}
 
 local DAY = 86400
@@ -54,33 +58,10 @@ function EventConfig.WeekendAt(now: number): (boolean, number, number)
     return periodic(now, weekend.Period, weekend.Duration, weekend.Phase)
 end
 
--- (a × b) mod 2^32 sans dépasser les 53 bits exacts d'un nombre Luau.
-local function mul32(a: number, b: number): number
-    return (a % 65536 * b + (a // 65536 * b) % 65536 * 65536) % 4294967296
-end
-
--- Brassage fmix32 de MurmurHash3 : deux tranches voisines donnent des minutes sans rapport.
-local function mix32(h: number): number
-    h = bit32.bxor(h, bit32.rshift(h, 16))
-    h = mul32(h, 0x85EBCA6B)
-    h = bit32.bxor(h, bit32.rshift(h, 13))
-    h = mul32(h, 0xC2B2AE35)
-    return bit32.bxor(h, bit32.rshift(h, 16))
-end
-
--- Début de la pluie de la tranche `slot` : une minute entre le début de la tranche et 10 min avant sa fin.
-local function confettiStart(slot: number): number
-    local confetti = EventConfig.Confetti
-    local minutes = (confetti.Window - confetti.Duration) // 60 + 1
-    return slot * confetti.Window + mix32(slot % 4294967296) % minutes * 60
-end
-
+-- Q2 : une pluie par tranche de 4 h, à une minute tirée par Shared/SlotRandom (fixe pour la tranche).
 function EventConfig.ConfettiAt(now: number): (boolean, number, number)
     local confetti = EventConfig.Confetti
-    local slot = math.floor(now / confetti.Window)
-    local start = confettiStart(slot)
-    if now >= start + confetti.Duration then start = confettiStart(slot + 1) end
-    return now >= start, start, start + confetti.Duration
+    return SlotRandom.Window(now, confetti.Window, confetti.Duration)
 end
 
 -- Q5 : un joueur compte pour le Boss si son écart horizontal (dx, dz) au centre de l'arène est dans le rayon.
