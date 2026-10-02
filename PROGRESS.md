@@ -306,6 +306,7 @@ Workspace/Map_Monde1/Decor    = Hub, Ruelles (Ruelle1..12), EggShop, BossArena, 
 | 69 | G1 | + `Config/AntiCheatConfig` et `Config/LeaderboardConfig` (02/10) | Loi 4 : les seuils de G3 et des classements ne peuvent être en dur |
 | 70 | G3 / D1.3 Z1 | Lecture de « 2 exclusions en 24 h » et score des Revenus en logarithme | Décisions 87 et 86 |
 | 71 | G1 / A7 | + `Config/AnnouncementConfig` (02/10) ; textes des annonces choisis | Décision 90 |
+| 72 | G1 | + dossier `tools/` à la racine du dépôt (`run_config_tests.py`) : outillage hors Roblox, jamais copié dans Studio | Dette 27 |
 
 ---
 
@@ -341,7 +342,7 @@ Workspace/Map_Monde1/Decor    = Hub, Ruelles (Ruelle1..12), EggShop, BossArena, 
 | 24 | La fanfare de fusion n'a pas encore été entendue sur une vraie fusion : elle consommerait 3 brainrots identiques du profil de test | 10 | mineur (test réel sur ton accord) |
 | 25 | **Studio en retard sur `sabl`** : copier dans Studio `QuestConfig` (5 370 o), `EventConfig` (6 623 o), `LuckUtil` (2 544 o), `MonetizationConfig` (6 697 o), `AntiCheatConfig` (3 770 o), `LeaderboardConfig` (2 521 o), `AnnouncementConfig` (3 093 o) et les tests `TestQuestConfig` (5 541 o), `TestEventConfig` (10 487 o), `TestMonetizationConfig` (9 494 o), `TestAntiCheatConfig` (4 783 o), `TestLeaderboardConfig` (3 350 o), `TestAnnouncementConfig` (3 496 o) — tailles sans `\r` —, puis les lancer dans Studio | 10, 11 | **majeur** (avant toute suite en local) |
 | 26 | Deux dépôts : le dossier local (GitLab) et la branche GitHub `sabl` ; les scripts serveur et client (`ServerScriptService`, `StarterPlayer`) ne sont que dans le local | — | majeur (à synchroniser) |
-| 27 | Le harnais CLI Luau des tests de configuration n'est pas versionné (il vivait dans le dossier temporaire de la session cloud) | — | mineur |
+| 27 | ~~Le harnais CLI Luau des tests de configuration n'est pas versionné~~ — résolu : `tools/run_config_tests.py` rejoue les 7 tests de configuration hors de Studio en une commande (CLI Luau via `LUAU_BIN` ou le PATH ; code de sortie 1 au moindre FAIL) | — | résolu le 02/10 |
 | 28 | Partie serveur restante : lot B (`Quests.Spins` v4, versement dans `QuestService`, remote de réclamation), lot C (`EventService`, Boss, ciel étoilé, `LuckUtil` dans `EggService` **et** la boutique, revenus ×2 dans `IncomeService`), lot D (écran des quêtes) ; étape 11 lots C-D (`MonetizationService`, roulette, 6e rangée de piédestaux, achats de test) ; étape 12 (`AnnouncementService`, `LeaderboardService` et ses 2 panneaux, `AntiCheatService` avec `BanAsync`, Musée des Secrets) | 10, 11, 12 | majeur |
 
 ---
