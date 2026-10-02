@@ -148,6 +148,29 @@ check("Palier le plus rare des 8 œufs", rarestOk)
 check("8 œufs × 5 multiplicateurs : somme 100, plus rare ≤ 50 %", sums)
 check("8 œufs × 5 multiplicateurs : rapports entre autres paliers conservés", prorata)
 
+-- Boss : Q4 (egg_mythic), Q5 (Boss Arena r = 25 de D1.6, 1 clic = 1 dégât), Q6 (pas de PV).
+check("Boss : 1 dégât par clic, egg_mythic, rayon 25", Ev.Boss.DamagePerClick == 1
+    and Ev.Boss.RewardEgg == "egg_mythic" and Ev.Boss.ArenaRadius == 25 and Ev.Boss.HP == nil)
+check("Boss : egg_mythic existe dans EggConfig", E:Get(Ev.Boss.RewardEgg) ~= nil)
+check("Arène : centre, bord à 25, diagonale 24,9 dedans",
+    Ev.InBossArena(0, 0) and Ev.InBossArena(25, 0) and Ev.InBossArena(0, -25) and Ev.InBossArena(17.6, 17.6))
+check("Arène : 25,01 dehors, diagonale 25,5 dehors, NaN dehors",
+    not Ev.InBossArena(25.01, 0) and not Ev.InBossArena(18, 18) and not Ev.InBossArena(0 / 0, 0))
+local function top(scores)
+    local best = Ev.BossTop(scores)
+    return best and best.UserId
+end
+check("Top 1 : le plus de dégâts", top({{UserId = 1, Damage = 120, ReachedAt = 50},
+    {UserId = 2, Damage = 300, ReachedAt = 290}, {UserId = 3, Damage = 299, ReachedAt = 10}}) == 2)
+check("Top 1 : égalité → le premier à son total", top({{UserId = 7, Damage = 300, ReachedAt = 250},
+    {UserId = 8, Damage = 300, ReachedAt = 240}}) == 8)
+check("Top 1 : égalité parfaite → plus petit UserId", top({{UserId = 9, Damage = 300, ReachedAt = 240},
+    {UserId = 4, Damage = 300, ReachedAt = 240}}) == 4)
+check("Top 1 : personne n'a frappé → nil", top({}) == nil and top({{UserId = 1, Damage = 0, ReachedAt = 1}}) == nil)
+check("Top 1 : entrées mal formées ignorées", top({{UserId = 1, Damage = 0 / 0, ReachedAt = 1},
+    {UserId = 2, Damage = math.huge, ReachedAt = 1}, {UserId = "3", Damage = 999, ReachedAt = 1},
+    {UserId = 5, Damage = 10, ReachedAt = 2}}) == 5)
+
 local summary = ("[EVENT CONFIG TEST] %d OK / %d FAIL"):format(T.pass, T.fail)
 table.insert(T.lines, summary)
 local output = table.concat(T.lines, "\n")
