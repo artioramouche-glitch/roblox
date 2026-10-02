@@ -1,6 +1,6 @@
 # 📊 PROGRESS — SABL — MAJ 2026-10-02
 
-**Session cloud du 02/10 (sans Studio) :** configuration des lots B et C de l'étape 10, du lot A de l'étape 11 de l'étape 12 (lots A à D) et du lot A de l'étape 13 écrite et testée hors de Studio (CLI Luau), dans la branche GitHub `sabl` (PR #2, #3, #5, #6) ; **à copier dans Studio** (dette 25). Étapes 11, 12 et 13 ouvertes en parallèle (décisions 72, 82 et 91 ; la 13 passe outre le point d'arrêt `SABL_12_pre_pvp`).
+**Session cloud du 02/10 (sans Studio) :** configuration des lots B et C de l'étape 10, du lot A de l'étape 11 de l'étape 12 (lots A à D) du lot A de l'étape 13 et de l'étape 14 écrite et testée hors de Studio (CLI Luau), dans la branche GitHub `sabl` (PR #2, #3, #5, #6) ; **à copier dans Studio** (dette 25). Étapes 11 à 14 ouvertes en parallèle pour leur configuration (décisions 72, 82, 91 et 92 ; les 13 et 14 passent outre le point d'arrêt `SABL_12_pre_pvp`).
 
 **Étape courante :** 10 — Rétention, ouverte en parallèle (décision 55) : lots 0 et A livrés (sirène de l'alarme ; quêtes quotidiennes C5 côté serveur, écran Réglages, sons A7) ; prochain lot B (série de 7 jours, décision 58). L'étape 9 — Rebirth + upgrades a tous ses lots (A à F : tout A5 a son effet) ; reste son critère H2, prouvé par le rebirth réel. Le rebirth réel attend la poursuite à 2 joueurs, puis ta confirmation (Loi 11). L'étape 5 reste ouverte sur son seul lot E (poursuite réelle à 2 joueurs)
 **Étapes validées ✅ :** 0, 1, 2, 3, 4, 8 — la 5 attend la session à 2 joueurs, les 6 et 7 le regard sur les silhouettes
@@ -88,16 +88,17 @@
 | Classements du hub (configuration) : `LeaderboardConfig`, Revenus (`Stats.Earned`, score en logarithme) et Vols (`Stats.Steals`), 10 lignes, 60 s | 12 | ⚠️ | `TestLeaderboardConfig` **12 OK / 0 FAIL** hors Studio (CLI Luau, 02/10), 2 mutants détectés ; pas encore dans Studio |
 | Annonces et Musée (configuration) : `AnnouncementConfig`, Secret (bannière, 1 s de silence, sting, secousse) et vol réussi (bandeau), Musée des 6 derniers Secrets du serveur | 12 | ⚠️ | `TestAnnouncementConfig` **14 OK / 0 FAIL** hors Studio (CLI Luau, 02/10), 2 mutants détectés ; pas encore dans Studio |
 | Combat PvP (configuration) : `CombatConfig` recopié de G5.3 à l'octet près (types, 54 capacités, ultimes, chiffres E3) | 13 | ⚠️ | `TestCombatConfig` **13 OK / 0 FAIL** hors Studio (CLI Luau, 02/10), contrôlé contre les 54 fiches B5/B6, 2 mutants détectés ; pas encore dans Studio |
+| Elo et compétition (configuration) : `Shared/EloUtil` recopié de G5.4 à l'octet près ; `ArenaConfig` (tokens C7/E2, rangs et saisons E7, boutique E8, Tournoi du Samedi E9, heure de Paris) | 14 | ⚠️ | `TestArenaConfig` **32 OK / 0 FAIL** hors Studio (CLI Luau, 02/10), instants de référence tirés du fuseau Europe/Paris de Python, 4 mutants détectés ; pas encore dans Studio |
 
 ### Arborescence réelle (Studio et dépôt, identiques à l'octet près — 83 scripts)
 
 ```
 ReplicatedStorage/Config      = CreatureConfig, DefaultProfile, EconomyConfig, EggConfig, MapConfig,
                                 ProgressionConfig, QuestConfig, RebirthConfig, RemoteConfig, StealConfig, UpgradeConfig
-                                (+ sur `sabl` seulement, le 02/10 : AnnouncementConfig, AntiCheatConfig, CombatConfig, EventConfig, LeaderboardConfig,
+                                (+ sur `sabl` seulement, le 02/10 : AnnouncementConfig, AntiCheatConfig, ArenaConfig, CombatConfig, EventConfig, LeaderboardConfig,
                                 MonetizationConfig ; QuestConfig modifié)
 ReplicatedStorage/Shared      = CombatUtil, EconomyUtil, ErrorMessages, NumberFormatter, TableUtil, WeightedRandom
-                                (+ sur `sabl` seulement, le 02/10 : LuckUtil)
+                                (+ sur `sabl` seulement, le 02/10 : EloUtil, LuckUtil)
 ReplicatedStorage/Remotes     = AttemptSteal, BuyEgg, BuybackCreature, BuyUpgrade, ClaimDropped, ClaimQuest, ClickGain,
                                 DoRebirth, HitThief, PlaceCreature, RequestFusion, SellCreature, SetSetting,
                                 SyncProfile, TeleportToBase, UnplaceCreature
@@ -230,6 +231,12 @@ Workspace/Map_Monde1/Decor    = Hub, Ruelles (Ruelle1..12), EggShop, BossArena, 
 | 89 | **Q5 (étape 12)** — Musée des Secrets : les 6 derniers Secrets obtenus sur ce serveur depuis son ouverture, avec le nom du joueur, le plus récent en premier ; vide au démarrage | 12 | Lecture littérale de D1.3 Z5 ; un passage à tous les serveurs ne toucherait que le service | ✅ Producer (option A, 02/10) |
 | 90 | Textes des annonces en français : « 🌟 {player} a obtenu un SECRET : {creature} ! » et « {thief} a volé {creature} à {victim} ! » ; les pseudos sont insérés tels quels | 12 | Cosmétique (Loi 9) | ⏳ déclaré |
 | 91 | L'étape 13 s'ouvre pour sa seule configuration (`CombatConfig`, G5.3) **en passant outre le point d'arrêt critique `SABL_12_pre_pvp`** (§12.3, H5.6), signalé deux fois ; `EloUtil` (G5.4) reste à l'étape 14 | 13 | Le Producer veut avancer dans le cloud ; la configuration du combat est un recopiage contractuel (Loi 6) | ✅ Producer (« GO 13 », 02/10) |
+| 92 | L'étape 14 s'ouvre pour sa seule configuration, elle aussi au-delà du point d'arrêt `SABL_12_pre_pvp` | 14 | Le Producer veut avancer dans le cloud | ✅ Producer (« GO 14 », 02/10) |
+| 93 | **Q1 (étape 14)** — `EloUtil` recopié de G5.4 sans retouche : le résultat d'un match est un nombre (1, 0 ou 0,5) ; le test Elo du §25.2, qui passe `true`/`false`, est faux et n'est pas suivi | 14 | G5.4 est le contrat (Loi 6) | ✅ Producer (option A, 02/10) |
+| 94 | **Q2 (étape 14)** — Œuf Colisée (500 tokens) = pool et odds d'`egg_golden` | 14 | Lecture la plus littérale | ✅ Producer (option A, 02/10) |
+| 95 | **Q3 (étape 14)** — Tournoi du Samedi à l'heure de Paris, été compris (inscription 17:30, bracket 17:45 → 18:30) ; la saison mensuelle suit aussi le calendrier de Paris | 14 | Jeu en français (décision 2) ; la saison suit le même calendrier (déclaré) | ✅ Producer (option A, 02/10) ; saison ⏳ déclaré |
+| 96 | Récompense de saison : seulement celle du meilleur rang atteint (Or 1, Platine 2, Diamant 3 `egg_mythic`, Master 1 God, top 1 skin + titre + statue) ; le « skin doré » du top 1 est le Skin Champion Doré de E8 | 14 | E7 ne dit pas si les récompenses se cumulent | ⏳ déclaré |
+| 97 | Boost de la boutique (+20 % pendant 30 min) : se multiplie avec le reste et un rachat prolonge sa durée, comme les boosts de la roulette (décisions 77-78) ; les 3 poses de victoire s'appellent « danse 1 » à « danse 3 » | 14 | E8 ne précise ni le cumul ni les noms (cosmétique) | ⏳ déclaré |
 
 ---
 
@@ -308,6 +315,8 @@ Workspace/Map_Monde1/Decor    = Hub, Ruelles (Ruelle1..12), EggShop, BossArena, 
 | 69 | G1 | + `Config/AntiCheatConfig` et `Config/LeaderboardConfig` (02/10) | Loi 4 : les seuils de G3 et des classements ne peuvent être en dur |
 | 70 | G3 / D1.3 Z1 | Lecture de « 2 exclusions en 24 h » et score des Revenus en logarithme | Décisions 87 et 86 |
 | 71 | G1 / A7 | + `Config/AnnouncementConfig` (02/10) ; textes des annonces choisis | Décision 90 |
+| 73 | G1 | + `Config/ArenaConfig` (02/10) | Loi 4 : les chiffres de C7, E2, E7, E8, E9 ne peuvent être en dur |
+| 74 | §25.2 | Le test Elo du prompt (appel avec `true`/`false`) n'est pas suivi : il contredit G5.4 | Décision 93 |
 | 72 | G1 | + dossier `tools/` à la racine du dépôt (`run_config_tests.py`) : outillage hors Roblox, jamais copié dans Studio | Dette 27 |
 
 ---
@@ -342,11 +351,12 @@ Workspace/Map_Monde1/Decor    = Hub, Ruelles (Ruelle1..12), EggShop, BossArena, 
 | 22 | ~~Les rebirths factices de `TestRebirthService` et `TestTrainingRing` journalisaient `[REBIRTH] user=…` sous l'identifiant du testeur~~ — résolu à l'étape 10, lot 0 : option `Log` de `RebirthService`, captée par `TestRebirthService`, coupée dans `TestTrainingRing` | 9 | résolu le 24/09 |
 | 23 | Quête « Utiliser 5 capacités PvP » : son compteur `Stats.AbilitiesUsed` n'est pas dans le profil G2 ; il naîtra avec les capacités, et la quête n'est pas tirée d'ici là | 10 | mineur (à l'étape 13) |
 | 24 | La fanfare de fusion n'a pas encore été entendue sur une vraie fusion : elle consommerait 3 brainrots identiques du profil de test | 10 | mineur (test réel sur ton accord) |
-| 25 | **Studio en retard sur `sabl`** : copier dans Studio `QuestConfig` (5 370 o), `EventConfig` (6 623 o), `LuckUtil` (2 544 o), `MonetizationConfig` (6 697 o), `AntiCheatConfig` (3 770 o), `LeaderboardConfig` (2 521 o), `AnnouncementConfig` (3 093 o), `CombatConfig` (5 259 o) et les tests `TestQuestConfig` (5 541 o), `TestEventConfig` (10 487 o), `TestMonetizationConfig` (9 494 o), `TestAntiCheatConfig` (4 783 o), `TestLeaderboardConfig` (3 350 o), `TestAnnouncementConfig` (3 496 o), `TestCombatConfig` (7 947 o) — tailles sans `\r` —, puis les lancer dans Studio | 10, 11 | **majeur** (avant toute suite en local) |
+| 25 | **Studio en retard sur `sabl`** : copier dans Studio `QuestConfig` (5 370 o), `EventConfig` (6 623 o), `LuckUtil` (2 544 o), `MonetizationConfig` (6 697 o), `AntiCheatConfig` (3 770 o), `LeaderboardConfig` (2 521 o), `AnnouncementConfig` (3 093 o), `CombatConfig` (5 259 o), `ArenaConfig` (8 492 o), `Shared/EloUtil` (811 o) et les tests `TestQuestConfig` (5 541 o), `TestEventConfig` (10 487 o), `TestMonetizationConfig` (9 494 o), `TestAntiCheatConfig` (4 783 o), `TestLeaderboardConfig` (3 350 o), `TestAnnouncementConfig` (3 496 o), `TestCombatConfig` (7 947 o), `TestArenaConfig` (8 320 o) — tailles sans `\r` —, puis les lancer dans Studio | 10, 11 | **majeur** (avant toute suite en local) |
 | 26 | Deux dépôts : le dossier local (GitLab) et la branche GitHub `sabl` ; les scripts serveur et client (`ServerScriptService`, `StarterPlayer`) ne sont que dans le local | — | majeur (à synchroniser) |
 | 27 | ~~Le harnais CLI Luau des tests de configuration n'est pas versionné~~ — résolu : `tools/run_config_tests.py` rejoue les 7 tests de configuration hors de Studio en une commande (CLI Luau via `LUAU_BIN` ou le PATH ; code de sortie 1 au moindre FAIL) | — | résolu le 02/10 |
 | 28 | Partie serveur restante : lot B (`Quests.Spins` v4, versement dans `QuestService`, remote de réclamation), lot C (`EventService`, Boss, ciel étoilé, `LuckUtil` dans `EggService` **et** la boutique, revenus ×2 dans `IncomeService`), lot D (écran des quêtes) ; étape 11 lots C-D (`MonetizationService`, roulette, 6e rangée de piédestaux, achats de test) ; étape 12 (`AnnouncementService`, `LeaderboardService` et ses 2 panneaux, `AntiCheatService` avec `BanAsync`, Musée des Secrets) | 10, 11, 12 | majeur |
 | 29 | B5 dit « les variantes surpuissantes ont un cooldown plus long », mais 17 capacités « + » des fiches B5/B6 et de G5.3 n'ont aucun cooldown en plus (dont `tralalero` ×4, `vaca`, `gorillo`, `la_grande`) ; G5.3 fait foi (Loi 6), rien n'est changé | 13 | à arbitrer à l'étape 17 (équilibrage) |
+| 30 | Bots de l'arène : E11.4 et I2 disent « un bot ne dépasse jamais 45 % de l'Elo du joueur », G5.5 dit « elo = joueur − 100 » (et E6 « −100 Elo » après 3 défaites) ; contradiction à faire trancher | 13 | **bloquant pour le lot D de l'étape 13** (`ArenaService`) |
 
 ---
 
@@ -405,6 +415,6 @@ Aucune. Q1 à Q3 de l'étape 10 sont tranchées le 24/09 (options A, décisions 
 
 ## ➡️ Prochaine action
 
-**02/10 :** en session locale, copier dans Studio les fichiers du 02/10 (dette 25), vérifier leurs tailles et lancer leurs tests (15 fichiers) ; puis la partie serveur des lots B et C de l'étape 10 (dette 28).
+**02/10 :** en session locale, copier dans Studio les fichiers du 02/10 (dette 25), vérifier leurs tailles et lancer leurs tests (18 fichiers) ; puis la partie serveur des lots B et C de l'étape 10 (dette 28).
 
 Étape 10 ouverte en parallèle (décision 55) : lots 0 et A livrés (sirène ; quêtes quotidiennes côté serveur, écran Réglages, sons A7) ; prochain lot B (série de 7 jours, décision 58), puis C (événements et chance, décision 59) et D (écran des quêtes, annonces). Étape 9, lots A à F livrés : les upgrades de base s'achètent, le rebirth fonctionne (R1 à 1M, ×2 vérifié au calcul, Réserve d'or sans perte, monde 2 à R3, persistance relue), l'anneau renforce les brainrots posés, l'écran ♻️ montre gains et pertes avant confirmation, le coffre-fort verse le revenu d'absence et prévient quand il est plein, la tourelle tire et suit sa cible, la colle ralentit le voleur, l'alarme prévient tout le serveur. Tous les lots de l'étape sont faits ; reste son critère H2 (« Rebirth 1 → ×2 vérifié »), à prouver par le rebirth réel : le rebirth réel vient après la poursuite à 2 joueurs, sur « GO REBIRTH ». Restent dus la sauvegarde du `.rbxl`, la session à 2 joueurs (étape 5) et le regard sur les 8 silhouettes larges (étape 7).
