@@ -1,15 +1,18 @@
 --!strict
 --[[ QuestConfig
-     Rôle    : les 8 quêtes quotidiennes de C5 (objectif, compteur du profil qui les fait avancer, récompense) et
-               leur rythme.
-     Doc     : GAME_MASTER_V2 C5, G1 (QuestConfig), G2 (Quests) ; PROMPT_EXECUTION_SABL_V4 §31.10 lot A ;
-               décision 57 (Q1, option A)
-     Étape   : 10, lot A
+     Rôle    : les 8 quêtes quotidiennes de C5 (objectif, compteur du profil qui les fait avancer, récompense),
+               leur rythme, et les récompenses de la série de 7 jours.
+     Doc     : GAME_MASTER_V2 C5, G1 (QuestConfig), G2 (Quests) ; PROMPT_EXECUTION_SABL_V4 §31.10 lots A et B ;
+               décisions 57 (Q1, option A) et 58 (Q2, option A)
+     Étape   : 10, lot A ; série de 7 jours au lot B (configuration seule)
      Dépend  : aucun
-     Exposé  : configuration immuable ; Quests, Get(id), PerDay, DaySeconds, ArenaOpen, DayIndex(now), NextReset(now)
+     Exposé  : configuration immuable ; Quests, Get(id), PerDay, DaySeconds, ArenaOpen, DayIndex(now), NextReset(now),
+               Streak, StreakReward(day)
      Limite  : les deux quêtes PvP sont prêtes mais ne sont pas tirées avant le Colisée (ArenaOpen, étape 13) ;
                « Voler » et « Défendre » ne vont qu'aux joueurs que A4 ne protège plus (niveau 5 et 1 h de jeu).
                Counter est le chemin du compteur du profil ; « Stats.AbilitiesUsed » naîtra à l'étape 13.
+               Série : la table ne dit que ce que verse chaque jour. La suite après J7 et l'espèce donnée à J6 et J7
+               restent à trancher avant le service ; le spin de J7 est gardé pour l'étape 11.
 ]]
 local QuestConfig = {}
 
@@ -33,11 +36,29 @@ QuestConfig.Quests = table.freeze({
     table.freeze({Id = "playtime", Label = "Passe 20 min en jeu", Counter = "Playtime", Target = 1200, Money = 100000}),
 })
 
+-- C5 « Streak quotidien 7 jours » et décision 58 : un clic par jour UTC valide le jour ; un jour manqué ramène à J1.
+-- Une seule récompense par jour : Money, Egg (un œuf de EggConfig offert) ou Rarity (une créature garantie de cette
+-- rareté) ; Spins : tours de roulette gardés pour l'étape 11.
+QuestConfig.Streak = table.freeze({
+    table.freeze({Money = 10000}), -- J1
+    table.freeze({Money = 25000}), -- J2
+    table.freeze({Money = 50000}), -- J3
+    table.freeze({Egg = "egg_street"}), -- J4
+    table.freeze({Egg = "egg_street"}), -- J5
+    table.freeze({Rarity = "Epic"}), -- J6
+    table.freeze({Rarity = "Rare", Spins = 1}), -- J7
+})
+
 local byId: {[string]: any} = {}
 for _, quest in ipairs(QuestConfig.Quests) do byId[quest.Id] = quest end
 
 function QuestConfig.Get(id: any): any
     return if type(id) == "string" then byId[id] else nil
+end
+
+-- Récompense du jour `day` de la série (1 à 7) ; nil pour tout autre numéro.
+function QuestConfig.StreakReward(day: any): any
+    return if type(day) == "number" then QuestConfig.Streak[day] else nil
 end
 
 -- Numéro du jour UTC d'un instant (secondes depuis 1970) ; deux instants du même jour ont le même numéro.
