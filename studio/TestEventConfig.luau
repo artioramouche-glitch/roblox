@@ -91,6 +91,15 @@ local mean = sum / #offsets
 check(("Confettis : minutes réparties (min %d, max %d, moyenne %.1f, attendu ≈ 115)"):format(low, high, mean),
     low < 15 and high > 215 and mean > 100 and mean < 130)
 check(("Confettis : %d tranches voisines à la même minute (hasard ≈ 13)"):format(repeats), repeats < 40)
+-- Minutes figées : calculées avec EventConfig d'avant la sortie de Shared/SlotRandom (étape 16), qui ne doit rien changer.
+local PINNED = {120, 1380, 7080, 8280, 5760, 5820}
+local pinned = true
+for i, offset in ipairs(PINNED) do
+    local slotStart = FRI + (i - 1) * 14400
+    local _, start = Ev.ConfettiAt(slotStart)
+    pinned = pinned and start - slotStart == offset
+end
+check("Confettis : minutes du vendredi 2 octobre 2026 inchangées (+2, +23, +118, +138, +96, +97 min)", pinned)
 local a1, s1 = Ev.ConfettiAt(FRI + 5000)
 local a2, s2 = Ev.ConfettiAt(FRI + 5000)
 check("Confettis : même réponse à chaque appel", a1 == a2 and s1 == s2)
