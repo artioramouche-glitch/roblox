@@ -1,9 +1,10 @@
 --!nonstrict
 --[[ TestMonetizationConfig
-     Rôle    : vérifier les 9 produits de C6 dans MonetizationConfig, leurs effets et les règles d'or C6 / E11.3.
-     Doc     : GAME_MASTER_V2 C6, E11.3, A5 ; PROMPT_EXECUTION_SABL_V4 §31.11 lot A ; Q1-Q3 de l'étape 11
+     Rôle    : vérifier les 9 produits de C6 dans MonetizationConfig, leurs effets, la roulette et les règles d'or
+               C6 / E11.3.
+     Doc     : GAME_MASTER_V2 C6, E11.3, A5, C4 ; PROMPT_EXECUTION_SABL_V4 §31.11 lot A, §24 ; Q1-Q6 de l'étape 11
      Étape   : 11, lot A
-     Dépend  : ReplicatedStorage.Config.MonetizationConfig, UpgradeConfig, CreatureConfig
+     Dépend  : ReplicatedStorage.Config.MonetizationConfig, UpgradeConfig, CreatureConfig, EventConfig
      Exposé  : exécution manuelle ; aucune écriture de données, aucun achat
      Limite  : ne prouve que la configuration. Les identifiants réels (handoff H-4) ne sont pas exigés : le test
                vérifie leur cohérence et indique combien restent à coller.
@@ -12,6 +13,7 @@ local config = assert(game:GetService("ReplicatedStorage"):FindFirstChild("Confi
 local M = require(assert(config:FindFirstChild("MonetizationConfig"), "MonetizationConfig absent"))
 local U = require(assert(config:FindFirstChild("UpgradeConfig"), "UpgradeConfig absent"))
 local C = require(assert(config:FindFirstChild("CreatureConfig"), "CreatureConfig absent"))
+local Ev = require(assert(config:FindFirstChild("EventConfig"), "EventConfig absent"))
 local T = {pass = 0, fail = 0, lines = {}}
 local function check(name, ok)
     if ok then T.pass += 1 else T.fail += 1 end
@@ -115,6 +117,50 @@ check("Un identifiant à 0, négatif ou d'un autre type ne donne aucun produit",
 check("Get : clé inconnue → nil", M.Get("Secret") == nil and M.Get(nil) == nil and M.Get(3) == nil)
 check("Configuration gelée", table.isfrozen(M.Gamepasses) and table.isfrozen(M.Products)
     and table.isfrozen(M.Get("VIP")))
+-- Roulette : Q4 (boosts et boucliers seulement), Q5 (durées additionnées), Q6 (multiplications).
+local wheel = {
+    {Key = "Income10", Boost = "Income", Seconds = 600, Weight = 35},
+    {Key = "Luck10", Boost = "Luck", Seconds = 600, Weight = 25},
+    {Key = "Shield", EmergencyShields = 1, Weight = 15},
+    {Key = "Income30", Boost = "Income", Seconds = 1800, Weight = 15},
+    {Key = "Luck30", Boost = "Luck", Seconds = 1800, Weight = 8},
+    {Key = "Income120", Boost = "Income", Seconds = 7200, Weight = 2},
+}
+local wheelExact = #M.Roulette == #wheel
+for index, wanted in ipairs(wheel) do
+    local slot = M.Roulette[index]
+    wheelExact = wheelExact and slot ~= nil
+    if slot then
+        for key, value in pairs(wanted) do wheelExact = wheelExact and slot[key] == value end
+        for key in pairs(slot) do wheelExact = wheelExact and wanted[key] ~= nil end
+    end
+end
+check("Roulette : 6 lots exacts (Q4)", wheelExact)
+local weightSum, onePrize, wheelSafe = 0, true, true
+for _, slot in ipairs(M.Roulette) do
+    weightSum += slot.Weight
+    local prizes = (slot.Boost ~= nil and 1 or 0) + (slot.EmergencyShields ~= nil and 1 or 0)
+    onePrize = onePrize and prizes == 1 and (slot.Boost == nil or (M.Boosts[slot.Boost] ~= nil and slot.Seconds > 0))
+    wheelSafe = wheelSafe and slot.Rarity == nil and slot.Egg == nil and slot.Money == nil
+    for _, key in ipairs(COMBAT) do wheelSafe = wheelSafe and slot[key] == nil end
+end
+check("Roulette : chances affichables, somme = 100 (§24)", weightSum == 100)
+check("Roulette : un seul lot par case, boost connu", onePrize)
+check("Roulette : ni Secret, ni créature, ni œuf, ni stat de combat (C6)", wheelSafe)
+check("Boosts : revenus ×2 et chance ×2", M.Boosts.Income.Mult == 2 and M.Boosts.Luck.Mult == 2)
+check("Q5 : boost neuf → maintenant + durée", M.ExtendBoost(nil, 1000, 600) == 1600
+    and M.ExtendBoost(0, 1000, 600) == 1600 and M.ExtendBoost("x", 1000, 600) == 1600)
+check("Q5 : boost expiré → repart de maintenant", M.ExtendBoost(900, 1000, 600) == 1600
+    and M.ExtendBoost(1000, 1000, 600) == 1600)
+check("Q5 : boost actif → les durées s'additionnent", M.ExtendBoost(1300, 1000, 1800) == 3100)
+check("BoostMultiplier : ×2 actif, ×1 à la fin pile, absent ou inconnu",
+    M.BoostMultiplier("Income", 1600, 1000) == 2 and M.BoostMultiplier("Luck", 1001, 1000) == 2
+    and M.BoostMultiplier("Income", 1000, 1000) == 1 and M.BoostMultiplier("Luck", nil, 1000) == 1
+    and M.BoostMultiplier("ATK", 9999, 1000) == 1 and M.BoostMultiplier(nil, 9999, 1000) == 1
+    and M.BoostMultiplier("Income", 0 / 0, 1000) == 1)
+check("Q5 : deux boosts de revenus restent ×2", M.BoostMultiplier("Income", M.ExtendBoost(1600, 1000, 600), 1000) == 2)
+check("Q6 : boost revenus × Confettis = ×4", M.BoostMultiplier("Income", 1600, 1000) * Ev.Confetti.IncomeMult == 4)
+
 table.insert(T.lines, ("[INFO] identifiants à coller (H-4) : %d sur 11"):format(missing))
 
 local summary = ("[MONETIZATION CONFIG TEST] %d OK / %d FAIL"):format(T.pass, T.fail)

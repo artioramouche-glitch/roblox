@@ -3,14 +3,16 @@
      Rôle    : les 9 produits de C6 (6 passes, 3 produits de développeur, les spins en 3 paquets), leurs prix, leurs
                effets et leurs identifiants Roblox.
      Doc     : GAME_MASTER_V2 C6, C7, E11.3, C3/A5 (coffre-fort) ; PROMPT_EXECUTION_SABL_V4 §31.11 lot A, §24 ;
-               Q1-Q3 de l'étape 11 (02/10 : B, A, A)
+               Q1-Q3 de l'étape 11 (02/10 : B, A, A) ; Q4-Q6, roulette (02/10 : A, A, A)
      Étape   : 11, lot A
      Dépend  : aucun
-     Exposé  : configuration immuable ; Gamepasses, Products, Get(key), GetByRobloxId(kind, id), IsConfigured()
+     Exposé  : configuration immuable ; Gamepasses, Products, Get(key), GetByRobloxId(kind, id), IsConfigured() ;
+               Boosts, Roulette, ExtendBoost(endsAt, now, seconds), BoostMultiplier(kind, endsAt, now)
      Limite  : Id = 0 tant que le Producer n'a pas créé le produit sur le site Roblox (handoff H-4, Loi 12) ; un
                identifiant à 0 ne correspond jamais à un achat. Price est le prix de C6 en Robux, pour l'affichage et
                H-4 : Roblox facture le prix réglé sur son site. Règles d'or C6 et E11.3 : aucun produit ne touche
-               aux stats de combat, aucun ne donne de Secret ; la roulette (contenu à trancher) non plus.
+               aux stats de combat, aucun ne donne de Secret ; la roulette ne donne que des boosts et des boucliers.
+               Le tirage de la roulette se fait côté serveur (WeightedRandom) ; les poids s'affichent tels quels (§24).
 ]]
 local MonetizationConfig = {}
 
@@ -46,6 +48,23 @@ MonetizationConfig.Products = table.freeze({
 
 MonetizationConfig.EmergencyShieldSeconds = 3 * 60 -- C6 : +3 min
 
+-- Boosts temporaires : actifs, ils valent Mult ; regagnés, ils durent plus longtemps, jamais plus fort (Q5).
+MonetizationConfig.Boosts = table.freeze({
+    Income = table.freeze({Mult = 2}), -- revenus ×2
+    Luck = table.freeze({Mult = 2}), -- chance ×2
+})
+
+-- Q4 (option A) : C6 « cosmétiques/boosts, JAMAIS de Secrets directs » ; boosts et boucliers seulement, les
+-- cosmétiques viendront avec la boutique du Colisée (étape 14). Weight en points de pourcentage, somme 100.
+MonetizationConfig.Roulette = table.freeze({
+    table.freeze({Key = "Income10", Boost = "Income", Seconds = 10 * 60, Weight = 35}),
+    table.freeze({Key = "Luck10", Boost = "Luck", Seconds = 10 * 60, Weight = 25}),
+    table.freeze({Key = "Shield", EmergencyShields = 1, Weight = 15}),
+    table.freeze({Key = "Income30", Boost = "Income", Seconds = 30 * 60, Weight = 15}),
+    table.freeze({Key = "Luck30", Boost = "Luck", Seconds = 30 * 60, Weight = 8}),
+    table.freeze({Key = "Income120", Boost = "Income", Seconds = 2 * 3600, Weight = 2}),
+})
+
 -- Passes et produits n'ont pas les mêmes champs : listes vues comme {any} pour le typage strict.
 local gamepasses: {any} = MonetizationConfig.Gamepasses
 local products: {any} = MonetizationConfig.Products
@@ -67,6 +86,22 @@ function MonetizationConfig.GetByRobloxId(kind: any, id: any): any
         if item.Id == id then return item end
     end
     return nil
+end
+
+-- Q5 : un boost regagné s'ajoute à ce qui lui reste ; expiré ou absent, il repart de maintenant. Renvoie la nouvelle
+-- fin (os.time).
+function MonetizationConfig.ExtendBoost(endsAt: any, now: number, seconds: number): number
+    local from = if type(endsAt) == "number" and endsAt > now then endsAt else now
+    return from + seconds
+end
+
+-- Multiplicateur d'un boost : Mult tant que sa fin est à venir, 1 sinon. Q6 : il se multiplie avec tout le reste
+-- (VIP, Confettis et rebirths pour les revenus ; Frénésie, Week-end et ×2 Chance pour la chance).
+local boosts: {[string]: any} = MonetizationConfig.Boosts :: any
+function MonetizationConfig.BoostMultiplier(kind: any, endsAt: any, now: number): number
+    local boost = if type(kind) == "string" then boosts[kind] else nil
+    if not boost or type(endsAt) ~= "number" or not (endsAt > now) then return 1 end
+    return boost.Mult
 end
 
 -- Vrai quand les 11 identifiants sont renseignés (handoff H-4 fait).
