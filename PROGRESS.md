@@ -1,4 +1,6 @@
-# 📊 PROGRESS — SABL — MAJ 2026-09-24
+# 📊 PROGRESS — SABL — MAJ 2026-10-02
+
+**Session cloud du 02/10 (sans Studio) :** configuration des lots B et C de l'étape 10 et du lot A de l'étape 11 écrite et testée hors de Studio (CLI Luau), fusionnée dans la branche GitHub `sabl` (PR #2, #3, #5) ; **à copier dans Studio** (dette 25). Étape 11 ouverte en parallèle (décision 72).
 
 **Étape courante :** 10 — Rétention, ouverte en parallèle (décision 55) : lots 0 et A livrés (sirène de l'alarme ; quêtes quotidiennes C5 côté serveur, écran Réglages, sons A7) ; prochain lot B (série de 7 jours, décision 58). L'étape 9 — Rebirth + upgrades a tous ses lots (A à F : tout A5 a son effet) ; reste son critère H2, prouvé par le rebirth réel. Le rebirth réel attend la poursuite à 2 joueurs, puis ta confirmation (Loi 11). L'étape 5 reste ouverte sur son seul lot E (poursuite réelle à 2 joueurs)
 **Étapes validées ✅ :** 0, 1, 2, 3, 4, 8 — la 5 attend la session à 2 joueurs, les 6 et 7 le regard sur les silhouettes
@@ -79,12 +81,18 @@
 | Sons A7 dans `SoundController` : casse d'œuf à la hauteur du tirage le plus rare (5 hauteurs), fanfare de fusion, « boing » de la saisie et « cha-ching » de la pose entendus près du voleur ; rebond du trampoline repris de `TrampolineController` | 10 | ✅ | `TestSfxClient` **4 OK / 0 FAIL** après un achat réel d'œuf par clic : casse jouée (Commun, note 1,00), saisie 0,70, pose 1,50 puis 2,00, rebond 3 fois sur 3 à 1,60 ; sirène rejouée 4/0 ; fanfare : attend une vraie fusion |
 | **Régression serveur complète** : 16 batteries par le runner | 10 | ✅ | **414 OK / 0 FAIL** le 24/09 à l'étape 10, lot A (397 + 13 de `TestQuestService` + 4 de `TestSettingsService`), aucune ligne de tirage, de réclamation, d'achat ni de rebirth factice dans la sortie ; écran de base (5/0) et sirène (4/0) rejoués côté client |
 
+| Série de 7 jours (configuration) : `QuestConfig.Streak`, `StreakReward`, `StreakNext` (J7 → J1, jour manqué → J1, une fois par jour UTC), `StreakWorld = 1` | 10 | ⚠️ | `TestQuestConfig` **43 OK / 0 FAIL** hors Studio (CLI Luau, 02/10), mutants détectés ; pas encore dans Studio |
+| Événements C4 (configuration) : `EventConfig` (Frénésie, Boss, Confettis, Week-end en UTC, chance multipliée, règles du Boss) et `Shared/LuckUtil` (décision 59) | 10 | ⚠️ | `TestEventConfig` **52 OK / 0 FAIL** hors Studio (CLI Luau, 02/10), 7 mutants détectés ; pas encore dans Studio |
+| Monétisation (configuration) : `MonetizationConfig`, 6 passes, 3 produits (spins en 3 paquets), roulette, boosts ; identifiants à 0 jusqu'à H-4 | 11 | ⚠️ | `TestMonetizationConfig` **38 OK / 0 FAIL** hors Studio (CLI Luau, 02/10), 9 mutants détectés ; pas encore dans Studio |
+
 ### Arborescence réelle (Studio et dépôt, identiques à l'octet près — 83 scripts)
 
 ```
 ReplicatedStorage/Config      = CreatureConfig, DefaultProfile, EconomyConfig, EggConfig, MapConfig,
                                 ProgressionConfig, QuestConfig, RebirthConfig, RemoteConfig, StealConfig, UpgradeConfig
+                                (+ sur `sabl` seulement, le 02/10 : EventConfig, MonetizationConfig ; QuestConfig modifié)
 ReplicatedStorage/Shared      = CombatUtil, EconomyUtil, ErrorMessages, NumberFormatter, TableUtil, WeightedRandom
+                                (+ sur `sabl` seulement, le 02/10 : LuckUtil)
 ReplicatedStorage/Remotes     = AttemptSteal, BuyEgg, BuybackCreature, BuyUpgrade, ClaimDropped, ClaimQuest, ClickGain,
                                 DoRebirth, HitThief, PlaceCreature, RequestFusion, SellCreature, SetSetting,
                                 SyncProfile, TeleportToBase, UnplaceCreature
@@ -188,6 +196,25 @@ Workspace/Map_Monde1/Decor    = Hub, Ruelles (Ruelle1..12), EggShop, BossArena, 
 | 60 | Quêtes : progression = compteur du profil − sa valeur au tirage (`Base`), aucun autre service touché ; « 20 min en jeu » compte `Playtime` ; tirage fixe pour le couple (joueur, jour UTC), fait au premier passage du jour (tick de 5 s), la protection A4 lue à ce moment ; se reconnecter ne le relance pas ; à minuit, une quête finie mais non réclamée est perdue (`QUEST_GONE`) | 10 | C5 fixe objectifs et récompenses, pas la mesure ni le moment du tirage | ⏳ déclaré |
 | 61 | Sons A7 du lot A, en sons livrés avec Roblox : une casse d'œuf par achat, à la hauteur du tirage le plus rare (Commun 1 ; Rare 1,12 ; Épique 1,25 ; Légendaire 1,4 ; Mythique, Dieu et Secret 1,6) ; fanfare à chaque fusion réussie ; « boing » de la saisie et « cha-ching » de la pose joués **sur le voleur**, entendus près de lui ; le rebond passe de `TrampolineController` à `SoundController` (décision 31 remplie) ; `Settings.SFX` à false coupe tout | 10 | A7 nomme les sons sans les fournir ; aucun asset audio (Loi 5, voie B) | ⏳ déclaré |
 | 62 | Écran Réglages (A6 §11) livré avec la seule ligne qui a un effet aujourd'hui, les effets sonores ; musique « bientôt », codes et qualité avec leurs étapes ; ouvert par une roue ⚙️ à gauche, sous le panneau d'infos du HUD (le coin haut droit est pris par la liste des joueurs de Roblox) ; remote `SetSetting` (clé `SFX` ou `Music`, valeur booléenne), qui renvoie la valeur enregistrée | 10 | Suggestion du lot 0 ; réduit l'écart 6 (Settings reporté, décision 4) | ⏳ déclaré |
+| 63 | **Q1 (étape 10, lot B)** — Après J7, la série repart à J1 (cycle de 7 jours) | 10 | C5 parle d'un streak de 7 jours ; rester à J7 donnerait un spin par jour | ✅ Producer (option A, 02/10) |
+| 64 | **Q2 (lot B)** — L'Épique de J6 et le Rare de J7 sont tirés au hasard parmi les espèces du monde 1 (`StreakWorld = 1`) | 10 | Le doc ne cite aucun monde ; un Rare du monde 2 vaut 8 000/s | ✅ Producer (option A, 02/10) |
+| 65 | **Q3 (lot B)** — Le spin de J7 est gardé dans un champ `Quests.Spins = 0`, schéma v4 (migration additive) ; les spins achetés vont au même compteur | 10 | Un spin gagné ne doit pas se perdre (Loi 8) | ✅ Producer (option A, 02/10) — **à faire en local** |
+| 66 | **Q1 (étape 10, lot C)** — Frénésie à 0 h, 3 h, 6 h… UTC ; Boss à 0 h, 2 h, 4 h… UTC ; Week-end Chance du samedi 0 h au lundi 0 h UTC | 10 | Rendez-vous prévisibles, même horloge que les quêtes | ✅ Producer (option A, 02/10) |
+| 67 | **Q2 (lot C)** — Une Pluie de Confettis par tranche de 4 h, à une minute tirée au hasard ; la minute vient d'un brassage du numéro de la tranche (même sur tous les serveurs, jamais deux pluies après un redémarrage) | 10 | Revenu moyen fixe (+4 %), calé sur C1 ; le brassage est déclaré | ✅ Producer (option A, 02/10) ; brassage ⏳ déclaré |
+| 68 | **Q3 (lot C)** — Les sources de chance se multiplient (Frénésie × Week-end × rebirth × ×2 Chance × boost), plafond de 50 % de la décision 59 | 10 | Cohérent avec l'écart 40 | ✅ Producer (option A, 02/10) |
+| 69 | **Q4 (Boss)** — Le top 1 reçoit un `egg_mythic`, ouvert aux odds de B2 | 10 | Lecture littérale d'« œuf Mythique » | ✅ Producer (option A, 02/10) |
+| 70 | **Q5 (Boss)** — Seuls les clics des joueurs présents dans la Boss Arena (rayon 25, D1.6 ; position lue par le serveur) comptent ; 1 clic = 1 dégât ; chaque clic garde ses 5 💰 | 10 | Rassemble les joueurs, sans nouveau remote | ✅ Producer (option B, 02/10) |
+| 71 | **Q6 (Boss)** — Pas de PV : course aux dégâts de 5 min. Égalité : le premier à atteindre son total, puis le plus petit UserId | 10 | Aucun chiffre inventé ; le départage est déclaré | ✅ Producer (option A, 02/10) ; départage ⏳ déclaré |
+| 72 | L'étape 11 s'ouvre en parallèle des étapes 9 et 10 (exception à la Loi 3, comme les décisions 23 et 55) | 11 | Le cloud ne peut faire que de la configuration ; le Producer l'a demandé | ✅ Producer (« GO 11 », 02/10) |
+| 73 | **Q1 (étape 11)** — « Auto-collect » : le coffre-fort verse 100 % du revenu d'absence au lieu de 50 % | 11 | Le revenu de la base est déjà crédité tout seul ; c'est du confort qui suit la progression | ✅ Producer (option B, 02/10) |
+| 74 | **Q2 (étape 11)** — « +5 Slots » : 5 piédestaux tout de suite, maximum 30, gardés après un rebirth (3 + 5 = 8) ; une 6e rangée de 5 piédestaux par plot est à construire | 11 | Ce qu'on paie, on l'a tout de suite, sans prix inventé | ✅ Producer (option A, 02/10) |
+| 75 | **Q3 (étape 11)** — Spins en 3 paquets : 1 / 10 / 25 spins à 25 / 199 / 499 R$ | 11 | Fourchette de C6 | ✅ Producer (option A, 02/10) |
+| 76 | **Q4 (roulette)** — Boosts et boucliers seulement : revenus ×2 10 min 35 %, chance ×2 10 min 25 %, bouclier d'urgence 15 %, revenus ×2 30 min 15 %, chance ×2 30 min 8 %, revenus ×2 2 h 2 % ; cosmétiques à l'étape 14 | 11 | C6 « cosmétiques/boosts, jamais de Secret » | ✅ Producer (option A, 02/10) |
+| 77 | **Q5 (roulette)** — Un boost regagné ajoute sa durée à ce qui lui reste, sans dépasser ×2 | 11 | Aucun gain perdu | ✅ Producer (option A, 02/10) |
+| 78 | **Q6 (roulette)** — Un boost se multiplie avec tout le reste (revenus ×2 × Confettis = ×4) | 11 | Cohérent avec l'écart 40 et la décision 68 | ✅ Producer (option A, 02/10) |
+| 79 | Le Starter Pack donne un Rare tiré dans le monde 1, comme J7 de la série | 11 | C6 ne dit pas de quel monde | ⏳ déclaré |
+| 80 | Sur GitHub, le projet SABL vit sur la branche **`sabl`** (`main` porte le kit MCP depuis le 29/09) ; le travail du cloud y arrive par PR | — | Une PR vers `main` entrait en conflit avec la suppression de SABL | ✅ Producer (02/10) |
+| 81 | Les tests de configuration du cloud tournent hors de Studio, avec la CLI Luau : les vrais modules du dépôt sont chargés, `Color3` et `game` sont simulés ; chaque test est aussi lancé sur des versions volontairement faussées | — | Sans Studio, seul moyen de prouver la configuration ; le test reste à rejouer dans Studio | ⏳ déclaré |
 
 ---
 
@@ -260,6 +287,9 @@ Workspace/Map_Monde1/Decor    = Hub, Ruelles (Ruelle1..12), EggShop, BossArena, 
 | 63 | G4 / §18.2 | Pose réussie publiée en attribut joueur `StealSecuredAt` sur le voleur, sans remote | Comme les écarts 14, 51 et 56 : surface réseau minimale |
 | 64 | A7 | Casse d'œuf, fanfare, « boing » et « cha-ching » faits de notes de sons livrés avec Roblox (`snap`, `victory`, `action_jump`, `electronicpingshort`), pas d'enregistrements dédiés | Aucun asset audio (Loi 5, voie B), comme l'écart 58 |
 | 65 | G2 | Entrées de `Quests.List` : `{Id, Base, Claimed}`, `Base` étant le compteur au moment du tirage | G2 ne décrit pas le contenu de la liste (décision 60) |
+| 66 | G1 | + `Config/EventConfig` et `Shared/LuckUtil` (02/10) | Comme `EconomyConfig` et `EconomyUtil` : un seul calcul pour le tirage et l'affichage des chances (§24) |
+| 67 | C4 | Minute de chaque Pluie de Confettis tirée d'un brassage du numéro de sa tranche ; départage des égalités au Boss | Décisions 67 et 71 |
+| 68 | C6 | Rare du Starter Pack tiré dans le monde 1 | Décision 79 |
 
 ---
 
@@ -293,10 +323,17 @@ Workspace/Map_Monde1/Decor    = Hub, Ruelles (Ruelle1..12), EggShop, BossArena, 
 | 22 | ~~Les rebirths factices de `TestRebirthService` et `TestTrainingRing` journalisaient `[REBIRTH] user=…` sous l'identifiant du testeur~~ — résolu à l'étape 10, lot 0 : option `Log` de `RebirthService`, captée par `TestRebirthService`, coupée dans `TestTrainingRing` | 9 | résolu le 24/09 |
 | 23 | Quête « Utiliser 5 capacités PvP » : son compteur `Stats.AbilitiesUsed` n'est pas dans le profil G2 ; il naîtra avec les capacités, et la quête n'est pas tirée d'ici là | 10 | mineur (à l'étape 13) |
 | 24 | La fanfare de fusion n'a pas encore été entendue sur une vraie fusion : elle consommerait 3 brainrots identiques du profil de test | 10 | mineur (test réel sur ton accord) |
+| 25 | **Studio en retard sur `sabl`** : copier dans Studio `QuestConfig` (5 370 o), `EventConfig` (6 623 o), `LuckUtil` (2 544 o), `MonetizationConfig` (6 697 o) et les tests `TestQuestConfig` (5 541 o), `TestEventConfig` (10 487 o), `TestMonetizationConfig` (9 494 o) — tailles sans `\r` —, puis les lancer dans Studio | 10, 11 | **majeur** (avant toute suite en local) |
+| 26 | Deux dépôts : le dossier local (GitLab) et la branche GitHub `sabl` ; les scripts serveur et client (`ServerScriptService`, `StarterPlayer`) ne sont que dans le local | — | majeur (à synchroniser) |
+| 27 | Le harnais CLI Luau des tests de configuration n'est pas versionné (il vivait dans le dossier temporaire de la session cloud) | — | mineur |
+| 28 | Partie serveur restante : lot B (`Quests.Spins` v4, versement dans `QuestService`, remote de réclamation), lot C (`EventService`, Boss, ciel étoilé, `LuckUtil` dans `EggService` **et** la boutique, revenus ×2 dans `IncomeService`), lot D (écran des quêtes) ; étape 11 lots C-D (`MonetizationService`, roulette, 6e rangée de piédestaux, achats de test) | 10, 11 | majeur |
 
 ---
 
 ## 🙋 Handoffs en attente
+
+- [ ] **H-4 (étape 11)** — créer sur create.roblox.com, expérience `test_2`, les 6 passes et 5 produits de `MonetizationConfig` (VIP 199, ×2 Chance 149, ×2 Vitesse 99, Auto-collect 249, +5 Slots 199, Passe Gladiateur 179 ; Bouclier d'urgence 49, Starter Pack 99, 1 / 10 / 25 spins à 25 / 199 / 499 R$) et coller les 11 IDs
+- [ ] **Ouvrir une session locale** (Claude Desktop, environnement Local, dossier SABL) pour la dette 25 puis la dette 28
 
 - [x] ~~Verdict « FUN » de l'étape 8~~ — GO du Producer le 23/09, retouches appliquées au lot D
 - [ ] **Regarder la map habillée en 3D** — couleurs, enseignes, étiquettes des œufs, jour-nuit : l'outil ne me rend pas la 3D
@@ -341,10 +378,12 @@ Workspace/Map_Monde1/Decor    = Hub, Ruelles (Ruelle1..12), EggShop, BossArena, 
 
 ## ❓ Question bloquante ouverte
 
-Aucune. Q1 à Q3 de l'étape 10 sont tranchées le 24/09 (options A, décisions 57 à 59).
+Aucune. Q1 à Q3 de l'étape 10 sont tranchées le 24/09 (options A, décisions 57 à 59) ; les questions des lots B et C de l'étape 10 et de l'étape 11 le 02/10 (décisions 63 à 78).
 
 ---
 
 ## ➡️ Prochaine action
+
+**02/10 :** en session locale, copier dans Studio les 7 fichiers du 02/10 (dette 25), vérifier leurs tailles et lancer leurs tests ; puis la partie serveur des lots B et C de l'étape 10 (dette 28).
 
 Étape 10 ouverte en parallèle (décision 55) : lots 0 et A livrés (sirène ; quêtes quotidiennes côté serveur, écran Réglages, sons A7) ; prochain lot B (série de 7 jours, décision 58), puis C (événements et chance, décision 59) et D (écran des quêtes, annonces). Étape 9, lots A à F livrés : les upgrades de base s'achètent, le rebirth fonctionne (R1 à 1M, ×2 vérifié au calcul, Réserve d'or sans perte, monde 2 à R3, persistance relue), l'anneau renforce les brainrots posés, l'écran ♻️ montre gains et pertes avant confirmation, le coffre-fort verse le revenu d'absence et prévient quand il est plein, la tourelle tire et suit sa cible, la colle ralentit le voleur, l'alarme prévient tout le serveur. Tous les lots de l'étape sont faits ; reste son critère H2 (« Rebirth 1 → ×2 vérifié »), à prouver par le rebirth réel : le rebirth réel vient après la poursuite à 2 joueurs, sur « GO REBIRTH ». Restent dus la sauvegarde du `.rbxl`, la session à 2 joueurs (étape 5) et le regard sur les 8 silhouettes larges (étape 7).
