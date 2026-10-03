@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Lance hors de Studio les tests de studio/ qui n'ont besoin que de modules purs (Test*Config*, TestCombat*,
-TestMatchmaker, TestArenaRewards).
+TestMatchmaker, TestArenaRewards, TestSeasonRules, TestArenaShop, TestTournament).
 
 Rôle    : rejouer en une commande les batteries qui ne lisent que des ModuleScripts du dépôt (ReplicatedStorage et
           ServerScriptService), avec la CLI Luau (https://github.com/luau-lang/luau/releases), sans Studio ni MCP.
@@ -74,7 +74,8 @@ def find_luau():
 
 def default_tests():
     paths = glob.glob(os.path.join(ROOT, "studio", "Test*Config*.luau"))
-    for pattern in ("TestCombat*.luau", "TestMatchmaker.luau", "TestArenaRewards.luau"):
+    for pattern in ("TestCombat*.luau", "TestMatchmaker.luau", "TestArenaRewards.luau", "TestSeasonRules.luau",
+                    "TestArenaShop.luau", "TestTournament.luau"):
         paths += glob.glob(os.path.join(ROOT, "studio", pattern))
     return sorted({os.path.splitext(os.path.basename(p))[0] for p in paths})
 

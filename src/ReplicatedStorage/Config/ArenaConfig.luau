@@ -7,7 +7,8 @@
                rangs dans Shared/EloUtil (G5.4, recopié tel quel)
      Étape   : 14 (configuration seule) ; Match ajouté à l'étape 13, lot C ; Matchmaking et Bots au lot D
      Dépend  : Shared/ParisTime (heure de Paris, sortie de ce module à l'étape 15)
-     Exposé  : configuration immuable ; Match, Matchmaking, Bots, Tokens, RankLabels, SeasonRewards, Shop, Tournament ;
+     Exposé  : configuration immuable ; Match, Matchmaking, Bots, Tokens, RankLabels, SeasonRewards, Shop, Tournament,
+               RewardWorld ;
                GetShopItem(key), ParisOffset(now), TournamentAt(now), SeasonAt(now)
      Limite  : module absent de G1, comme EconomyConfig ; écart déclaré. Q3 : le tournoi suit l'heure de Paris, été
                compris ; la saison mensuelle aussi (déclaré). Le calcul des dates vit dans Shared/ParisTime.
@@ -89,6 +90,7 @@ ArenaConfig.Tournament = table.freeze({
     Weekday = 6, -- samedi (0 = dimanche)
     RegistrationAt = 17 * 3600 + 30 * 60, BracketAt = 17 * 3600 + 45 * 60, EndAt = 18 * 3600 + 30 * 60,
     MinElo = 1100, Sizes = table.freeze({8, 16}), Bet = 50, BetPayout = 2, -- pari double ou rien
+    MinPlayers = 4, -- Q1 de l'étape 14 (A) : tournoi annulé sous 4 inscrits
     Rewards = table.freeze({
         Top8 = table.freeze({ArenaTokens = 300}),
         Top4 = table.freeze({ArenaTokens = 800, Eggs = table.freeze({egg_mythic = 1})}),
@@ -97,6 +99,9 @@ ArenaConfig.Tournament = table.freeze({
             TitleDays = 7}),
     }),
 })
+
+-- Monde des brainrots God offerts (Master de saison, champion du tournoi), comme J6-J7 de la série (décision 64).
+ArenaConfig.RewardWorld = 1
 
 local shopByKey: {[string]: any} = {}
 for _, item in ipairs(ArenaConfig.Shop :: {any}) do shopByKey[item.Key] = item end

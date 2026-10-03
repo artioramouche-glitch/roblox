@@ -5,14 +5,15 @@
      Étape   : outillage de reprise (généré par tools/gen_sync_check.py, ne pas modifier à la main)
      Dépend  : Studio en Édition ; execute_luau (lecture de Source)
      Exposé  : bilan dans la console : OK, DIFF (tailles), ABSENT ; aucune écriture
-     Limite  : 60 modules : ReplicatedStorage.Config et .Shared, ServerScriptService.Combat et ServerStorage.Tests.
+     Limite  : 63 modules : ReplicatedStorage.Config et .Shared, ServerScriptService.Arena et .Combat,
+               ServerStorage.Tests.
                Les autres scripts serveur et client (Services, Controllers, Main) ne sont pas dans le dépôt GitHub
                et ne sont donc pas couverts.
 ]]
 local EXPECTED = {
     {"ReplicatedStorage", "Config", "AnnouncementConfig", 3093},
     {"ReplicatedStorage", "Config", "AntiCheatConfig", 3770},
-    {"ReplicatedStorage", "Config", "ArenaConfig", 7745},
+    {"ReplicatedStorage", "Config", "ArenaConfig", 7998},
     {"ReplicatedStorage", "Config", "ClanConfig", 8476},
     {"ReplicatedStorage", "Config", "CodeConfig", 2813},
     {"ReplicatedStorage", "Config", "CombatConfig", 5259},
@@ -41,6 +42,9 @@ local EXPECTED = {
     {"ReplicatedStorage", "Shared", "SlotRandom", 3036},
     {"ReplicatedStorage", "Shared", "TableUtil", 920},
     {"ReplicatedStorage", "Shared", "WeightedRandom", 2374},
+    {"ServerScriptService", "Arena", "ArenaShop", 3633},
+    {"ServerScriptService", "Arena", "SeasonRules", 4714},
+    {"ServerScriptService", "Arena", "TournamentBracket", 11541},
     {"ServerScriptService", "Combat", "ArenaRewards", 5348},
     {"ServerScriptService", "Combat", "CombatBot", 5292},
     {"ServerScriptService", "Combat", "CombatEngine", 22543},
