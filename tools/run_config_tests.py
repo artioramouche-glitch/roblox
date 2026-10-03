@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
-"""Lance hors de Studio les tests de configuration de studio/ (TestConfigs et Test*Config).
+"""Lance hors de Studio les tests de studio/ qui n'ont besoin que de modules purs (Test*Config*, TestCombat*).
 
-Rôle    : rejouer en une commande les batteries qui ne lisent que ReplicatedStorage.Config et .Shared, avec la CLI
-          Luau (https://github.com/luau-lang/luau/releases), sans Studio ni MCP.
-Doc     : PROMPT_EXECUTION_SABL_V4 §25, §26 ; décision 81 ; dette 27
+Rôle    : rejouer en une commande les batteries qui ne lisent que des ModuleScripts du dépôt (ReplicatedStorage et
+          ServerScriptService), avec la CLI Luau (https://github.com/luau-lang/luau/releases), sans Studio ni MCP.
+Doc     : PROMPT_EXECUTION_SABL_V4 §25, §26 ; décisions 81 et 122 ; dette 27
 Usage   : python3 tools/run_config_tests.py [TestEventConfig ...] [-v]
           La CLI est cherchée dans la variable LUAU_BIN, sinon sous le nom « luau » dans le PATH.
-Limite  : les vrais modules du dépôt sont chargés tels quels ; seuls `game` (ReplicatedStorage.Config et .Shared)
-          et `Color3` sont simulés. Un test qui touche un service, un joueur ou une Instance doit tourner dans
-          Studio. Un résultat vert ici ne remplace pas le passage du même test dans Studio.
+Limite  : les vrais modules du dépôt sont chargés tels quels ; seuls `game` (les dossiers de src/ReplicatedStorage
+          et src/ServerScriptService) et `Color3` sont simulés. Un test qui touche un service, un joueur ou une
+          Instance doit tourner dans Studio. Un résultat vert ici ne remplace pas le passage du même test dans
+          Studio.
 Sortie  : la ligne de bilan de chaque test ; code de sortie 1 au moindre FAIL ou à la moindre erreur.
 """
 import glob
@@ -27,23 +28,23 @@ local function readFile(path) return assert(SOURCES[path], "absent du dépôt : 
 local function color3() return {} end
 local modules = {}
 local baseEnv
-local function folder(sub)
+-- Un dossier du dépôt vu comme une Instance : ses sous-dossiers et ses modules se trouvent par leur nom.
+local function folder(prefix)
     local f = {}
     local function find(_, name)
-        local path = "src/ReplicatedStorage/" .. sub .. "/" .. name .. ".luau"
-        return SOURCES[path] and {Name = name, __path = path} or nil
+        local path = prefix .. "/" .. name
+        if SOURCES[path .. ".luau"] then return {Name = name, __path = path .. ".luau"} end
+        if DIRS[path] then return folder(path) end
+        return nil
     end
     f.FindFirstChild = find
     f.WaitForChild = function(self, name) return assert(find(self, name), "WaitForChild : " .. name) end
     return f
 end
-local folders = {Config = folder("Config"), Shared = folder("Shared")}
-local replicated = {}
-replicated.FindFirstChild = function(_, name) return folders[name] end
-replicated.WaitForChild = function(_, name) return assert(folders[name], name) end
+local services = {ReplicatedStorage = folder("src/ReplicatedStorage"),
+    ServerScriptService = folder("src/ServerScriptService")}
 local game = {GetService = function(_, name)
-    assert(name == "ReplicatedStorage", "service non simulé : " .. tostring(name))
-    return replicated
+    return assert(services[name], "service non simulé : " .. tostring(name))
 end}
 local function requireInst(inst)
     if not modules[inst.__path] then
@@ -71,23 +72,30 @@ def find_luau():
 
 
 def default_tests():
-    names = {os.path.splitext(os.path.basename(p))[0] for p in glob.glob(os.path.join(ROOT, "studio", "Test*Config*.luau"))}
-    return sorted(names)
+    paths = glob.glob(os.path.join(ROOT, "studio", "Test*Config*.luau"))
+    paths += glob.glob(os.path.join(ROOT, "studio", "TestCombat*.luau"))
+    return sorted({os.path.splitext(os.path.basename(p))[0] for p in paths})
 
 
 def build_bundle():
-    paths = sorted(glob.glob(os.path.join(ROOT, "src", "ReplicatedStorage", "Config", "*.luau")))
-    paths += sorted(glob.glob(os.path.join(ROOT, "src", "ReplicatedStorage", "Shared", "*.luau")))
+    paths = sorted(glob.glob(os.path.join(ROOT, "src", "**", "*.luau"), recursive=True))
     paths += sorted(glob.glob(os.path.join(ROOT, "studio", "Test*.luau")))
     sources = {}
+    dirs = set()
     for path in paths:
+        key = os.path.relpath(path, ROOT).replace(os.sep, "/")
         with open(path, encoding="utf-8") as handle:
-            sources[os.path.relpath(path, ROOT).replace(os.sep, "/")] = handle.read()
+            sources[key] = handle.read()
+        parent = os.path.dirname(key)
+        while parent.startswith("src/"):
+            dirs.add(parent)
+            parent = os.path.dirname(parent)
     level = 1
     while any(("]" + "=" * level + "]") in text for text in sources.values()):
         level += 1
     open_quote, close_quote = "[" + "=" * level + "[", "]" + "=" * level + "]"
-    lines = ["local SOURCES = {}"]
+    lines = ["local SOURCES = {}", "local DIRS = {}"]
+    lines += ['DIRS["%s"] = true' % d for d in sorted(dirs)]
     for key, text in sources.items():
         # Le premier saut de ligne après un crochet long ouvrant est ignoré par Luau : on en ajoute un.
         lines.append('SOURCES["%s"] = %s\n%s%s' % (key, open_quote, text, close_quote))

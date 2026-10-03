@@ -1,10 +1,10 @@
 --!nonstrict
 --[[ TestArenaConfig
-     Rôle    : vérifier EloUtil (G5.4, recopié tel quel) et ArenaConfig : tokens, rangs, saisons, boutique, tournoi et
-               heure de Paris.
-     Doc     : GAME_MASTER_V2 G5.4, E6, E7, E8, E9, C7, E2 ; PROMPT_EXECUTION_SABL_V4 §25.2 (lot ELO), §31.14 ;
-               Q1-Q3 de l'étape 14
-     Étape   : 14 (configuration)
+     Rôle    : vérifier EloUtil (G5.4, recopié tel quel) et ArenaConfig : durées du match, tokens, rangs, saisons,
+               boutique, tournoi et heure de Paris.
+     Doc     : GAME_MASTER_V2 G5.4, G5.5, G5.6, E1, E3, E5, E6, E7, E8, E9, C7, E2 ; PROMPT_EXECUTION_SABL_V4 §25.2
+               (lot ELO), §31.13, §31.14 ; Q1-Q3 de l'étape 14
+     Étape   : 14 (configuration) ; durées du match à l'étape 13, lot C
      Dépend  : ReplicatedStorage.Shared.EloUtil ; ReplicatedStorage.Config.ArenaConfig, EggConfig
      Exposé  : exécution manuelle ; aucune écriture de données
      Limite  : Q1 (option A) : le résultat d'un match se passe en nombre (1, 0, 0,5) comme le veut G5.4 ; l'appel
@@ -126,6 +126,11 @@ check("Saison d'octobre 2026 : 1er à 00:00 Paris → 1er novembre 00:00", seaso
 check("30 septembre 23:59:59 Paris : saison de septembre", season(1790805600 - 1, 2026 * 12 + 8, 1788213600, 1790805600))
 check("Décembre 2026 → janvier 2027", season(1796079600, 2026 * 12 + 11, 1796079600, 1798758000))
 check("Janvier 2027", season(1798758000, 2027 * 12, 1798758000, 1801436400))
+
+-- G5.6 10 Hz ; E1 / G5.5 3 brainrots ; E3 ragdoll 1,5 s ; E5 cinématique 3 s.
+local m = A.Match
+check("Match : tick 0,1 s, équipes de 3, ragdoll 1,5 s, ultime figé 3 s, gelé", m.TickSeconds == 0.1
+    and m.TeamSize == 3 and m.RagdollSeconds == 1.5 and m.UltimateFreezeSeconds == 3 and table.isfrozen(m))
 
 local summary = ("[ARENA CONFIG TEST] %d OK / %d FAIL"):format(T.pass, T.fail)
 table.insert(T.lines, summary)
