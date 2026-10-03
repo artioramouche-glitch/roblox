@@ -453,6 +453,16 @@ for _ = 1, 300 do Engine.Step(m); scan(Engine.Snapshot(m)) end
 check("CombatSync : champs de G5.6 (+ recharge du switch des 2 côtés), événements vidés à chaque envoi",
     fields and #Engine.Snapshot(m).events == 0)
 check("E12 : ni la graine ni aucun tirage à venir dans CombatSync", not leak)
+m = new({tank()}, {tank(), tank("tim_cheese")}, 2718281)
+run(m, 80)
+Engine.Activate(m, "A")
+local pending = #m.Events
+local view = Engine.View(m, "B")
+leak = false
+scan(view)
+check("View (bot) : jauges, PV et capacités d'un camp, sans graine, sans vider les événements", #m.Events == pending
+    and view.AbilityReady == true and view.UltimateReady == false and view.OnField and view.SwitchReady
+    and #view.Team == 2 and view.Team[2].Kind == "Heal" and view.Team[1].MaxHP == 1e6 and not leak)
 
 -- Entrées refusées.
 local badTeams = {{}, {tank(), tank(), tank(), tank()}, {f("noobini", 0, 10, "Salty")}, {f("noobini", 0 / 0, 10, "Salty")},
