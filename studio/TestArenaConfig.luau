@@ -4,7 +4,7 @@
                boutique, tournoi et heure de Paris.
      Doc     : GAME_MASTER_V2 G5.4, G5.5, G5.6, E1, E3, E5, E6, E7, E8, E9, C7, E2 ; PROMPT_EXECUTION_SABL_V4 §25.2
                (lot ELO), §31.13, §31.14 ; Q1-Q3 de l'étape 14
-     Étape   : 14 (configuration) ; durées du match à l'étape 13, lot C
+     Étape   : 14 (configuration) ; durées du match à l'étape 13, lot C ; file et bots au lot D
      Dépend  : ReplicatedStorage.Shared.EloUtil ; ReplicatedStorage.Config.ArenaConfig, EggConfig
      Exposé  : exécution manuelle ; aucune écriture de données
      Limite  : Q1 (option A) : le résultat d'un match se passe en nombre (1, 0, 0,5) comme le veut G5.4 ; l'appel
@@ -131,6 +131,15 @@ check("Janvier 2027", season(1798758000, 2027 * 12, 1798758000, 1801436400))
 local m = A.Match
 check("Match : tick 0,1 s, équipes de 3, ragdoll 1,5 s, ultime figé 3 s, gelé", m.TickSeconds == 0.1
     and m.TeamSize == 3 and m.RagdollSeconds == 1.5 and m.UltimateFreezeSeconds == 3 and table.isfrozen(m))
+-- G5.5 / E1 / E6 : file ; E6 / E11.4 / décisions 113, 123-125 : bots et abandon.
+local mm, bots = A.Matchmaking, A.Bots
+check("File : niveau 5, passage toutes les 5 s, ±150 +50/20 s jusqu'à ±400, bot proposé à 30 s", mm.MinLevel == 5
+    and mm.TickSeconds == 5 and mm.BaseRange == 150 and mm.RangeStep == 50 and mm.RangeStepSeconds == 20
+    and mm.MaxRange == 400 and mm.BotOfferSeconds == 30 and table.isfrozen(mm))
+check("Bots : Elo −100, réflexes 2 s, faciles ×0,5, 3 matchs de tutoriel, garde-fou après 3 défaites",
+    bots.EloOffset == -100 and bots.ReflexSeconds == 2 and bots.EasyStatMult == 0.5 and bots.TutorialMatches == 3
+    and bots.GuardLossStreak == 3 and table.isfrozen(bots))
+check("Q3 du lot D : abandon = 0 token en 1v1 et 2v2", A.Tokens.Ranked1v1.Forfeit == 0 and A.Tokens.Ranked2v2.Forfeit == 0)
 
 local summary = ("[ARENA CONFIG TEST] %d OK / %d FAIL"):format(T.pass, T.fail)
 table.insert(T.lines, summary)

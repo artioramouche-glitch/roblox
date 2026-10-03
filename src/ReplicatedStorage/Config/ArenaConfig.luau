@@ -2,11 +2,12 @@
 --[[ ArenaConfig
      Rôle    : chiffres de la compétition PvP absents de CombatConfig (G5.3) : durées du match, tokens arène, rangs
                et saisons, boutique du Colisée, Tournoi du Samedi, et leur calendrier à l'heure de Paris.
-     Doc     : GAME_MASTER_V2 C7, E1, E2, E3, E5, E7, E8, E9, G5.5, G5.6 ; PROMPT_EXECUTION_SABL_V4 §31.13, §31.14 ;
-               Q1-Q3 de l'étape 14 (02/10 : A, A, A) ; Elo et rangs dans Shared/EloUtil (G5.4, recopié tel quel)
-     Étape   : 14 (configuration seule) ; Match ajouté à l'étape 13, lot C
+     Doc     : GAME_MASTER_V2 C7, E1, E2, E3, E5, E6, E7, E8, E9, E11, G5.5, G5.6 ; PROMPT_EXECUTION_SABL_V4 §31.13,
+               §31.14 ; Q1-Q3 de l'étape 14 (02/10 : A, A, A) et du lot D de l'étape 13 (03/10 : A, A, A) ; Elo et
+               rangs dans Shared/EloUtil (G5.4, recopié tel quel)
+     Étape   : 14 (configuration seule) ; Match ajouté à l'étape 13, lot C ; Matchmaking et Bots au lot D
      Dépend  : Shared/ParisTime (heure de Paris, sortie de ce module à l'étape 15)
-     Exposé  : configuration immuable ; Match, Tokens, RankLabels, SeasonRewards, Shop, Tournament ;
+     Exposé  : configuration immuable ; Match, Matchmaking, Bots, Tokens, RankLabels, SeasonRewards, Shop, Tournament ;
                GetShopItem(key), ParisOffset(now), TournamentAt(now), SeasonAt(now)
      Limite  : module absent de G1, comme EconomyConfig ; écart déclaré. Q3 : le tournoi suit l'heure de Paris, été
                compris ; la saison mensuelle aussi (déclaré). Le calcul des dates vit dans Shared/ParisTime.
@@ -24,10 +25,28 @@ ArenaConfig.Match = table.freeze({
     UltimateFreezeSeconds = 3, -- E5 / G5.6 : cinématique de l'ultime, match figé
 })
 
+-- G5.5 / E6 : file d'attente et appariement, lus par ServerScriptService/Combat/Matchmaker (étape 13, lot D).
+ArenaConfig.Matchmaking = table.freeze({
+    MinLevel = 5, -- E1 / G5.5 : niveau requis
+    TickSeconds = 5, -- G5.5 : MatchmakingTick
+    BaseRange = 150, RangeStep = 50, RangeStepSeconds = 20, MaxRange = 400, -- E6 : ±150, +50 toutes les 20 s, ±400
+    BotOfferSeconds = 30, -- E1 / G5.5 : bot proposé après 30 s d'attente, puis toutes les 30 s s'il est refusé
+})
+
+-- E1, E6, E11.4, G5.5 : bots, lus par ServerScriptService/Combat/CombatBot (décisions 113, 123 et 124).
+ArenaConfig.Bots = table.freeze({
+    EloOffset = -100, -- G5.5 / E6 : Elo du bot = Elo du joueur − 100
+    ReflexSeconds = 2, -- Q1 (A) : le bot normal attend 2 s avant de lancer capacité ou ultime
+    EasyStatMult = 0.5, -- Q2 (A) : bot facile (3 premiers matchs, garde-fou) : miroir ×0,5 qui ne lance rien
+    TutorialMatches = 3, -- E1 : les 3 premiers matchs d'un joueur
+    GuardLossStreak = 3, -- E6 / E11.4 : après 3 défaites classées de suite
+    HealBelow = 0.6, SwitchBelow = 0.25, SwitchToAbove = 0.5, -- jeu du bot normal : soin, switch (part de PV)
+})
+
 -- C7 / E2 : tokens gagnés en jouant, jamais achetés.
 ArenaConfig.Tokens = table.freeze({
-    Ranked1v1 = table.freeze({Win = 25, Loss = 8}),
-    Ranked2v2 = table.freeze({Win = 35, Loss = 12}),
+    Ranked1v1 = table.freeze({Win = 25, Loss = 8, Forfeit = 0}), -- Q3 du lot D (A) : abandon = 0 token
+    Ranked2v2 = table.freeze({Win = 35, Loss = 12, Forfeit = 0}),
     PerMinutePlayed = 2,
     FreeArenaMax = 5, FreeArenaWindow = 15 * 60, -- E2 : Arène Libre, 5 tokens max par 15 min
 })

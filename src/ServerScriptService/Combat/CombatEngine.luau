@@ -8,7 +8,8 @@
      Dépend  : Config.CombatConfig (G5.3), Config.ArenaConfig (Match), Shared.SlotRandom (brassage Mix32)
      Exposé  : New(teamA, teamB, seed) -> match | (nil, raison) ; Step(match) ; Activate(match, side) ;
                Switch(match, side, slot) ; Ultimate(match, side) ; Forfeit(match, side) -> (ok, raison?) ;
-               Snapshot(match) -> charge utile de CombatSync ; Result(match) ; TypeMultiplier(attaquant, défenseur)
+               Snapshot(match) -> charge utile de CombatSync ; View(match, side) ; Result(match) ;
+               TypeMultiplier(attaquant, défenseur)
      Limite  : ni temps réel, ni remote, ni Instance : CombatService (session locale) appelle Step toutes les 0,1 s,
                relaie les 3 actions des clients, pousse Snapshot par CombatSync une fois par tick et garde l'Elo,
                les tokens et les créatures (le moteur ne lit ni n'écrit jamais un profil). 1v1 seulement : le 2v2
@@ -456,6 +457,21 @@ function CombatEngine.Snapshot(match: Match): any
         chargeA = a.Charge, chargeB = b.Charge, crowdA = a.Crowd, crowdB = b.Crowd,
         switchCdA = a.SwitchCd / PER_SECOND, switchCdB = b.SwitchCd / PER_SECOND,
         over = match.Over, winner = match.Winner, reason = match.Reason, events = events,
+    }
+end
+
+-- Vue d'un camp en lecture seule, sans vider les événements : ce que le bot (CombatBot, lot D) a le droit de
+-- savoir, comme un joueur devant son écran.
+function CombatEngine.View(match: Match, sideName: string): any
+    local side = match.Sides[sideName]
+    local team = {}
+    for i, fighter in ipairs(side.Team) do
+        team[i] = {HP = fighter.HP, MaxHP = fighter.MaxHP, Alive = fighter.Alive, Kind = fighter.Ability.kind}
+    end
+    return {
+        Active = side.Active, OnField = fighting(side) ~= nil, Team = team,
+        AbilityReady = side.Charge >= 1 - EPS, UltimateReady = side.Crowd >= 1 - EPS, SwitchReady = side.SwitchCd == 0,
+        Over = match.Over, Frozen = match.Freeze > 0,
     }
 end
 
