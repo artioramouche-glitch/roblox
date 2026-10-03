@@ -140,6 +140,8 @@ check("Bots : Elo −100, réflexes 2 s, faciles ×0,5, 3 matchs de tutoriel, ga
     bots.EloOffset == -100 and bots.ReflexSeconds == 2 and bots.EasyStatMult == 0.5 and bots.TutorialMatches == 3
     and bots.GuardLossStreak == 3 and table.isfrozen(bots))
 check("Q3 du lot D : abandon = 0 token en 1v1 et 2v2", A.Tokens.Ranked1v1.Forfeit == 0 and A.Tokens.Ranked2v2.Forfeit == 0)
+check("Étape 14 : tournoi annulé sous 4 inscrits (Q1 A) ; God offerts tirés du monde 1", A.Tournament.MinPlayers == 4
+    and A.RewardWorld == 1)
 
 local summary = ("[ARENA CONFIG TEST] %d OK / %d FAIL"):format(T.pass, T.fail)
 table.insert(T.lines, summary)
