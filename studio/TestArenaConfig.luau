@@ -131,6 +131,7 @@ check("Janvier 2027", season(1798758000, 2027 * 12, 1798758000, 1801436400))
 local m = A.Match
 check("Match : tick 0,1 s, équipes de 3, ragdoll 1,5 s, ultime figé 3 s, gelé", m.TickSeconds == 0.1
     and m.TeamSize == 3 and m.RagdollSeconds == 1.5 and m.UltimateFreezeSeconds == 3 and table.isfrozen(m))
+check("E2 : temps limite du 2v2 de 120 s", m.Timeout2v2 == 120)
 -- G5.5 / E1 / E6 : file ; E6 / E11.4 / décisions 113, 123-125 : bots et abandon.
 local mm, bots = A.Matchmaking, A.Bots
 check("File : niveau 5, passage toutes les 5 s, ±150 +50/20 s jusqu'à ±400, bot proposé à 30 s", mm.MinLevel == 5

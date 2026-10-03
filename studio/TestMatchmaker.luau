@@ -164,6 +164,56 @@ end
 check(("200 joueurs : %d appariés, %d en file, aucun en double, toutes les paires dans leur marge"):format(count,
     MM.Size(q)), inRange and count + MM.Size(q) == 200 and count > 150)
 
+-- E2 / E6 : file 2v2 (duo d'amis ou joueurs seuls, Elo 2v2, moyenne du duo).
+local function ids(list) return table.concat(list, "+") end
+local function describe2(matches)
+    local out = {}
+    for _, m in ipairs(matches) do
+        table.insert(out, if m.Kind == "Human" then ids(m.A) .. "/" .. ids(m.B) else ids(m.A) .. ":bots" .. m.Bots)
+    end
+    table.sort(out)
+    return list(out)
+end
+q = MM.New()
+local okDuo = MM.JoinParty(q, {1, 2}, {1000, 1100}, 0)
+local _, dupMember = MM.JoinParty(q, {2}, {1100}, 0)
+local _, selfDuo = MM.JoinParty(q, {3, 3}, {1000, 1000}, 0)
+local _, badParty = MM.JoinParty(q, {4, 5, 6}, {1, 2, 3}, 0)
+check("2v2 : duo d'amis classé à la moyenne (1050) ; refus : déjà en file, deux fois le même, 3 joueurs",
+    okDuo and q.Entries[1].Elo == 1050 and dupMember == "ALREADY_QUEUED" and selfDuo == "ALREADY_QUEUED"
+    and badParty == "BAD_INPUT")
+MM.JoinParty(q, {7, 8}, {1000, 1120}, 0)
+check("Duo contre duo de moyennes voisines (1050 / 1060)", describe2(MM.Tick2v2(q, 5).Matches) == "1+2/7+8"
+    and MM.Size(q) == 0)
+q = MM.New()
+for i, elo in ipairs({1060, 1000, 1040, 1020}) do MM.JoinParty(q, {i}, {elo}, 0) end
+check("4 joueurs seuls : duos de voisins (1000+1020 contre 1040+1060)", describe2(MM.Tick2v2(q, 5).Matches) == "2+4/3+1")
+q = MM.New()
+MM.JoinParty(q, {1, 2}, {1000, 1000}, 0)
+MM.JoinParty(q, {3}, {990}, 0)
+MM.JoinParty(q, {4}, {1010}, 0)
+MM.JoinParty(q, {5}, {1600}, 0)
+check("Duo d'amis contre duo tiré au sort ; le joueur trop loin reste seul en file",
+    describe2(MM.Tick2v2(q, 5).Matches) == "1+2/3+4" and MM.Size(q) == 1 and q.Entries[1].UserId == 5)
+q = MM.New()
+MM.JoinParty(q, {1}, {1000}, 0)
+MM.JoinParty(q, {2}, {1600}, 0)
+MM.JoinParty(q, {3, 4}, {1300, 1300}, 0)
+check("Deux joueurs seuls trop éloignés (1000 et 1600) ne forment pas de duo, même face à un duo de 1300",
+    #MM.Tick2v2(q, 5).Matches == 0 and MM.Size(q) == 3)
+q = MM.New()
+for i = 1, 3 do MM.JoinParty(q, {i}, {1000 + i}, 0) end
+check("3 joueurs seuls : pas de match, chacun garde sa place", #MM.Tick2v2(q, 5).Matches == 0 and MM.Size(q) == 3)
+q = MM.New()
+MM.JoinParty(q, {1}, {1000}, 0)
+MM.JoinParty(q, {2, 3}, {1500, 1500}, 0)
+local offered = list(MM.Tick2v2(q, 30).Offers)
+local soloBot = MM.AcceptBot(q, 1)
+local duoBot = MM.AcceptBot(q, 3)
+check("2v2 : offre de bot à 30 s ; seul → partenaire et adversaires bots (3), duo → adversaires bots (2)",
+    offered == "1,2" and soloBot.Kind == "Bot" and ids(soloBot.A) == "1" and soloBot.Bots == 3 and ids(duoBot.A) == "2+3"
+    and duoBot.Bots == 2 and MM.Size(q) == 0)
+
 local summary = ("[MATCHMAKER TEST] %d OK / %d FAIL"):format(T.pass, T.fail)
 table.insert(T.lines, summary)
 local output = table.concat(T.lines, "\n")
