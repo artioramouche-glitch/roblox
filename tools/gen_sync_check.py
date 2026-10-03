@@ -6,7 +6,7 @@ Rôle    : appliquer dans Studio la règle de reprise « chaque script doit fair
 Doc     : PROMPT_EXECUTION_SABL_V4 §12.2 ; dette 25
 Usage   : python3 tools/gen_sync_check.py   (à relancer après chaque changement de src/ ou de studio/)
 Couvre  : src/ReplicatedStorage/Config et Shared → ReplicatedStorage.Config / .Shared ;
-          src/ServerScriptService/<Dossier> → ServerScriptService.<Dossier> (modules versionnés : Arena, Combat) ;
+          src/ServerScriptService/<Dossier> → ServerScriptService.<Dossier> (modules versionnés : Arena, Clan, Combat) ;
           les 25 modules de ServerStorage.Tests listés dans PROGRESS.md → studio/<Nom>.luau.
 """
 import glob
@@ -51,7 +51,7 @@ def main():
      Étape   : outillage de reprise (généré par tools/gen_sync_check.py, ne pas modifier à la main)
      Dépend  : Studio en Édition ; execute_luau (lecture de Source)
      Exposé  : bilan dans la console : OK, DIFF (tailles), ABSENT ; aucune écriture
-     Limite  : %d modules : ReplicatedStorage.Config et .Shared, ServerScriptService.Arena et .Combat,
+     Limite  : %d modules : ReplicatedStorage.Config et .Shared, ServerScriptService.Arena, .Clan et .Combat,
                ServerStorage.Tests.
                Les autres scripts serveur et client (Services, Controllers, Main) ne sont pas dans le dépôt GitHub
                et ne sont donc pas couverts.

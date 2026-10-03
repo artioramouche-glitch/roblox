@@ -5,7 +5,7 @@
      Étape   : outillage de reprise (généré par tools/gen_sync_check.py, ne pas modifier à la main)
      Dépend  : Studio en Édition ; execute_luau (lecture de Source)
      Exposé  : bilan dans la console : OK, DIFF (tailles), ABSENT ; aucune écriture
-     Limite  : 63 modules : ReplicatedStorage.Config et .Shared, ServerScriptService.Arena et .Combat,
+     Limite  : 65 modules : ReplicatedStorage.Config et .Shared, ServerScriptService.Arena, .Clan et .Combat,
                ServerStorage.Tests.
                Les autres scripts serveur et client (Services, Controllers, Main) ne sont pas dans le dépôt GitHub
                et ne sont donc pas couverts.
@@ -45,6 +45,8 @@ local EXPECTED = {
     {"ServerScriptService", "Arena", "ArenaShop", 3633},
     {"ServerScriptService", "Arena", "SeasonRules", 4714},
     {"ServerScriptService", "Arena", "TournamentBracket", 11541},
+    {"ServerScriptService", "Clan", "ClanRules", 9632},
+    {"ServerScriptService", "Clan", "WarRules", 10168},
     {"ServerScriptService", "Combat", "ArenaRewards", 5348},
     {"ServerScriptService", "Combat", "CombatBot", 5292},
     {"ServerScriptService", "Combat", "CombatEngine", 22543},
