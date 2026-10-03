@@ -1,12 +1,12 @@
 --!strict
 --[[ ArenaConfig
-     Rôle    : chiffres de la compétition PvP hors simulation : tokens arène, rangs et saisons, boutique du Colisée,
-               Tournoi du Samedi, et leur calendrier à l'heure de Paris.
-     Doc     : GAME_MASTER_V2 C7, E2, E7, E8, E9 ; PROMPT_EXECUTION_SABL_V4 §31.14 ; Q1-Q3 de l'étape 14 (02/10 : A,
-               A, A) ; Elo et rangs dans Shared/EloUtil (G5.4, recopié tel quel)
-     Étape   : 14 (configuration seule)
+     Rôle    : chiffres de la compétition PvP absents de CombatConfig (G5.3) : durées du match, tokens arène, rangs
+               et saisons, boutique du Colisée, Tournoi du Samedi, et leur calendrier à l'heure de Paris.
+     Doc     : GAME_MASTER_V2 C7, E1, E2, E3, E5, E7, E8, E9, G5.5, G5.6 ; PROMPT_EXECUTION_SABL_V4 §31.13, §31.14 ;
+               Q1-Q3 de l'étape 14 (02/10 : A, A, A) ; Elo et rangs dans Shared/EloUtil (G5.4, recopié tel quel)
+     Étape   : 14 (configuration seule) ; Match ajouté à l'étape 13, lot C
      Dépend  : Shared/ParisTime (heure de Paris, sortie de ce module à l'étape 15)
-     Exposé  : configuration immuable ; Tokens, RankLabels, SeasonRewards, Shop, Tournament ;
+     Exposé  : configuration immuable ; Match, Tokens, RankLabels, SeasonRewards, Shop, Tournament ;
                GetShopItem(key), ParisOffset(now), TournamentAt(now), SeasonAt(now)
      Limite  : module absent de G1, comme EconomyConfig ; écart déclaré. Q3 : le tournoi suit l'heure de Paris, été
                compris ; la saison mensuelle aussi (déclaré). Le calcul des dates vit dans Shared/ParisTime.
@@ -15,6 +15,14 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ParisTime = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("ParisTime"))
 
 local ArenaConfig = {}
+
+-- Durées du match que G5.3 ne chiffre pas, lues par ServerScriptService/Combat/CombatEngine (étape 13, lot C).
+ArenaConfig.Match = table.freeze({
+    TickSeconds = 0.1, -- G5.6 : simulation à 10 Hz
+    TeamSize = 3, -- E1 / G5.5 : 3 brainrots par joueur, l'actif et 2 remplaçants
+    RagdollSeconds = 1.5, -- E3 : ragdoll comique d'un brainrot KO avant l'entrée du remplaçant
+    UltimateFreezeSeconds = 3, -- E5 / G5.6 : cinématique de l'ultime, match figé
+})
 
 -- C7 / E2 : tokens gagnés en jouant, jamais achetés.
 ArenaConfig.Tokens = table.freeze({

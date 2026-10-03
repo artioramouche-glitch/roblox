@@ -6,6 +6,7 @@ Rôle    : appliquer dans Studio la règle de reprise « chaque script doit fair
 Doc     : PROMPT_EXECUTION_SABL_V4 §12.2 ; dette 25
 Usage   : python3 tools/gen_sync_check.py   (à relancer après chaque changement de src/ ou de studio/)
 Couvre  : src/ReplicatedStorage/Config et Shared → ReplicatedStorage.Config / .Shared ;
+          src/ServerScriptService/<Dossier> → ServerScriptService.<Dossier> (modules versionnés : Combat) ;
           les 25 modules de ServerStorage.Tests listés dans PROGRESS.md → studio/<Nom>.luau.
 """
 import glob
@@ -36,6 +37,10 @@ def main():
         for path in sorted(glob.glob(os.path.join(ROOT, "src", "ReplicatedStorage", folder, "*.luau"))):
             name = os.path.splitext(os.path.basename(path))[0]
             entries.append(("ReplicatedStorage", folder, name, size_without_cr(path)))
+    for path in sorted(glob.glob(os.path.join(ROOT, "src", "ServerScriptService", "*", "*.luau"))):
+        folder = os.path.basename(os.path.dirname(path))
+        name = os.path.splitext(os.path.basename(path))[0]
+        entries.append(("ServerScriptService", folder, name, size_without_cr(path)))
     for name in SERVER_TESTS:
         entries.append(("ServerStorage", "Tests", name, size_without_cr(os.path.join(ROOT, "studio", name + ".luau"))))
     rows = "\n".join('    {"%s", "%s", "%s", %d},' % entry for entry in entries)
@@ -46,8 +51,9 @@ def main():
      Étape   : outillage de reprise (généré par tools/gen_sync_check.py, ne pas modifier à la main)
      Dépend  : Studio en Édition ; execute_luau (lecture de Source)
      Exposé  : bilan dans la console : OK, DIFF (tailles), ABSENT ; aucune écriture
-     Limite  : %d modules : ReplicatedStorage.Config et .Shared, et ServerStorage.Tests. Les scripts serveur et client
-               (Services, Controllers, Main) ne sont pas dans le dépôt GitHub et ne sont donc pas couverts.
+     Limite  : %d modules : ReplicatedStorage.Config et .Shared, ServerScriptService.Combat et ServerStorage.Tests.
+               Les autres scripts serveur et client (Services, Controllers, Main) ne sont pas dans le dépôt GitHub
+               et ne sont donc pas couverts.
 ]]
 local EXPECTED = {
 %s
