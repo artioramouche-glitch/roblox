@@ -129,7 +129,7 @@ check("Arène Libre : ni Elo, ni série, ni saison ; victoires et défaites comp
 -- Entrées refusées.
 local function refused(input) local out, why = R.Settle(fresh(), input); return out == nil and why == "BAD_INPUT" end
 local ok = result("A")
-check("Entrées refusées : 2v2, match non fini, côté inconnu, Elo adverse absent, horloge absente, profil absent",
+check("Entrées refusées : 2v2 sans Elo du duo, match non fini, côté inconnu, Elo adverse absent, horloge, profil",
     refused({Mode = "Ranked2v2", Result = ok, Side = "A", OpponentElo = 1000, Now = 0})
     and refused({Mode = "Ranked1v1", Result = {Over = false, Seconds = 1, A = {}}, Side = "A", OpponentElo = 1000,
         Now = 0})
@@ -137,6 +137,34 @@ check("Entrées refusées : 2v2, match non fini, côté inconnu, Elo adverse abs
     and refused({Mode = "Ranked1v1", Result = ok, Side = "A", Now = 0})
     and refused({Mode = "Free", Result = ok, Side = "A"})
     and R.Settle(nil, {}) == nil)
+
+-- E2 / Q2-Q3 du 2v2.
+local function duoResult(winner, reason, seconds, leftA2)
+    return {Over = true, Winner = winner, Reason = reason or "KO", Seconds = seconds or 100,
+        A = {Abilities = 2, Ultimates = 1, Camp = "A"}, A2 = {Abilities = 1, Ultimates = 0, Camp = "A", Left = leftA2},
+        B = {Abilities = 0, Ultimates = 0, Camp = "B"}, B2 = {Abilities = 0, Ultimates = 0, Camp = "B"}}
+end
+local function settle2(p, res, seat, team, opp)
+    return R.Settle(p, {Mode = "Ranked2v2", Result = res, Side = seat, TeamElo = team, OpponentElo = opp, Now = 0})
+end
+local low, high = fresh(), fresh()
+low.PvP.Elo2v2, high.PvP.Elo2v2 = 900, 1100
+local winLow = settle2(low, duoResult("A"), "A", 1000, 1000)
+local winHigh = settle2(high, duoResult("A"), "A2", 1000, 1000)
+check("Q2 (A) : duo de moyenne 1000 vainqueur : +16 pour les deux partenaires (900 → 916, 1100 → 1116)",
+    winLow.EloAfter == 916 and winHigh.EloAfter == 1116 and winLow.Tokens == 35 + 2)
+local lossDuo = settle2(fresh(), duoResult("B", "KO", 130), "A", 1000, 1000)
+check("2v2 perdu : −16, 12 + 4 tokens", lossDuo.EloAfter == 984 and lossDuo.Tokens == 16)
+local leaver = settle2(fresh(), duoResult("A", "KO", 100, true), "A2", 1000, 1000)
+local partner = settle2(fresh(), duoResult("A", "KO", 100, true), "A", 1000, 1000)
+check("Q3 (A) : qui quitte prend une défaite sans token, même si son partenaire gagne ; le partenaire gagne",
+    leaver.Score == 0 and leaver.Forfeited and leaver.Tokens == 0 and leaver.EloAfter == 984 and partner.Score == 1
+    and partner.Tokens == 37)
+p = fresh()
+p.PvP.LossStreak = 2
+R.Apply(p, settle2(p, duoResult("B"), "B", 1000, 1000))
+check("2v2 appliqué : Elo 2v2 seul, ni série de défaites ni saison ; victoire comptée", p.PvP.Elo2v2 == 1016
+    and p.PvP.Elo1v1 == 1000 and p.PvP.LossStreak == 2 and p.PvP.Season.Wins == 0 and p.Stats.ArenaWins == 1)
 
 -- Bilan d'un vrai match du moteur.
 local function tank(id) return {Id = id, HP = 1e6, ATK = 10, Type = "Salty"} end

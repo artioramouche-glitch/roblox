@@ -120,7 +120,7 @@ def main():
         for name in tests:
             run = subprocess.run([luau, bundle_path, "-a", name], capture_output=True, text=True, encoding="utf-8")
             output = run.stdout + run.stderr
-            summary = re.findall(r"^\[[A-Z ]+TEST\] \d+ OK / \d+ FAIL$", output, re.MULTILINE)
+            summary = re.findall(r"^\[[A-Z0-9 ]+TEST\] \d+ OK / \d+ FAIL$", output, re.MULTILINE)
             ok = run.returncode == 0 and "success=true" in output and summary
             failed = failed or not ok
             if verbose or not ok:

@@ -1,20 +1,23 @@
 --!strict
 --[[ CombatEngine
-     Rôle    : simuler un match PvP 1v1 pas à pas (0,1 s) : auto-attaques, jauges de capacité et de foule,
+     Rôle    : simuler un match PvP 1v1 ou 2v2 pas à pas (0,1 s) : auto-attaques, jauges de capacité et de foule,
                capacités, switch, ultime, KO, temps limite et abandon ; seule autorité sur l'état d'un match.
-     Doc     : GAME_MASTER_V2 G5.6, E3, E4, E5, E12, B0bis, B4, B5 ; PROMPT_EXECUTION_SABL_V4 §31.13 lot C, §25.2 (lot
-               COMBAT) ; Q1-Q3 du lot C (03/10 : A, A, A) ; décisions 118 à 122
-     Étape   : 13, lot C
+     Doc     : GAME_MASTER_V2 G5.6, E2, E3, E4, E5, E12, B0bis, B4, B5 ; PROMPT_EXECUTION_SABL_V4 §31.13 lot C, §25.2
+               (lot COMBAT) ; Q1-Q3 du lot C (03/10 : A, A, A) et du 2v2 (03/10 : A, A, A) ; décisions 118 à 122,
+               138 à 142
+     Étape   : 13, lot C ; 2v2 (dette 33)
      Dépend  : Config.CombatConfig (G5.3), Config.ArenaConfig (Match), Shared.SlotRandom (brassage Mix32)
-     Exposé  : New(teamA, teamB, seed) -> match | (nil, raison) ; Step(match) ; Activate(match, side) ;
-               Switch(match, side, slot) ; Ultimate(match, side) ; Forfeit(match, side) -> (ok, raison?) ;
+     Exposé  : New(teamA, teamB, seed) et New2v2({teamA, teamA2}, {teamB, teamB2}, seed) -> match | (nil, raison) ;
+               Step(match) ; Activate(match, siège) ; Switch(match, siège, slot) ; Ultimate(match, siège) ;
+               Forfeit(match, siège) -> (ok, raison?) ; sièges : "A", "B" (1v1), plus "A2", "B2" (2v2) ;
                Snapshot(match) -> charge utile de CombatSync ; View(match, side) ; Result(match) ;
                TypeMultiplier(attaquant, défenseur)
      Limite  : ni temps réel, ni remote, ni Instance : CombatService (session locale) appelle Step toutes les 0,1 s,
                relaie les 3 actions des clients, pousse Snapshot par CombatSync une fois par tick et garde l'Elo,
-               les tokens et les créatures (le moteur ne lit ni n'écrit jamais un profil). 1v1 seulement : le 2v2
-               et les bots viennent au lot D. La graine ne quitte jamais le serveur (décision 121). Les actions
-               s'appliquent dès leur appel, dans l'ordre des appels.
+               les tokens et les créatures (le moteur ne lit ni n'écrit jamais un profil). En 2v2 (Q1 A), deux
+               couloirs : chaque siège frappe celui d'en face, ou l'autre adversaire si son couloir est vide ; un
+               siège abandonné reste en jeu, mené par CombatBot (Q3 A). La graine ne quitte jamais le serveur
+               (décision 121). Les actions s'appliquent dès leur appel, dans l'ordre des appels.
 ]]
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local config = ReplicatedStorage:WaitForChild("Config")
@@ -36,10 +39,10 @@ local ATTACK = ticks(CombatConfig.AutoAttackInterval)
 local SWITCH = ticks(CombatConfig.SwitchCooldown)
 local INVULN = ticks(CombatConfig.InvulnAfterSwitch)
 local TIMEOUT = ticks(CombatConfig.MatchTimeout)
+local TIMEOUT_2V2 = ticks(MATCH.Timeout2v2)
 local RAGDOLL = ticks(MATCH.RagdollSeconds)
 local FREEZE = ticks(MATCH.UltimateFreezeSeconds)
-local ORDER = table.freeze({"A", "B"})
-local OTHER: {[string]: string} = {A = "B", B = "A"}
+local OTHER: {[string]: string} = {A = "B", B = "A"} -- camps
 local TARGETED: {[string]: boolean} = {Burst = true, Control = true} -- capacités qui visent l'adversaire
 table.freeze(OTHER)
 table.freeze(TARGETED)
@@ -50,13 +53,15 @@ type Fighter = {
     Progress: number, Shield: number, Stun: number, Invuln: number,
     AtkDown: Effect, AtkUp: Effect, SpeedUp: Effect, Blind: Effect, Reflect: Effect,
 }
+-- Un siège = un joueur : son équipe, ses jauges, son couloir. Le camp est "A" ou "B".
 type Side = {
     Team: {Fighter}, Active: number, Charge: number, Crowd: number, SwitchCd: number, Down: number,
-    Damage: number, Abilities: number, Ultimates: number, Switches: number,
+    Damage: number, Abilities: number, Ultimates: number, Switches: number, Camp: string, Lane: number, Left: boolean,
 }
 export type Match = {
-    Sides: {[string]: Side}, Seed: number, Draws: number, Clock: number, Freeze: number, Pending: string?,
-    Over: boolean, Winner: string?, Reason: string?, Events: {any},
+    Sides: {[string]: Side}, Order: {string}, Camps: {[string]: {string}}, Timeout: number, Seed: number,
+    Draws: number, Clock: number, Freeze: number, Pending: string?, Over: boolean, Winner: string?, Reason: string?,
+    Events: {any},
 }
 
 local CombatEngine = {}
@@ -84,7 +89,7 @@ local function newFighter(entry: any): Fighter?
 end
 
 -- 1 à 3 brainrots ; l'équipe complète de 3 est exigée par ArenaService (G5.5), pas ici.
-local function newSide(team: any): Side?
+local function newSide(team: any, camp: string, lane: number): Side?
     if type(team) ~= "table" or #team < 1 or #team > MATCH.TeamSize then return nil end
     local fighters: {Fighter} = {}
     for i = 1, #team do
@@ -94,18 +99,42 @@ local function newSide(team: any): Side?
     end
     return {
         Team = fighters, Active = 1, Charge = 0, Crowd = 0, SwitchCd = 0, Down = 0,
-        Damage = 0, Abilities = 0, Ultimates = 0, Switches = 0,
+        Damage = 0, Abilities = 0, Ultimates = 0, Switches = 0, Camp = camp, Lane = lane, Left = false,
     }
 end
 
-function CombatEngine.New(teamA: any, teamB: any, seed: any): (Match?, string?)
+-- Sièges du couloir 1 : "A" et "B" ; du couloir 2 : "A2" et "B2".
+local function build(teamsA: {any}, teamsB: {any}, seed: any, timeout: number): (Match?, string?)
     if type(seed) ~= "number" or seed % 1 ~= 0 or seed < 0 or seed >= TWO32 then return nil, "BAD_SEED" end
-    local a, b = newSide(teamA), newSide(teamB)
-    if not a or not b then return nil, "BAD_TEAM" end
+    local sides: {[string]: Side} = {}
+    local order: {string} = {}
+    local camps: {[string]: {string}} = {A = {}, B = {}}
+    for lane = 1, #teamsA do
+        for _, camp in ipairs({"A", "B"}) do
+            local name = if lane == 1 then camp else camp .. lane
+            local side = newSide((if camp == "A" then teamsA else teamsB)[lane], camp, lane)
+            if not side then return nil, "BAD_TEAM" end
+            sides[name] = side
+            table.insert(order, name)
+            table.insert(camps[camp], name)
+        end
+    end
     return {
-        Sides = {A = a, B = b}, Seed = seed, Draws = 0, Clock = 0, Freeze = 0, Pending = nil,
-        Over = false, Winner = nil, Reason = nil, Events = {},
+        Sides = sides, Order = order, Camps = camps, Timeout = timeout, Seed = seed, Draws = 0, Clock = 0,
+        Freeze = 0, Pending = nil, Over = false, Winner = nil, Reason = nil, Events = {},
     }, nil
+end
+
+function CombatEngine.New(teamA: any, teamB: any, seed: any): (Match?, string?)
+    return build({teamA}, {teamB}, seed, TIMEOUT)
+end
+
+-- E2 / Q1 (A) : 2v2, deux couloirs, temps limite de 120 s.
+function CombatEngine.New2v2(teamsA: any, teamsB: any, seed: any): (Match?, string?)
+    if type(teamsA) ~= "table" or type(teamsB) ~= "table" or #teamsA ~= 2 or #teamsB ~= 2 then
+        return nil, "BAD_TEAM"
+    end
+    return build(teamsA, teamsB, seed, TIMEOUT_2V2)
 end
 
 -- B0bis : +20 % sur le type battu, −20 % contre le type qui bat l'attaquant.
@@ -134,6 +163,18 @@ end
 local function fighting(side: Side): Fighter?
     local fighter = side.Team[side.Active]
     return if side.Down == 0 and fighter.Alive then fighter else nil
+end
+
+-- Cible d'un siège : le brainrot d'en face s'il est sur le terrain, sinon celui de l'autre couloir adverse (2v2).
+local function foeOf(match: Match, sideName: string): string?
+    local side = match.Sides[sideName]
+    local foes = match.Camps[OTHER[side.Camp]]
+    local facing = foes[side.Lane]
+    if facing and fighting(match.Sides[facing]) then return facing end
+    for _, name in ipairs(foes) do
+        if fighting(match.Sides[name]) then return name end
+    end
+    return nil
 end
 
 local function live(e: Effect): number
@@ -195,16 +236,17 @@ end
 -- cible est invulnérable, raté selon la précision de l'attaquant (jamais pour l'ultime), absorbé par un bouclier,
 -- sinon encaissé. Renvoie vrai si le coup a porté (encaissé ou absorbé).
 local function hit(match: Match, sideName: string, mult: number, source: string): boolean
-    local side, foe = match.Sides[sideName], match.Sides[OTHER[sideName]]
-    local attacker, target = active(side), fighting(foe)
-    if not target then return false end
+    local foeName = foeOf(match, sideName)
+    if not foeName then return false end
+    local side, foe = match.Sides[sideName], match.Sides[foeName]
+    local attacker, target = active(side), fighting(foe) :: Fighter
     if target.Invuln > 0 then
-        emit(match, {k = "Dodge", s = sideName, src = source})
+        emit(match, {k = "Dodge", s = sideName, to = foeName, src = source})
         return false
     end
     local ultimate = source == "Ultimate"
     if not ultimate and live(attacker.Blind) > 0 and roll(match) < live(attacker.Blind) then
-        emit(match, {k = "Miss", s = sideName, src = source})
+        emit(match, {k = "Miss", s = sideName, to = foeName, src = source})
         return false
     end
     -- E3 : ±10 % tiré côté serveur ; E5 : l'ultime vaut 3 × l'ATK du moment, sans variance.
@@ -228,22 +270,35 @@ local function hit(match: Match, sideName: string, mult: number, source: string)
         attacker.HP -= reflected
         foe.Damage += reflected
     end
-    emit(match, {k = "Hit", s = sideName, src = source, dmg = damage, abs = absorbed, ref = reflected, tm = typeMult})
+    emit(match, {k = "Hit", s = sideName, to = foeName, src = source, dmg = damage, abs = absorbed, ref = reflected,
+        tm = typeMult})
     return true
 end
 
--- KO des brainrots actifs tombés à 0 PV, puis fin du match si une équipe est vide (les deux : match nul).
+local function empty(side: Side): boolean
+    for _, fighter in ipairs(side.Team) do
+        if fighter.Alive then return false end
+    end
+    return true
+end
+
+-- KO des brainrots actifs tombés à 0 PV, puis fin du match si un camp n'a plus aucun brainrot (les deux : nul).
 local function settle(match: Match)
     if match.Over then return end
-    local wiped: {[string]: boolean} = {}
-    for _, name in ipairs(ORDER) do
+    for _, name in ipairs(match.Order) do
         local side = match.Sides[name]
         local fighter = active(side)
         if side.Down == 0 and fighter.Alive and fighter.HP <= 0 then
             fighter.Alive, fighter.HP, fighter.Progress = false, 0, 0
             emit(match, {k = "KO", s = name, slot = side.Active})
-            if nextAlive(side) then side.Down = RAGDOLL else wiped[name] = true end
+            if nextAlive(side) then side.Down = RAGDOLL end
         end
+    end
+    local wiped: {[string]: boolean} = {}
+    for camp, names in pairs(match.Camps) do
+        local all = true
+        for _, name in ipairs(names) do all = all and empty(match.Sides[name]) end
+        wiped[camp] = all
     end
     if wiped.A and wiped.B then
         finish(match, "Draw", "KO")
@@ -255,22 +310,30 @@ local function settle(match: Match)
 end
 
 -- E3 : au temps limite, la plus forte part de PV restants sur toute l'équipe gagne ; à égalité, match nul.
-local function share(side: Side): number
+local function share(sides: {Side}): number
     local hp, max = 0, 0
-    for _, fighter in ipairs(side.Team) do
-        hp += math.max(0, fighter.HP)
-        max += fighter.MaxHP
+    for _, side in ipairs(sides) do
+        for _, fighter in ipairs(side.Team) do
+            hp += math.max(0, fighter.HP)
+            max += fighter.MaxHP
+        end
     end
     return hp / max
+end
+
+local function campSides(match: Match, camp: string): {Side}
+    local out = {}
+    for _, name in ipairs(match.Camps[camp]) do table.insert(out, match.Sides[name]) end
+    return out
 end
 
 local function landUltimate(match: Match)
     local name = match.Pending :: string
     match.Pending = nil
-    local side, foeName = match.Sides[name], OTHER[name]
-    local caster, target = active(side), fighting(match.Sides[foeName])
+    local side, foeName = match.Sides[name], foeOf(match, name)
+    local caster, target = active(side), if foeName then fighting(match.Sides[foeName]) else nil
     local bonus = CombatConfig.UltimateBonus[caster.Type]
-    if hit(match, name, CombatConfig.UltimateMultiplier, "Ultimate") and target then
+    if hit(match, name, CombatConfig.UltimateMultiplier, "Ultimate") and target and foeName then
         if bonus.atkDown then apply(match, foeName, target.AtkDown, "AtkDown", bonus.atkDown, bonus.duration) end
         if bonus.stun then stun(match, foeName, target, bonus.stun) end
     end
@@ -300,21 +363,21 @@ function CombatEngine.Step(match: Match)
     end
     match.Clock += 1
     -- 1. Entrée du remplaçant au bout du ragdoll.
-    for _, name in ipairs(ORDER) do
+    for _, name in ipairs(match.Order) do
         local side = match.Sides[name]
         if side.Down > 0 then
             side.Down -= 1
             if side.Down == 0 then enter(match, name, nextAlive(side) :: number) end
         end
     end
-    -- 2. Auto-attaques, simultanées : les KO ne se comptent qu'après les deux coups.
+    -- 2. Auto-attaques, simultanées : les KO ne se comptent qu'après tous les coups du tick.
     local firing: {string} = {}
-    for _, name in ipairs(ORDER) do
+    for _, name in ipairs(match.Order) do
         local fighter = fighting(match.Sides[name])
         if fighter and fighter.Stun == 0 then
             fighter.Progress += 1 + live(fighter.SpeedUp) -- Q2 (A) : +30 % = 30 % d'attaques en plus
             if fighter.Progress >= ATTACK - EPS then
-                if fighting(match.Sides[OTHER[name]]) then
+                if foeOf(match, name) then
                     fighter.Progress -= ATTACK
                     table.insert(firing, name)
                 else
@@ -327,7 +390,7 @@ function CombatEngine.Step(match: Match)
     settle(match)
     if match.Over then return end
     -- 3. Fin du tick : effets, jauge de capacité, recharge du switch, soin du banc.
-    for _, name in ipairs(ORDER) do
+    for _, name in ipairs(match.Order) do
         local side = match.Sides[name]
         local chargeTime = CombatConfig.AbilityChargeTime + active(side).Ability.cdPlus
         side.Charge = math.min(1, side.Charge + 1 / (chargeTime * PER_SECOND))
@@ -340,15 +403,15 @@ function CombatEngine.Step(match: Match)
         end
     end
     -- 4. Temps limite.
-    if match.Clock >= TIMEOUT then
-        local a, b = share(match.Sides.A), share(match.Sides.B)
+    if match.Clock >= match.Timeout then
+        local a, b = share(campSides(match, "A")), share(campSides(match, "B"))
         finish(match, if math.abs(a - b) < EPS then "Draw" elseif a > b then "A" else "B", "Timeout")
     end
 end
 
 -- Contrôles communs aux 3 actions du joueur (E4, E12).
 local function ready(match: Match, sideName: any): (Side?, string?)
-    if sideName ~= "A" and sideName ~= "B" then return nil, "BAD_SIDE" end
+    if type(sideName) ~= "string" or match.Sides[sideName] == nil then return nil, "BAD_SIDE" end
     if match.Over then return nil, "MATCH_OVER" end
     if match.Freeze > 0 then return nil, "FROZEN" end
     local side = match.Sides[sideName]
@@ -365,14 +428,14 @@ function CombatEngine.Activate(match: Match, sideName: any): (boolean, string?)
     if caster.Stun > 0 then return false, "STUNNED" end -- Q1 (A)
     if side.Charge < 1 - EPS then return false, "CHARGE_NOT_FULL" end
     local ability = caster.Ability
-    local foeName = OTHER[sideName :: string]
-    local target = fighting(match.Sides[foeName])
+    local foeName = foeOf(match, sideName)
+    local target = if foeName then fighting(match.Sides[foeName]) else nil
     if TARGETED[ability.kind] and (not target or target.Invuln > 0) then return false, "NO_TARGET" end
     side.Charge = 0
     side.Abilities += 1
     emit(match, {k = "Ability", s = sideName, id = caster.Id, kind = ability.kind, shake = ability.shake == true})
     if ability.kind == "Burst" then
-        if hit(match, sideName, ability.power, "Ability") and target then
+        if hit(match, sideName, ability.power, "Ability") and target and foeName then
             if ability.atkDown then
                 apply(match, foeName, target.AtkDown, "AtkDown", ability.atkDown, ability.duration)
             end
@@ -392,7 +455,7 @@ function CombatEngine.Activate(match: Match, sideName: any): (boolean, string?)
         caster.Shield = math.max(caster.Shield, ability.power)
         emit(match, {k = "Effect", s = sideName, e = "Shield", v = ability.power})
         if ability.reflect then apply(match, sideName, caster.Reflect, "Reflect", ability.reflect, ability.duration) end
-    elseif ability.kind == "Control" and target then
+    elseif ability.kind == "Control" and target and foeName then
         stun(match, foeName, target, ability.power)
     end
     settle(match)
@@ -422,7 +485,8 @@ function CombatEngine.Ultimate(match: Match, sideName: any): (boolean, string?)
     if not side then return false, why end
     if active(side).Stun > 0 then return false, "STUNNED" end -- Q1 (A)
     if side.Crowd < 1 - EPS then return false, "CROWD_NOT_FULL" end
-    local target = fighting(match.Sides[OTHER[sideName :: string]])
+    local foeName = foeOf(match, sideName)
+    local target = if foeName then fighting(match.Sides[foeName]) else nil
     if not target or target.Invuln > 0 then return false, "NO_TARGET" end
     side.Crowd = 0
     side.Ultimates += 1
@@ -431,11 +495,19 @@ function CombatEngine.Ultimate(match: Match, sideName: any): (boolean, string?)
     return true, nil
 end
 
--- E1 / E12 : déconnexion ou abandon = défaite ; le moteur ne touche à aucune créature.
+-- E1 / E12 : déconnexion ou abandon = défaite ; le moteur ne touche à aucune créature. Q3 (A) du 2v2 : le siège
+-- quitté reste en jeu (CombatBot le mène) ; le camp perd quand tous ses joueurs sont partis (1v1 : aussitôt).
 function CombatEngine.Forfeit(match: Match, sideName: any): (boolean, string?)
-    if sideName ~= "A" and sideName ~= "B" then return false, "BAD_SIDE" end
+    if type(sideName) ~= "string" or match.Sides[sideName] == nil then return false, "BAD_SIDE" end
     if match.Over then return false, "MATCH_OVER" end
-    finish(match, OTHER[sideName :: string], "Forfeit")
+    local side = match.Sides[sideName]
+    if side.Left then return false, "ALREADY_LEFT" end
+    side.Left = true
+    emit(match, {k = "Left", s = sideName})
+    for _, name in ipairs(match.Camps[side.Camp]) do
+        if not match.Sides[name].Left then return true, nil end
+    end
+    finish(match, OTHER[side.Camp], "Forfeit")
     return true, nil
 end
 
@@ -448,16 +520,19 @@ end
 -- G5.6 : la charge utile unique de CombatSync, identique pour les 2 joueurs et les spectateurs. Vide la liste
 -- des événements : un appel par tick, après Step. Aucune graine ni aucun tirage à venir n'y figure (E12).
 function CombatEngine.Snapshot(match: Match): any
-    local a, b = match.Sides.A, match.Sides.B
     local events = match.Events
     match.Events = {}
-    return {
+    local snap: any = {
         t = match.Clock / PER_SECOND, freeze = match.Freeze / PER_SECOND,
-        hpA = hpList(a), hpB = hpList(b), activeA = a.Active, activeB = b.Active,
-        chargeA = a.Charge, chargeB = b.Charge, crowdA = a.Crowd, crowdB = b.Crowd,
-        switchCdA = a.SwitchCd / PER_SECOND, switchCdB = b.SwitchCd / PER_SECOND,
         over = match.Over, winner = match.Winner, reason = match.Reason, events = events,
     }
+    for _, name in ipairs(match.Order) do -- hpA, activeA, chargeA, crowdA, switchCdA… (et A2, B2 en 2v2)
+        local side = match.Sides[name]
+        snap["hp" .. name], snap["active" .. name] = hpList(side), side.Active
+        snap["charge" .. name], snap["crowd" .. name] = side.Charge, side.Crowd
+        snap["switchCd" .. name] = side.SwitchCd / PER_SECOND
+    end
+    return snap
 end
 
 -- Vue d'un camp en lecture seule, sans vider les événements : ce que le bot (CombatBot, lot D) a le droit de
@@ -475,18 +550,19 @@ function CombatEngine.View(match: Match, sideName: string): any
     }
 end
 
--- E3 : bilan de l'écran de résultat (l'Elo et les tokens sont ajoutés par ArenaService, lot D).
+-- E3 : bilan de l'écran de résultat (l'Elo et les tokens sont ajoutés par ArenaRewards, lot D).
 function CombatEngine.Result(match: Match): any
-    local function sideResult(side: Side): any
-        return {
-            HP = hpList(side), Share = share(side), Damage = side.Damage, Abilities = side.Abilities,
-            Ultimates = side.Ultimates, Switches = side.Switches,
+    local result: any = {
+        Over = match.Over, Winner = match.Winner, Reason = match.Reason, Seconds = match.Clock / PER_SECOND,
+    }
+    for _, name in ipairs(match.Order) do -- un bilan par siège ; Winner désigne un camp ("A", "B" ou "Draw")
+        local side = match.Sides[name]
+        result[name] = {
+            HP = hpList(side), Share = share({side}), Damage = side.Damage, Abilities = side.Abilities,
+            Ultimates = side.Ultimates, Switches = side.Switches, Camp = side.Camp, Left = side.Left,
         }
     end
-    return {
-        Over = match.Over, Winner = match.Winner, Reason = match.Reason, Seconds = match.Clock / PER_SECOND,
-        A = sideResult(match.Sides.A), B = sideResult(match.Sides.B),
-    }
+    return result
 end
 
 return table.freeze(CombatEngine)

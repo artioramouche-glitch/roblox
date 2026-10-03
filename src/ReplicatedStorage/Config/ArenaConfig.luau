@@ -24,6 +24,7 @@ ArenaConfig.Match = table.freeze({
     TeamSize = 3, -- E1 / G5.5 : 3 brainrots par joueur, l'actif et 2 remplaçants
     RagdollSeconds = 1.5, -- E3 : ragdoll comique d'un brainrot KO avant l'entrée du remplaçant
     UltimateFreezeSeconds = 3, -- E5 / G5.6 : cinématique de l'ultime, match figé
+    Timeout2v2 = 120, -- E2 : un 2v2 dure de 90 à 120 s ; le 1v1 garde les 90 s de G5.3
 })
 
 -- G5.5 / E6 : file d'attente et appariement, lus par ServerScriptService/Combat/Matchmaker (étape 13, lot D).
