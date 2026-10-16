@@ -10,6 +10,9 @@ const fail = (err: unknown) => {
 if (command === 'setup') {
   const { runSetup } = await import('./setup.js');
   runSetup().catch(fail);
+} else if (command === 'doctor') {
+  const { runDoctor } = await import('./doctor.js');
+  runDoctor().then(() => process.exit(process.exitCode ?? 0), fail);
 } else if (command === 'help' || process.argv.includes('--help') || process.argv.includes('-h')) {
   const { HELP } = await import('./setup.js');
   console.log(HELP);

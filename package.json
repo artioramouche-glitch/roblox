@@ -13,6 +13,7 @@
     "start": "node packages/roblox-ultimate-mcp/dist/index.js",
     "start:inspector": "node packages/roblox-ultimate-mcp-inspector/dist/index.js",
     "setup": "node packages/roblox-ultimate-mcp/dist/index.js setup",
+    "doctor": "node packages/roblox-ultimate-mcp/dist/index.js doctor",
     "install-plugin": "node packages/roblox-ultimate-mcp/dist/index.js --install-plugin",
     "install-blender-addon": "node scripts/install-blender-addon.mjs",
     "build:plugin": "node scripts/build-plugin.mjs",

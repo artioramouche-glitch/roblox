@@ -229,6 +229,7 @@ export const HELP = `Roblox Ultimate MCP : permet à n'importe quelle IA de cré
 Utilisation :
   npx roblox-ultimate-mcp setup             installe le plugin Studio et configure vos applications d'IA
   npx roblox-ultimate-mcp setup --blender   ... et l'addon Blender (modèles 3D, personnages, animations)
+  npx roblox-ultimate-mcp doctor            vérifie tout (Node, serveur, Studio, Blender) et dit quoi corriger
   npx roblox-ultimate-mcp --install-plugin  installe seulement le plugin Studio
   npx roblox-ultimate-mcp                   démarre le serveur MCP (c'est ce que lance votre application d'IA)
 

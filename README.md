@@ -456,6 +456,9 @@ Sans GitHub : `npm login` puis `npm publish -w packages/roblox-ultimate-mcp --ac
 
 ## 🩺 Dépannage
 
+Commencer par **`npm run doctor`** (ou `npx roblox-ultimate-mcp doctor`) : il vérifie Node, le démarrage du serveur,
+la connexion à Studio et à Blender, et dit quoi corriger pour chaque ✖.
+
 | Problème | Solution |
 |---|---|
 | `Roblox Studio is not connected` | Studio ouvert ? Plugin installé (`npm run install-plugin`) ? Requêtes HTTP autorisées ? Clique **Connect** |
@@ -463,6 +466,7 @@ Sans GitHub : `npm login` puis `npm publish -w packages/roblox-ultimate-mcp --ac
 | L'IA ne voit pas un outil | Profil `starter` : `find_tools` puis `call_tool`, ou `set_tool_profile full` |
 | `test_game` ne s'arrête pas | Appuie sur **Stop** dans Studio puis relance ; `check_game` signale un reste de runner de test |
 | Deux IA en même temps | Supporté : la 2e instance passe en mode proxy et partage le même Studio ; organise-les avec `team` |
+| OpenCode : les outils Blender n'apparaissent pas | Ajoute `"environment": { "ROBLOX_MCP_BLENDER": "1" }` et `"timeout": 60000` à l'entrée du serveur (fait automatiquement par `npm run setup -- --blender`) |
 | `blender_status` : `connected: false` | Blender ouvert ? Addon activé (`npm run install-blender-addon`) ? N → **MCP for Blender** → **Connect** ; port 9876 libre (ou `BLENDER_PORT`) |
 | `look_at_game` sans image | Studio en mode Édition, vue 3D visible, **Paramètres du jeu → Sécurité → Allow Mesh / Image APIs** ✅ |
 | Un changement a tout cassé | `backup_game { action: "list" }` puis `restore` (ou Ctrl+Z) |
