@@ -90,7 +90,8 @@ args = ["CHEMIN/packages/roblox-ultimate-mcp/dist/index.js"]
 
 ## OpenCode
 
-`~/.config/opencode/opencode.json` :
+`npm run setup` (ou `npx roblox-ultimate-mcp setup`) le configure tout seul. À la main :
+`~/.config/opencode/opencode.json` (Windows : `C:\Users\<toi>\.config\opencode\opencode.json`) :
 
 ```json
 {

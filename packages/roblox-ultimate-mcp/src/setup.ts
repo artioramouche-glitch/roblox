@@ -2,7 +2,7 @@
  * `npx roblox-ultimate-mcp setup`: everything in one command, without cloning the repo.
  *   1. installs the Roblox Studio plugin (bundled with this package),
  *   2. registers the MCP server in the AI apps found on this computer
- *      (Claude Desktop, Cursor, Windsurf; prints the command for Claude Code / VS Code),
+ *      (Claude Desktop, Cursor, Windsurf, OpenCode; prints the command for Claude Code),
  *   3. with --blender, installs the "MCP for Blender" addon into the newest Blender.
  * Messages are in French: the people running it are the game creators, not the AI.
  */
@@ -37,8 +37,11 @@ export function localEntry(file: string = fileURLToPath(import.meta.url), node: 
 export interface ClientConfig {
   name: string;
   file: string;
-  /** The app is installed when this folder exists. */
+  /** The app is installed when this folder exists (or `command` is on the PATH). */
   folder: string;
+  /** Config shape: { mcpServers: {...} } (most apps) or OpenCode's { mcp: {...} }. */
+  format?: 'mcpServers' | 'opencode';
+  command?: string;
 }
 
 export function clientConfigs(home: string = homedir(), platform: string = process.platform, env: NodeJS.ProcessEnv = process.env): ClientConfig[] {
@@ -50,6 +53,8 @@ export function clientConfigs(home: string = homedir(), platform: string = proce
     { name: 'Claude Desktop', folder: claudeDir, file: join(claudeDir, 'claude_desktop_config.json') },
     { name: 'Cursor', folder: join(home, '.cursor'), file: join(home, '.cursor', 'mcp.json') },
     { name: 'Windsurf', folder: join(home, '.codeium', 'windsurf'), file: join(home, '.codeium', 'windsurf', 'mcp_config.json') },
+    // OpenCode keeps its global config in ~/.config/opencode on every system (Windows too).
+    { name: 'OpenCode', folder: join(home, '.config', 'opencode'), file: join(home, '.config', 'opencode', 'opencode.json'), format: 'opencode', command: 'opencode' },
   ];
 }
 
@@ -70,13 +75,37 @@ export function mergeServerConfig(existing: string | undefined, entry: Entry, fo
   return { text: `${JSON.stringify(config, null, 2)}\n`, status: current ? 'updated' : 'added' };
 }
 
+/** OpenCode: { "mcp": { name: { type: "local", command: [...], enabled: true } } }. */
+export function mergeOpenCodeConfig(existing: string | undefined, entry: Entry, force = false): { text: string | null; status: 'added' | 'updated' | 'present' } {
+  let config: any = { $schema: 'https://opencode.ai/config.json' };
+  if (existing && existing.trim()) {
+    config = JSON.parse(existing);
+    if (!config || typeof config !== 'object' || Array.isArray(config)) throw new Error('not a JSON object');
+  }
+  config.mcp = config.mcp && typeof config.mcp === 'object' ? config.mcp : {};
+  const current = config.mcp[SERVER_NAME];
+  if (current && !force) return { text: null, status: 'present' };
+  config.mcp[SERVER_NAME] = { ...(current ?? {}), type: 'local', command: [entry.command, ...entry.args], enabled: true };
+  return { text: `${JSON.stringify(config, null, 2)}\n`, status: current ? 'updated' : 'added' };
+}
+
+function onPath(command: string): boolean {
+  const found = spawnSync(process.platform === 'win32' ? 'where' : 'which', [command], { encoding: 'utf8' });
+  return !found.error && found.status === 0;
+}
+
 function configureClients(entry: Entry, force: boolean): string[] {
   const lines: string[] = [];
   for (const client of clientConfigs()) {
-    if (!existsSync(client.folder)) continue;
+    if (!existsSync(client.folder) && !(client.command && onPath(client.command))) continue;
     try {
       const before = existsSync(client.file) ? readFileSync(client.file, 'utf8') : undefined;
-      const { text, status } = mergeServerConfig(before, entry, force);
+      if (before === undefined && client.format === 'opencode' && existsSync(`${client.file}c`)) {
+        lines.push(`  ✖ ${client.name} : ta config est un fichier .jsonc (avec commentaires) : ajoute le serveur à la main (voir plus bas).`);
+        continue;
+      }
+      const merge = client.format === 'opencode' ? mergeOpenCodeConfig : mergeServerConfig;
+      const { text, status } = merge(before, entry, force);
       if (text) {
         if (before !== undefined) writeFileSync(`${client.file}.bak`, before);
         mkdirSync(dirname(client.file), { recursive: true });
@@ -163,11 +192,13 @@ export async function runSetup(argv: string[] = process.argv): Promise<void> {
   out.push('', '2. Applications d\'IA');
   const entry = localEntry() ?? serverEntry();
   const clientLines = configureClients(entry, force);
-  out.push(...(clientLines.length ? clientLines : ['  • Aucune application détectée (Claude Desktop, Cursor, Windsurf).']));
+  out.push(...(clientLines.length ? clientLines : ['  • Aucune application détectée (Claude Desktop, Cursor, Windsurf, OpenCode).']));
   const quote = (part: string) => (/\s/.test(part) ? `"${part}"` : part);
   out.push(`  • Claude Code : claude mcp add ${SERVER_NAME} -- ${[entry.command, ...entry.args].map(quote).join(' ')}`);
   out.push('  • Autre application : ajoutez ce serveur MCP :');
   out.push(`    ${JSON.stringify({ mcpServers: { [SERVER_NAME]: entry } })}`);
+  out.push('  • OpenCode (opencode.json) :');
+  out.push(`    ${JSON.stringify({ mcp: { [SERVER_NAME]: { type: 'local', command: [entry.command, ...entry.args], enabled: true } } })}`);
 
   if (argv.includes('--blender')) {
     out.push('', '3. Blender');

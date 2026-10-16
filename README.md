@@ -79,7 +79,7 @@ Il faut [Node.js](https://nodejs.org) 18 ou plus.
 ### ⚡ En une commande (sans cloner le dépôt)
 
 ```bash
-npx roblox-ultimate-mcp setup             # plugin Studio + Claude Desktop / Cursor / Windsurf configurés
+npx roblox-ultimate-mcp setup             # plugin Studio + Claude Desktop / Cursor / Windsurf / OpenCode configurés
 npx roblox-ultimate-mcp setup --blender   # ... et l'addon Blender
 ```
 
@@ -97,7 +97,7 @@ Il reste à redémarrer Studio et l'appli d'IA, puis à faire l'étape « Autori
 2. Dans ce dossier, ouvre un terminal (Windows : clic droit → *Ouvrir dans le terminal*) :
    ```bash
    npm install        # dépendances + compilation (le zip ne contient pas les fichiers compilés)
-   npm run setup      # plugin Studio + Claude Desktop / Cursor / Windsurf configurés vers CE dossier
+   npm run setup      # plugin Studio + Claude Desktop / Cursor / Windsurf / OpenCode configurés vers CE dossier
    ```
    `npm run setup -- --blender` installe aussi l'addon Blender.
 3. Redémarre Studio et l'appli d'IA, puis active **Autoriser les requêtes HTTP** (étape 2 ci-dessous).

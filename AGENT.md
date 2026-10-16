@@ -6,7 +6,7 @@
 ## 1. Install for the user (once)
 
 Fastest (once the package is published on npm): `npx roblox-ultimate-mcp setup` installs the Studio plugin and
-registers the server in Claude Desktop / Cursor / Windsurf (`--blender` also installs the Blender addon). It prints
+registers the server in Claude Desktop / Cursor / Windsurf / OpenCode (`--blender` also installs the Blender addon). It prints
 the line for other clients. Otherwise, from the repository:
 
 ```bash
