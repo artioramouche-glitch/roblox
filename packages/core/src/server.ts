@@ -23,7 +23,8 @@ import {
   listingView,
   type ListedTool,
 } from './gamekit/mcp-extras.js';
-import { getProfile, onProfileChange } from './gamekit/profiles.js';
+import { getProfile, onProfileChange, revealGroup } from './gamekit/profiles.js';
+import { probeBlender } from './gamekit/blender.js';
 
 export interface ServerConfig {
   name: string;
@@ -96,7 +97,14 @@ export class RobloxStudioMCPServer {
   }
 
   private setupToolHandlers() {
-    this.server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: this.listedTools() }));
+    // Blender already open? Reveal the blender_* tools before the first list (bounded wait).
+    const blenderReady = process.env.ROBLOX_MCP_BLENDER_PROBE === '0'
+      ? Promise.resolve()
+      : probeBlender().then((ok) => { if (ok) revealGroup('blender'); }, () => undefined);
+    this.server.setRequestHandler(ListToolsRequestSchema, async () => {
+      await Promise.race([blenderReady, new Promise((resolve) => setTimeout(resolve, 700))]);
+      return { tools: this.listedTools() };
+    });
     registerPromptsAndResources(this.server);
     this.setupCallHandler();
   }

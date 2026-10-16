@@ -16,7 +16,7 @@ import { spawnSync } from 'child_process';
 export const SERVER_NAME = 'roblox-ultimate';
 const PACKAGE = 'roblox-ultimate-mcp';
 
-type Entry = { command: string; args: string[] };
+type Entry = { command: string; args: string[]; env?: Record<string, string> };
 
 /** How an AI app should start this server (npx needs "cmd /c" on Windows). */
 export function serverEntry(platform: string = process.platform): Entry {
@@ -71,7 +71,8 @@ export function mergeServerConfig(existing: string | undefined, entry: Entry, fo
   config.mcpServers = config.mcpServers && typeof config.mcpServers === 'object' ? config.mcpServers : {};
   const current = config.mcpServers[SERVER_NAME];
   if (current && !force) return { text: null, status: 'present' };
-  config.mcpServers[SERVER_NAME] = { ...(current ?? {}), ...entry };
+  const { env, ...launch } = entry;
+  config.mcpServers[SERVER_NAME] = { ...(current ?? {}), ...launch, ...(env ? { env: { ...(current?.env ?? {}), ...env } } : {}) };
   return { text: `${JSON.stringify(config, null, 2)}\n`, status: current ? 'updated' : 'added' };
 }
 
@@ -85,7 +86,15 @@ export function mergeOpenCodeConfig(existing: string | undefined, entry: Entry, 
   config.mcp = config.mcp && typeof config.mcp === 'object' ? config.mcp : {};
   const current = config.mcp[SERVER_NAME];
   if (current && !force) return { text: null, status: 'present' };
-  config.mcp[SERVER_NAME] = { ...(current ?? {}), type: 'local', command: [entry.command, ...entry.args], enabled: true };
+  config.mcp[SERVER_NAME] = {
+    ...(current ?? {}),
+    type: 'local',
+    command: [entry.command, ...entry.args],
+    enabled: true,
+    // Cold starts on Windows (antivirus scans) can pass OpenCode's 5 s default.
+    timeout: current?.timeout ?? 60000,
+    ...(entry.env ? { environment: { ...(current?.environment ?? {}), ...entry.env } } : {}),
+  };
   return { text: `${JSON.stringify(config, null, 2)}\n`, status: current ? 'updated' : 'added' };
 }
 
@@ -190,15 +199,19 @@ export async function runSetup(argv: string[] = process.argv): Promise<void> {
   }
 
   out.push('', '2. Applications d\'IA');
-  const entry = localEntry() ?? serverEntry();
+  // --blender: always list the blender_* tools (some apps never refresh their tool list).
+  const base = localEntry() ?? serverEntry();
+  const entry: Entry = argv.includes('--blender') ? { ...base, env: { ROBLOX_MCP_BLENDER: '1' } } : base;
   const clientLines = configureClients(entry, force);
   out.push(...(clientLines.length ? clientLines : ['  • Aucune application détectée (Claude Desktop, Cursor, Windsurf, OpenCode).']));
   const quote = (part: string) => (/\s/.test(part) ? `"${part}"` : part);
-  out.push(`  • Claude Code : claude mcp add ${SERVER_NAME} -- ${[entry.command, ...entry.args].map(quote).join(' ')}`);
+  const envFlags = Object.entries(entry.env ?? {}).map(([k, v]) => `-e ${k}=${v} `).join('');
+  out.push(`  • Claude Code : claude mcp add ${SERVER_NAME} ${envFlags}-- ${[entry.command, ...entry.args].map(quote).join(' ')}`);
   out.push('  • Autre application : ajoutez ce serveur MCP :');
-  out.push(`    ${JSON.stringify({ mcpServers: { [SERVER_NAME]: entry } })}`);
+  const { env, ...launch } = entry;
+  out.push(`    ${JSON.stringify({ mcpServers: { [SERVER_NAME]: { ...launch, ...(env ? { env } : {}) } } })}`);
   out.push('  • OpenCode (opencode.json) :');
-  out.push(`    ${JSON.stringify({ mcp: { [SERVER_NAME]: { type: 'local', command: [entry.command, ...entry.args], enabled: true } } })}`);
+  out.push(`    ${JSON.stringify({ mcp: { [SERVER_NAME]: { type: 'local', command: [entry.command, ...entry.args], enabled: true, timeout: 60000, ...(env ? { environment: env } : {}) } } })}`);
 
   if (argv.includes('--blender')) {
     out.push('', '3. Blender');

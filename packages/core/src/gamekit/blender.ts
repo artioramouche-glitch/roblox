@@ -46,6 +46,31 @@ interface BlenderReply {
   message?: string;
 }
 
+/**
+ * Is the Blender addon listening? A bare TCP connect, closed at once. Used at startup so
+ * the blender_* tools are already in the first tools/list when Blender is open: some
+ * clients never re-read the list after tools/list_changed.
+ */
+export function probeBlender(
+  host = process.env.BLENDER_HOST || '127.0.0.1',
+  port = Number(process.env.BLENDER_PORT || 9876),
+  timeoutMs = 500,
+): Promise<boolean> {
+  return new Promise((resolve) => {
+    const socket = net.connect({ host, port });
+    let settled = false;
+    const done = (ok: boolean) => {
+      if (settled) return;
+      settled = true;
+      socket.destroy();
+      resolve(ok);
+    };
+    socket.setTimeout(timeoutMs, () => done(false));
+    socket.once('connect', () => done(true));
+    socket.once('error', () => done(false));
+  });
+}
+
 export class BlenderClient {
   private chain: Promise<unknown> = Promise.resolve();
 
