@@ -77,7 +77,8 @@ background with `start_job { tool, arguments }` + `job_status { id, wait: 30 }`.
 ## 2b. Blender (custom 3D models)
 
 `blender_status` → model with `blender_python` (meters, base at Z = 0, < 20k triangles, 1 material per mesh) or get a
-model with `blender_assets` (Poly Pizza, Sketchfab, Poly Haven, Hyper3D/Hunyuan3D generation) → `blender_scene
+model with `blender_assets` (Poly Pizza, Sketchfab, Poly Haven, Hyper3D/Hunyuan3D generation from text or from
+reference `images`: absolute image paths or URLs; hunyuan3d takes exactly one) → `blender_scene
 { screenshot: true }` → `blender_to_roblox { name, position }` (needs ROBLOX_OPEN_CLOUD_API_KEY + ROBLOX_CREATOR_USER_ID;
 without them it exports the file for a manual Import 3D, then `blender_to_roblox { name, existing }`). Read
 `roblox_guide blender`.

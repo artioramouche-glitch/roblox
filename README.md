@@ -327,7 +327,7 @@ dans ton IA pour Studio **et** Blender.
 | `blender_status` | Vérifie le lien, liste la scène ; explique l'installation si besoin. Une fois Blender connecté, les autres outils apparaissent |
 | `blender_python` | Modélise en Python (`bpy`), étape par étape |
 | `blender_scene` | Objets (taille en mètres, triangles, matériaux) + capture de la vue 3D |
-| `blender_assets` | Modèles gratuits (Poly Pizza, Sketchfab, Poly Haven) ou génération par IA (Hyper3D, Hunyuan3D) |
+| `blender_assets` | Modèles gratuits (Poly Pizza, Sketchfab, Poly Haven) ou génération par IA (Hyper3D, Hunyuan3D) à partir d'un texte **ou d'images** (`images` : chemins absolus .png/.jpg/.webp ou URLs, par exemple des vues faites avec Gemini) |
 | `blender_to_roblox` | Export (réduction auto à 20 000 triangles/maillage, alertes textures et matériaux) → upload Roblox → insertion à la bonne taille, posée au sol. **Personnage riggé** : l'armature est exportée avec le maillage (4 influences max par sommet) et le modèle reçoit un Animator |
 | `blender_animation` | Une **action Blender** (Marche, Attaque…) devient une **KeyframeSequence** dans `ServerStorage/GameKit/Animations`, testable tout de suite (id temporaire), + un FBX animé pour l'Animation Editor. Publie-la ensuite (clic droit → *Save to Roblox*) et vérifie l'id avec `check_assets` |
 

@@ -1,4 +1,7 @@
+import fs from 'fs';
 import net from 'net';
+import os from 'os';
+import path from 'path';
 import { checkLuauSyntax } from '../luau-syntax.js';
 import { animationPython, animatorLuau, BlenderClient, BlenderTools, exportPython, keyframeLuau, safeModeViolation, STUDS_PER_METER } from '../blender.js';
 import { spawnSync } from 'child_process';
@@ -117,6 +120,43 @@ describe('Blender bridge', () => {
     expect(result.steps.export.sizeMeters).toEqual([2, 3, 1]);
     expect(connected).toBeGreaterThan(0);
     addon.close();
+  });
+
+  test('blender_assets generates from reference images, and only sends image files', async () => {
+    const addon = await fakeAddon(() => ({ status: 'success', result: { uuid: 'U1', jobs: { subscription_key: 'S1' }, Response: { JobId: 'J1' } } }));
+    const tools = new BlenderTools(recordingHost(), new BlenderClient('127.0.0.1', addon.port));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gamekit-img-'));
+    const png = path.join(dir, 'chest.png');
+    fs.writeFileSync(png, Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+    fs.writeFileSync(path.join(dir, 'secret.txt'), 'token');
+    const generate = (args: Record<string, unknown>) => tools.call('blender_assets', { action: 'generate', ...args });
+    try {
+      // Hyper3D (hyper3d.ai mode): local files are sent as [suffix, base64] pairs, no prompt needed.
+      expect(parse(await generate({ source: 'hyper3d', images: [png] })).id).toBe('S1');
+      expect(addon.seen[0].params).toEqual({ text_prompt: null, images: [['.png', 'iVBORw==']], bbox_condition: null });
+      // Hyper3D (fal.ai mode): URLs go through as they are, with the prompt.
+      await generate({ source: 'hyper3d', query: 'treasure chest', images: ['https://example.com/chest.png'] });
+      expect(addon.seen[1].params).toMatchObject({ text_prompt: 'treasure chest', images: ['https://example.com/chest.png'] });
+      // Hunyuan3D: one image, and the prompt is dropped (the API refuses both).
+      const hunyuan = parse(await generate({ source: 'hunyuan3d', query: 'treasure chest', images: [png] }));
+      expect(hunyuan.id).toBe('job_J1');
+      expect(hunyuan.note).toMatch(/query ignored/);
+      expect(addon.seen[2].params).toEqual({ text_prompt: null, image: png });
+      // Text-only generation still works.
+      await generate({ source: 'hunyuan3d', query: 'treasure chest' });
+      expect(addon.seen[3].params).toEqual({ text_prompt: 'treasure chest', image: null });
+
+      await expect(generate({ source: 'hyper3d', images: [path.join(dir, 'secret.txt')] })).rejects.toThrow(/Not an image/);
+      await expect(generate({ source: 'hyper3d', images: [path.join(dir, 'missing.png')] })).rejects.toThrow(/not found/);
+      await expect(generate({ source: 'hyper3d', images: ['chest.png'] })).rejects.toThrow(/absolute/);
+      await expect(generate({ source: 'hyper3d', images: [png, 'https://example.com/a.png'] })).rejects.toThrow(/not both/);
+      await expect(generate({ source: 'hunyuan3d', images: [png, png] })).rejects.toThrow(/one image/);
+      await expect(generate({ source: 'hyper3d' })).rejects.toThrow(/"query" or "images"/);
+      expect(addon.seen).toHaveLength(4); // refused calls never reach Blender
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+      addon.close();
+    }
   });
 
   test('export script keeps the scene intact and converts units', async () => {

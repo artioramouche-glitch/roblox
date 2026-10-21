@@ -285,6 +285,9 @@ Reading errors: "ServerScriptService.Shop:42: attempt to index nil with 'Value'"
 ## Make a prop
 - Ready-made: blender_assets { action: "search", source: "polypizza" | "sketchfab" | "polyhaven", query } then
   { action: "download", source, id }. AI generation: { action: "generate", source: "hyper3d" | "hunyuan3d", query } then poll/import.
+- From a picture (e.g. a concept image made by an image AI): add images: ["C:/abs/path/front.png", ...] (png/jpg/webp,
+  plain white background, one object). hyper3d takes several views of the same object (local paths with Rodin Mode
+  "hyper3d.ai", URLs with "fal.ai"); hunyuan3d takes exactly one image and ignores query.
 - By code: blender_python with bpy, in small steps. Model in METERS (door 2 m, character 1.8 m), base at Z = 0,
   one material per mesh, < 20k triangles per mesh, textures <= 1024 px.
 - Check it: blender_scene { screenshot: true }.

@@ -137,6 +137,19 @@ Ce fichier dit ce qui est fait, ce qui reste et comment reprendre. Il sert à co
    - luau-lsp : 0 diagnostic ;
    - lint : toujours les 3 erreurs dans le code 6xvl, que ce round n'a pas touché.
 
+## ✅ Génération 3D à partir d'images (2026-10-21)
+
+`blender_assets {action: "generate"}` accepte maintenant `images` (images de référence, par exemple faites avec
+Gemini) en plus de `query`. Code dans `packages/core/src/gamekit/blender.ts` (`referenceImages`).
+- **Hyper3D (Rodin)** : plusieurs vues d'un même objet. Les chemins locaux sont envoyés en `[extension, base64]`
+  (Rodin Mode « hyper3d.ai » dans l'addon), les URLs telles quelles (mode « fal.ai »). Le texte devient optionnel.
+- **Hunyuan3D** : une seule image (chemin ou URL). Le texte est alors ignoré, parce que l'API refuse les deux ensemble.
+- **Sécurité** : seuls les chemins absolus de fichiers .png/.jpg/.jpeg/.webp qui existent sont acceptés, puisque
+  leur contenu part vers une API externe. Pas de mélange URLs + fichiers.
+- Guide `roblox_guide blender`, README et AGENT.md mis à jour.
+- Vérification : typecheck OK, build OK, 107 tests serveur et 91 tests Game Kit (nouveau test avec le faux addon).
+- **À tester en vrai** : une génération Hyper3D et une Hunyuan3D à partir d'une image, avec les clés dans l'addon.
+
 ## ⚠️ À tester par toi dans le vrai Studio et le vrai Blender
 
 Ces points ne peuvent pas être vérifiés ici :

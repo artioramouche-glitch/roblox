@@ -568,6 +568,29 @@ export function safeModeViolation(code: string): string | null {
 // --- Tools ---------------------------------------------------------------------------------------
 
 const ASSET_SOURCES = ['polyhaven', 'sketchfab', 'polypizza', 'hyper3d', 'hunyuan3d'] as const;
+const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp']);
+
+/**
+ * Reference images for AI generation: http(s) URLs, or absolute paths of local image files.
+ * Their bytes go to a third-party API, so anything that is not an image file is refused.
+ */
+function referenceImages(value: unknown): { urls: string[]; files: string[] } {
+  const list = value === undefined || value === null ? [] : Array.isArray(value) ? value.map(String) : [String(value)];
+  const urls: string[] = [];
+  const files: string[] = [];
+  for (const item of list) {
+    if (/^https?:\/\//i.test(item)) {
+      urls.push(item);
+      continue;
+    }
+    if (!path.isAbsolute(item)) throw new Error(`Image path must be absolute: ${item}`);
+    if (!IMAGE_EXTENSIONS.has(path.extname(item).toLowerCase())) throw new Error(`Not an image file (png, jpg, jpeg, webp): ${item}`);
+    if (!fs.existsSync(item)) throw new Error(`Image not found: ${item}`);
+    files.push(item);
+  }
+  if (urls.length && files.length) throw new Error('Give either image URLs or local image files, not both.');
+  return { urls, files };
+}
 
 export const BLENDER_TOOLS: ToolDef[] = [
   {
@@ -636,13 +659,18 @@ export const BLENDER_TOOLS: ToolDef[] = [
     name: 'blender_assets',
     category: 'write',
     tier: 'blender',
-    description: 'Ready-made 3D content into Blender: search/download (polyhaven, sketchfab, polypizza) or AI generation (hyper3d, hunyuan3d: generate, poll, import). Enable sources in the addon panel.',
+    description: 'Ready-made 3D content into Blender: search/download (polyhaven, sketchfab, polypizza) or AI generation from text and/or reference images (hyper3d, hunyuan3d: generate, poll, import). Enable sources in the addon panel.',
     inputSchema: {
       type: 'object',
       properties: {
         action: { type: 'string', enum: ['status', 'search', 'download', 'generate', 'poll', 'import', 'texture'] },
         source: { type: 'string', enum: [...ASSET_SOURCES] },
         query: { type: 'string' },
+        images: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'generate: reference images (e.g. concept views on a white background). Absolute .png/.jpg/.jpeg/.webp paths or http(s) URLs. hyper3d: several views of one object (paths with Rodin Mode "hyper3d.ai", URLs with "fal.ai"); hunyuan3d: exactly 1, used instead of query',
+        },
         id: { type: 'string' },
         assetType: { type: 'string', enum: ['models', 'textures', 'hdris', 'all'] },
         categories: { type: 'string' },
@@ -770,7 +798,12 @@ export class BlenderTools {
       case 'search:polypizza': return text(await c('search_polypizza_models', { query: this.need(args.query, 'query'), category: args.categories ?? null, licence: null, animated: false, limit }));
       case 'download:polypizza': return text(await c('download_polypizza_model', { model_id: this.need(args.id, 'id'), normalize_size: args.targetSize !== undefined, target_size: Number(args.targetSize ?? 1) }));
       case 'generate:hyper3d': {
-        const job = await c<any>('create_rodin_job', { text_prompt: this.need(args.query, 'query'), images: null, bbox_condition: null });
+        const { urls, files } = referenceImages(args.images);
+        const prompt = args.query ? String(args.query) : null;
+        if (!prompt && !urls.length && !files.length) throw new Error('"query" or "images" is required to generate');
+        // MAIN_SITE mode uploads the bytes as [suffix, base64] pairs; FAL_AI mode takes URLs.
+        const images = files.length ? files.map((f) => [path.extname(f), fs.readFileSync(f).toString('base64')]) : urls.length ? urls : null;
+        const job = await c<any>('create_rodin_job', { text_prompt: prompt, images, bbox_condition: null });
         const id = job?.jobs?.subscription_key ?? job?.request_id ?? job?.uuid;
         return text({ job, id, taskUuid: job?.uuid, next: 'Call blender_assets {action:"poll", source:"hyper3d", id} every ~20s until done, then {action:"import", source:"hyper3d", id: <taskUuid or request id>, name}.' });
       }
@@ -786,9 +819,15 @@ export class BlenderTools {
         return text(await c('import_generated_asset', { name: objectName, task_uuid: id }).catch(() => c('import_generated_asset', { name: objectName, request_id: id })));
       }
       case 'generate:hunyuan3d': {
-        const job = await c<any>('create_hunyuan_job', { text_prompt: this.need(args.query, 'query'), image: null });
+        const { urls, files } = referenceImages(args.images);
+        const image = [...files, ...urls];
+        if (image.length > 1) throw new Error('hunyuan3d takes one image: pick the clearest view (front or three-quarter).');
+        // The official API refuses a prompt and an image together: the image wins.
+        const job = await c<any>('create_hunyuan_job', image.length
+          ? { text_prompt: null, image: image[0] }
+          : { text_prompt: this.need(args.query, 'query'), image: null });
         const id = job?.Response?.JobId ? `job_${job.Response.JobId}` : undefined;
-        return text({ job, id, next: 'Call blender_assets {action:"poll", source:"hunyuan3d", id} until status DONE, then {action:"import", source:"hunyuan3d", name, url: <.glb url from ResultFile3Ds>}.' });
+        return text({ job, id, ...(image.length && args.query ? { note: 'query ignored: hunyuan3d generates from the image alone' } : {}), next: 'Call blender_assets {action:"poll", source:"hunyuan3d", id} until status DONE, then {action:"import", source:"hunyuan3d", name, url: <.glb url from ResultFile3Ds>}.' });
       }
       case 'poll:hunyuan3d': return text(await c('poll_hunyuan_job_status', { job_id: this.need(args.id, 'id') }));
       case 'import:hunyuan3d': return text(await c('import_generated_asset_hunyuan', { name: this.need(args.name, 'name'), zip_file_url: this.need(args.url, 'url') }));
