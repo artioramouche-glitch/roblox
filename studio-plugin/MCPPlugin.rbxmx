@@ -621,6 +621,9 @@ local MultiplayerTestHandlers = TS.import(script, script.Parent, "handlers", "Mu
 local Activity = TS.import(script, script.Parent, "Activity")
 local instanceId = HttpService:GenerateGUID(false)
 local assignedRole
+-- Requests this peer started, by id. The server hands a claimed request to its claimer again
+-- (to recover a lost poll reply), so a slow one (an upload) used to run once per poll.
+local started = {}
 local function detectRole()
 	-- IsRunMode is true only for a Run playtest, so Play-mode peers used to report as edit.
 	if not RunService:IsRunning() then
@@ -743,8 +746,8 @@ local function processRequest(request)
 	end
 end
 local function sendResponse(conn, requestId, responseData)
-	pcall(function()
-		HttpService:RequestAsync({
+	local ok, result = pcall(function()
+		return HttpService:RequestAsync({
 			Url = `{conn.serverUrl}/response`,
 			Method = "POST",
 			Headers = {
@@ -756,6 +759,10 @@ local function sendResponse(conn, requestId, responseData)
 			}),
 		})
 	end)
+	-- Otherwise the tool call just waits for its 30 s timeout with no clue why.
+	if not ok or not result.Success then
+		warn(`[MCP] Could not send the reply for {requestId}: {if ok then `HTTP {result.StatusCode}` else tostring(result)}`)
+	end
 end
 local function getConnectionStatus(connIndex)
 	local conn = State.getConnection(connIndex)
@@ -781,7 +788,7 @@ local function pollForRequests(connIndex)
 	conn.isPolling = true
 	local success, result = pcall(function()
 		return HttpService:RequestAsync({
-			Url = `{conn.serverUrl}/poll?instanceId={instanceId}`,
+			Url = `{conn.serverUrl}/poll?instanceId={instanceId}&role={detectRole()}`,
 			Method = "GET",
 			Headers = {
 				["Content-Type"] = "application/json",
@@ -848,7 +855,17 @@ local function pollForRequests(connIndex)
 				UI.startPulseAnimation()
 			end
 		end
-		if data.request and mcpConnected then
+		local now = tick()
+		for id, at in started do
+			if now - at > 120 then
+				started[id] = nil
+			end
+		end
+		local requestId = data.requestId
+		if data.request and mcpConnected and (requestId == nil or not (started[requestId] ~= nil)) then
+			if requestId ~= nil then
+				started[requestId] = now
+			end
 			task.spawn(function()
 				local ok, response = pcall(function()
 					return processRequest(data.request)
@@ -11130,16 +11147,16 @@ local function buildWrapper(code, payloadInstanceName)
 \tlocal __mcp_real_require = require\
 \tlocal print = function(...)\
 \t\t__mcp_real_print(...)\
-\t\tlocal args = \{...\}\
-\t\tlocal parts = table.create(#args)\
-\t\tfor i, a in ipairs(args) do parts[i] = tostring(a) end\
+\t\tlocal n = select("#", ...)\
+\t\tlocal parts = table.create(n)\
+\t\tfor i = 1, n do parts[i] = tostring((select(i, ...))) end\
 \t\ttable.insert(__mcp_output, table.concat(parts, "\\t"))\
 \tend\
 \tlocal warn = function(...)\
 \t\t__mcp_real_warn(...)\
-\t\tlocal args = \{...\}\
-\t\tlocal parts = table.create(#args)\
-\t\tfor i, a in ipairs(args) do parts[i] = tostring(a) end\
+\t\tlocal n = select("#", ...)\
+\t\tlocal parts = table.create(n)\
+\t\tfor i = 1, n do parts[i] = tostring((select(i, ...))) end\
 \t\ttable.insert(__mcp_output, "[warn] " .. table.concat(parts, "\\t"))\
 \tend\
 \tlocal function __mcp_is_stack_noise(msg)\

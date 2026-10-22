@@ -88,16 +88,16 @@ function buildWrapper(code: string, payloadInstanceName = PAYLOAD_INSTANCE_NAME)
 \tlocal __mcp_real_require = require
 \tlocal print = function(...)
 \t\t__mcp_real_print(...)
-\t\tlocal args = {...}
-\t\tlocal parts = table.create(#args)
-\t\tfor i, a in ipairs(args) do parts[i] = tostring(a) end
+\t\tlocal n = select("#", ...)
+\t\tlocal parts = table.create(n)
+\t\tfor i = 1, n do parts[i] = tostring((select(i, ...))) end
 \t\ttable.insert(__mcp_output, table.concat(parts, "\\t"))
 \tend
 \tlocal warn = function(...)
 \t\t__mcp_real_warn(...)
-\t\tlocal args = {...}
-\t\tlocal parts = table.create(#args)
-\t\tfor i, a in ipairs(args) do parts[i] = tostring(a) end
+\t\tlocal n = select("#", ...)
+\t\tlocal parts = table.create(n)
+\t\tfor i = 1, n do parts[i] = tostring((select(i, ...))) end
 \t\ttable.insert(__mcp_output, "[warn] " .. table.concat(parts, "\\t"))
 \tend
 \tlocal function __mcp_is_stack_noise(msg)

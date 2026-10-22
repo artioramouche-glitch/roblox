@@ -27,7 +27,7 @@ ALWAYS follow this path:
 1. Call roblox_start_here first.
 2. Build the game with create_game (templates: ${TEMPLATES.map((t) => t.id).join(', ')}) instead of writing code from scratch.
 3. Call test_game after every change and fix every error it reports until it says PASS.
-4. Customise with add_system (config), build_world, build_ui and set_environment -- they need no code.
+4. Customise with add_system (config), build_world, build_ui and set_environment -- they need no code. A map = set_environment { terrain, features: mountains, lakes, rivers, roads, plateaus where the plan says } (roblox_guide map). Sounds for every key action: make_sound.
 5. Before writing code, try code_recipe (verified scripts). Otherwise write_script for new scripts and edit_script for changes: both auto-fix and refuse broken code. Server logic in ServerScriptService, UI/input in LocalScripts.
 6. Look at the result with look_at_game, decorate with populate_world, and run check_game before finishing. Keep the project memory in game_notes.
 Before publishing: test_game {players: 2}, test_game {device: "phone"}, check_assets, optimize_game, publish_checklist.
@@ -35,7 +35,7 @@ Save with backup_game before risky changes. Slow tools (blender_to_roblox, long 
 The user gives a picture to copy: it IS the target, not a template look. Follow roblox_guide reference and compare with look_at_game { reference: "<image path>" } until it matches.
 No picture yet for something visual (UI, map, sky, buildings, props, eggs, characters): BEFORE building, give the user one ready-to-paste Claude Design prompt and one Gemini prompt (4-view sheet on white for an object, 2:1 panorama for a sky), then build from the images they bring back. See roblox_guide design.
 Statues, characters, creatures, eggs, portals, trees and anything round or organic: model them in Blender (blender_status, blender_python or blender_assets, then blender_to_roblox) or use a ready-made model, never stacked plain parts. If Blender is not connected, ask the user to open it and click Connect. Several AIs on one game: team (plan, claim tasks, claim zones).
-Read roblox_guide (topics: workflow, coding, design, reference, blender, luau, client-server, ui, errors) when unsure. Understand existing code with code_outline and read_script { path, find }. Never invent Roblox APIs; never trust values sent by the client.
+Read roblox_guide (topics: workflow, coding, design, reference, map, sound, blender, luau, client-server, ui, errors) when unsure. Understand existing code with code_outline and read_script { path, find }. Never invent Roblox APIs; never trust values sent by the client.
 For anything else (terrain, lighting, animations, particles, sounds, assets, profiling, multiplayer tests, screenshots...) many more tools exist: find_tools then call_tool.`;
 
 export interface PromptDef {

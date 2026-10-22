@@ -150,6 +150,27 @@ Gemini) en plus de `query`. Code dans `packages/core/src/gamekit/blender.ts` (`r
 - Vérification : typecheck OK, build OK, 107 tests serveur et 91 tests Game Kit (nouveau test avec le faux addon).
 - **À tester en vrai** : une génération Hyper3D et une Hunyuan3D à partir d'une image, avec les clés dans l'addon.
 
+## ✅ Sons Mirelo, relief de carte, sécurité du pont (2026-10-22)
+
+- **`make_sound`** (`packages/core/src/gamekit/sound.ts`, profil starter) : API Mirelo text-to-SFX v3
+  (`MIRELO_API_KEY`, sfx-2.0, sfx-1.6 pour les boucles) → fichier mp3 → `upload_asset` Audio → `Sound` placé.
+  Sans clé : mode `plugin` (sélectionne l'objet, donne les étapes du plugin Mirelo) puis `collect` (trouve les
+  nouveaux sons de SoundService et les déplace). Guide `roblox_guide sound`.
+- **Relief de carte** : `set_environment { features }` (`environment.ts`, `featurePayload`) : mountain, hill, lake,
+  river, road, path, plateau, paint. Chaque élément est dans son propre `pcall` : un échec n'arrête pas les autres.
+  Guide `roblox_guide map`.
+- **Critique de Gemini, ce qui touchait vraiment notre code** :
+  - le pont HTTP refuse les requêtes de navigateur venant d'un autre site (avant : `cors()` ouvert, donc une page web
+    pouvait lancer du Luau dans Studio) ;
+  - une requête épinglée sur un Studio qui se déconnecte échoue tout de suite au lieu d'attendre 30 s ;
+  - `/poll` enregistre un plugin inconnu avec le rôle qu'il annonce (avant : toujours `edit`) ;
+  - plugin : `print("a", nil, "b")` garde tous les arguments ; une réponse perdue est signalée dans Output.
+  - Le reste vise des copies de `reference/` (serveur Rust, blueprint) qui ne sont pas livrées : non touché.
+- Correction d'une erreur de type laissée dans `blender.ts` (`merge` manquant dans `buildInStudio`).
+- Vérification : typecheck OK, build OK, 110 tests serveur et 97 tests Game Kit. Plugin recompilé et réinstallé.
+- **À tester en vrai** : une génération Mirelo avec une clé, le mode plugin avec le vrai plugin Mirelo (vérifier que
+  le son arrive bien dans SoundService), une carte avec montagne + lac + rivière + route.
+
 ## ⚠️ À tester par toi dans le vrai Studio et le vrai Blender
 
 Ces points ne peuvent pas être vérifiés ici :

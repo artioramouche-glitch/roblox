@@ -83,6 +83,11 @@ reference `images`: absolute image paths or URLs; hunyuan3d takes exactly one) â
 without them it exports the file for a manual Import 3D, then `blender_to_roblox { name, existing }`). Read
 `roblox_guide blender`.
 
+Maps: lay out the map in studs first, then ONE `set_environment { terrain, features: [mountain, hill, lake, river,
+road, path, plateau, paint] }` call shapes the terrain where the plan says (`roblox_guide map`). Sounds: `make_sound
+{ prompt, name, parent }` (Mirelo API, needs MIRELO_API_KEY + Open Cloud key) or `make_sound { action: "plugin" }`
+then `{ action: "collect" }` with the free Mirelo Studio plugin (`roblox_guide sound`). Ask before uploading.
+
 Rigged characters: `blender_to_roblox` exports the armature with the mesh (max 4 weights per vertex, < 100 bones) and
 adds an Animator. Then `blender_animation { rig: "<model path>", action: "Walk", priority: "Movement" }` for each
 Blender action: KeyframeSequence in `ServerStorage/GameKit/Animations`, temporary id to test in Studio, animated FBX

@@ -31,6 +31,9 @@ import { Connection, RequestPayload, PollResponse, ReadyResponse } from "../type
 
 const instanceId = HttpService.GenerateGUID(false);
 let assignedRole: string | undefined;
+// Requests this peer started, by id. The server hands a claimed request to its claimer again
+// (to recover a lost poll reply), so a slow one (an upload) used to run once per poll.
+const started = new Map<string, number>();
 
 function detectRole(): string {
 	// IsRunMode is true only for a Run playtest, so Play-mode peers used to report as edit.
@@ -162,14 +165,16 @@ function processRequest(request: RequestPayload): unknown {
 }
 
 function sendResponse(conn: Connection, requestId: string, responseData: unknown) {
-	pcall(() => {
+	const [ok, result] = pcall(() =>
 		HttpService.RequestAsync({
 			Url: `${conn.serverUrl}/response`,
 			Method: "POST",
 			Headers: { "Content-Type": "application/json" },
 			Body: HttpService.JSONEncode({ requestId, response: responseData }),
-		});
-	});
+		}),
+	);
+	// Otherwise the tool call just waits for its 30 s timeout with no clue why.
+	if (!ok || !result.Success) warn(`[MCP] Could not send the reply for ${requestId}: ${ok ? `HTTP ${result.StatusCode}` : tostring(result)}`);
 }
 
 function getConnectionStatus(connIndex: number): string {
@@ -189,7 +194,7 @@ function pollForRequests(connIndex: number) {
 
 	const [success, result] = pcall(() => {
 		return HttpService.RequestAsync({
-			Url: `${conn.serverUrl}/poll?instanceId=${instanceId}`,
+			Url: `${conn.serverUrl}/poll?instanceId=${instanceId}&role=${detectRole()}`,
 			Method: "GET",
 			Headers: { "Content-Type": "application/json" },
 		});
@@ -251,7 +256,11 @@ function pollForRequests(connIndex: number) {
 			}
 		}
 
-		if (data.request && mcpConnected) {
+		const now = tick();
+		for (const [id, at] of started) if (now - at > 120) started.delete(id); // requests time out after 30 s
+		const requestId = data.requestId;
+		if (data.request && mcpConnected && (requestId === undefined || !started.has(requestId))) {
+			if (requestId !== undefined) started.set(requestId, now);
 			task.spawn(() => {
 				const [ok, response] = pcall(() => processRequest(data.request!));
 				if (ok) {

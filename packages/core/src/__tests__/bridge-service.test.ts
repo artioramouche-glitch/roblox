@@ -251,6 +251,15 @@ describe('BridgeService', () => {
       const toB = bridgeService.getPendingRequest('edit', 'studio-b');
       expect(toB?.requestId).toBe(toA!.requestId);
     });
+
+    it('fails a request pinned to a Studio that disconnects instead of stranding it', async () => {
+      bridgeService.registerInstance('studio-a', 'edit');
+      bridgeService.registerInstance('studio-b', 'edit');
+      const pinned = bridgeService.sendRequest('/api/edit', { script: 'A' }, 'edit', 'studio-a');
+      bridgeService.unregisterInstance('studio-a');
+      await expect(pinned).rejects.toThrow('Target instance "studio-a" disconnected');
+      expect(bridgeService.getPendingRequest('edit', 'studio-b')).toBeNull();
+    });
   });
 });
 describe('ambiguous target guard', () => {

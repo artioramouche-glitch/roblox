@@ -6,7 +6,7 @@
 
 import { SYSTEMS, systemPlacements, getSystem } from './catalog.js';
 import { analyseAudit, codeAt, collectAudit } from './doctor.js';
-import { buildEnvironmentLuau, LIGHTING_PRESETS, TERRAIN_MODES, type EnvironmentOptions } from './environment.js';
+import { buildEnvironmentLuau, FEATURE_TYPES, LIGHTING_PRESETS, TERRAIN_MODES, type EnvironmentOptions } from './environment.js';
 import { install, runLuauJson, splitPath, type InstallReport, type Placement } from './installer.js';
 import { catalogText, guideText, GUIDES } from './knowledge.js';
 import { contextFor, type ScriptContext } from './luau-lint.js';
@@ -17,6 +17,7 @@ import { buildScreenGui, missingActionTargets, type UiSpec } from './ui.js';
 import { buildWorld, countParts, PIECES, WORLDS, worldPlacement } from './world.js';
 import { BACKUP_TOOLS, handleBackup, placeHasContent, saveBackup } from './backup.js';
 import { BLENDER_TOOLS, BlenderTools } from './blender.js';
+import { SOUND_TOOLS, SoundTools } from './sound.js';
 import { ECONOMY_TOOLS, handleEconomy } from './economy.js';
 import { handleJobTool, JOB_TOOLS, JobRegistry } from './jobs.js';
 import { POPULATE_TOOLS, populateWorld } from './props.js';
@@ -122,8 +123,27 @@ export const GAMEKIT_TOOLS: ToolDef[] = [
   {
     name: 'set_environment',
     category: 'write',
-    description: 'Mood: lighting preset, time of day, terrain, remove the Baseplate.',
+    description: 'Mood and map: lighting preset, time of day, base terrain, remove the Baseplate, and terrain features placed where the plan says (mountain, hill, lake, river, road, path, plateau, paint). See roblox_guide map.',
     inputSchema: obj({
+      features: {
+        type: 'array',
+        description: 'Applied after the base terrain, at ground level (terrainCenter y). [{type: "mountain", at: [x, z], radius, height}, {type: "lake", at, radius, depth}, {type: "river"|"road"|"path", points: [[x, z], ...], width}, {type: "plateau", at, size: [w, d], height (0 = flatten a building spot)}, {type: "paint", at, size, material}]. material: any terrain material name.',
+        items: {
+          type: 'object',
+          properties: {
+            type: { type: 'string', enum: [...FEATURE_TYPES] },
+            at: { type: 'array', items: { type: 'number' } },
+            points: { type: 'array', items: { type: 'array', items: { type: 'number' } } },
+            radius: { type: 'number' },
+            size: { type: 'array', items: { type: 'number' } },
+            height: { type: 'number' },
+            depth: { type: 'number' },
+            width: { type: 'number' },
+            material: { type: 'string' },
+          },
+          required: ['type'],
+        },
+      },
       preset: { type: 'string', enum: Object.keys(LIGHTING_PRESETS) },
       clockTime: { type: 'number' },
       terrain: { type: 'string', enum: [...TERRAIN_MODES] },
@@ -182,6 +202,7 @@ export const GAMEKIT_TOOLS: ToolDef[] = [
   ...TEAM_TOOLS,
   ...JOB_TOOLS,
   ...BLENDER_TOOLS,
+  ...SOUND_TOOLS,
   ...ECONOMY_TOOLS,
   ...PUBLISH_TOOLS,
 ];
@@ -238,10 +259,12 @@ export interface GameKitOptions {
 export class GameKit {
   readonly jobs = new JobRegistry();
   readonly blender: BlenderTools;
+  readonly sound: SoundTools;
   private tests: TestRecord[] = [];
 
   constructor(private host: GameKitHost, options: GameKitOptions = {}) {
     this.blender = new BlenderTools(host, undefined, { onConnected: options.onBlenderConnected });
+    this.sound = new SoundTools(host);
   }
 
   private requireStudio() {
@@ -272,6 +295,7 @@ export class GameKit {
       code_recipe: () => `code_recipe ${args.recipe}${args.params?.target ? ` on ${args.params.target}` : ''}`,
       blender_to_roblox: () => `blender_to_roblox ${args.name}`,
       build_ui: () => `build_ui ${args.spec?.name ?? ''}`,
+      make_sound: () => `make_sound ${args.action ?? 'generate'} "${String(args.prompt ?? args.name ?? '').slice(0, 60)}"`,
     };
     if (!describe[name] || args.preview || (name === 'code_recipe' && !args.recipe)) return;
     if (!this.host.isStudioConnected()) return;
@@ -322,6 +346,7 @@ export class GameKit {
       case 'balance_economy':
         if (args.fromGame) this.requireStudio();
         return handleEconomy(this.host, args);
+      case 'make_sound': return this.sound.call(args);
       case 'publish_checklist': this.requireStudio(); return publishChecklist(this.host, this.tests);
       default:
         if (BLENDER_NAMES.has(name)) return this.blender.call(name, args);

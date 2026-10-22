@@ -176,12 +176,8 @@ export interface ExportRequest {
  * Exports meshes for Roblox without touching the user's scene for good: a temporary
  * Decimate modifier brings heavy meshes under the triangle budget during export only.
  */
-export function exportPython(req: ExportRequest): string {
-  return `
-import bpy, json, os
-from mathutils import Vector
-REQ = ${pyJson(req)}
-out = {"warnings": [], "objects": []}
+/** The meshes (and their armatures) to send: the named objects or collections with their children, else every visible one. */
+const PICK_MESHES = `
 try:
     if bpy.context.object and bpy.context.object.mode != 'OBJECT':
         bpy.ops.object.mode_set(mode='OBJECT')
@@ -192,8 +188,11 @@ picked = []
 if REQ.get("objects"):
     for n in REQ["objects"]:
         o = bpy.data.objects.get(n)
+        if o is None and bpy.data.collections.get(n):
+            picked.extend(bpy.data.collections[n].all_objects)
+            continue
         if o is None:
-            out["warnings"].append("Object not found in Blender: " + n)
+            out["warnings"].append("Object or collection not found in Blender: " + n)
             continue
         picked.append(o)
         picked.extend(o.children_recursive)
@@ -210,6 +209,15 @@ for o in list(meshes):
     for mod in o.modifiers:
         if mod.type == 'ARMATURE' and mod.object and mod.object not in armatures:
             armatures.append(mod.object)
+`;
+
+export function exportPython(req: ExportRequest): string {
+  return `
+import bpy, json, os
+from mathutils import Vector
+REQ = ${pyJson(req)}
+out = {"warnings": [], "objects": []}
+${PICK_MESHES}
 rig = bool(armatures) and REQ.get("rig") is not False
 if rig:
     # Roblox skinning limits: 4 bone influences per vertex, keep rigs under ~100 bones.
@@ -286,10 +294,244 @@ finally:
         if mod:
             o.modifiers.remove(mod)
 size = (hi - lo) * scene.unit_settings.scale_length
+base = Vector(((lo.x + hi.x) / 2, (lo.y + hi.y) / 2, lo.z)) * scene.unit_settings.scale_length
 out.update({"path": REQ["path"], "bytes": os.path.getsize(REQ["path"]), "meshes": len(meshes), "triangles": total, "rigged": rig,
-            "sizeMeters": [round(size.x, 3), round(size.y, 3), round(size.z, 3)]})
+            "sizeMeters": [round(size.x, 3), round(size.y, 3), round(size.z, 3)], "baseMeters": [round(base.x, 3), round(base.y, 3), round(base.z, 3)]})
 print("${MARKER}" + json.dumps(out))
 `;
+}
+
+export interface MeshDataRequest {
+  objects?: string[];
+  /** Studs per Blender meter. */
+  scale: number;
+  maxTriangles: number;
+  /** Triangles per Studio MeshPart (keeps each Studio call small). */
+  chunk: number;
+  /** One mesh per material over the whole selection (a full scene in a few uploads). */
+  merge: boolean;
+}
+
+/**
+ * The geometry itself, for Studio to rebuild without a file: per chunk of triangles, the
+ * vertices (studs, Roblox axes, relative to the chunk center), the corner normals and a flat
+ * color. Heavy meshes are decimated for the read only, like the export.
+ */
+export function meshDataPython(req: MeshDataRequest): string {
+  return `
+import bpy, json
+from mathutils import Vector, Matrix
+REQ = ${pyJson(req)}
+out = {"warnings": [], "meshes": []}
+${PICK_MESHES}
+def srgb(c):
+    c = max(0.0, min(1.0, c))
+    return round(255 * (c * 12.92 if c <= 0.0031308 else 1.055 * c ** (1 / 2.4) - 0.055))
+
+def look(m):
+    rgb, alpha, metal, textured = (0.8, 0.8, 0.8), 1.0, 0.0, False
+    if m:
+        rgb, alpha, metal = tuple(m.diffuse_color[:3]), m.diffuse_color[3], m.metallic
+        for node in (m.node_tree.nodes if getattr(m, "node_tree", None) else []):
+            if node.type == 'BSDF_PRINCIPLED':
+                rgb = tuple(node.inputs["Base Color"].default_value[:3])
+                alpha = node.inputs["Alpha"].default_value
+                metal = node.inputs["Metallic"].default_value
+                textured = textured or node.inputs["Base Color"].is_linked
+            if node.type == 'TEX_IMAGE':
+                textured = True
+    return [srgb(c) for c in rgb], round(alpha, 3), round(metal, 3), textured
+
+def collect():
+    S = REQ["scale"] * bpy.context.scene.unit_settings.scale_length
+    TO_ROBLOX = Matrix(((1, 0, 0), (0, 0, 1), (0, -1, 0)))  # Blender Z-up -> Roblox Y-up, like the FBX export
+    added = []
+    lo = Vector((1e18, 1e18, 1e18))
+    hi = Vector((-1e18, -1e18, -1e18))
+    try:
+        depsgraph = bpy.context.evaluated_depsgraph_get()
+        for o in meshes:
+            ev = o.evaluated_get(depsgraph)
+            tris = sum(max(0, len(p.vertices) - 2) for p in ev.to_mesh().polygons)
+            ev.to_mesh_clear()
+            if tris > REQ["maxTriangles"]:
+                mod = o.modifiers.new("GameKitDecimate", 'DECIMATE')
+                mod.ratio = max(0.01, REQ["maxTriangles"] * 0.95 / tris)
+                added.append((o, mod.name))
+                out["warnings"].append("%s had %d triangles: decimated to ~%d." % (o.name, tris, int(tris * mod.ratio)))
+        depsgraph = bpy.context.evaluated_depsgraph_get()
+        # one stream per object and material, or per material over the whole selection (merge)
+        groups, geometry = {}, []
+        for oi, o in enumerate(meshes):
+            ev = o.evaluated_get(depsgraph)
+            me = ev.to_mesh()
+            me.calc_loop_triangles()
+            mw = o.matrix_world
+            pos = [TO_ROBLOX @ (mw @ v.co) * S for v in me.vertices]
+            nm = TO_ROBLOX @ mw.to_3x3().inverted_safe().transposed()
+            try:
+                corners = [(nm @ c.vector).normalized() for c in me.corner_normals]
+            except AttributeError:
+                me.calc_normals_split()
+                corners = [(nm @ l.normal).normalized() for l in me.loops]
+            mats = [s.material for s in o.material_slots] or [None]
+            tris = [(t.material_index, tuple(t.vertices), tuple(t.loops)) for t in me.loop_triangles]
+            ev.to_mesh_clear()
+            geometry.append((pos, corners))
+            for mi, vids, lids in tris:
+                m = mats[mi] if mi < len(mats) else None
+                key = (m.name if m else "") if REQ["merge"] else (oi, mi)
+                if key not in groups:
+                    color, alpha, metal, textured = look(m)
+                    if textured:
+                        out["warnings"].append("%s: its texture is not carried over, only its base color (an Open Cloud key keeps textures)." % (m.name if m else o.name))
+                    if REQ["merge"]:
+                        name = m.name if m else "Default"
+                    else:
+                        name = o.name if len(mats) == 1 else "%s_%s" % (o.name, m.name if m else mi)
+                    groups[key] = {"name": name, "look": (color, alpha, metal), "tris": []}
+                groups[key]["tris"].append((oi, vids, lids))
+        for g in groups.values():
+            color, alpha, metal = g["look"]
+            tris = g["tris"]
+            for k in range(0, len(tris), REQ["chunk"]):
+                vmap, nmap, vs, ns, t = {}, {}, [], [], []
+                for oi, vids, lids in tris[k:k + REQ["chunk"]]:
+                    pos, corners = geometry[oi]
+                    for vi in vids:
+                        if (oi, vi) not in vmap:
+                            vmap[(oi, vi)] = len(vs)
+                            vs.append(pos[vi])
+                        t.append(vmap[(oi, vi)])
+                    for li in lids:
+                        key = tuple(round(x, 3) for x in corners[li])
+                        if key not in nmap:
+                            nmap[key] = len(nmap)
+                            ns.extend(key)
+                        t.append(nmap[key])
+                a = Vector((min(p.x for p in vs), min(p.y for p in vs), min(p.z for p in vs)))
+                b = Vector((max(p.x for p in vs), max(p.y for p in vs), max(p.z for p in vs)))
+                lo = Vector((min(lo.x, a.x), min(lo.y, a.y), min(lo.z, a.z)))
+                hi = Vector((max(hi.x, b.x), max(hi.y, b.y), max(hi.z, b.z)))
+                c = (a + b) / 2
+                out["meshes"].append({"name": g["name"] if k == 0 else "%s_%d" % (g["name"], k // REQ["chunk"] + 1), "center": c,
+                    "v": [round(x, 3) for p in vs for x in (p - c)], "n": ns, "t": t,
+                    "color": color, "alpha": alpha, "metal": metal})
+    finally:
+        for o, name in added:
+            mod = o.modifiers.get(name)
+            if mod:
+                o.modifiers.remove(mod)
+    # the whole model stands on the origin: bottom center at (0, 0, 0)
+    base = Vector(((lo.x + hi.x) / 2, lo.y, (lo.z + hi.z) / 2))
+    for m in out["meshes"]:
+        m["center"] = [round(x, 3) for x in (m["center"] - base)]
+    out["sizeStuds"] = [round(x, 2) for x in (hi - lo)]
+    out["baseStuds"] = [round(x, 2) for x in base]  # where the model stands in the Blender layout
+    out["triangles"] = sum(len(m["t"]) // 6 for m in out["meshes"])
+
+if armatures:
+    out["rigged"] = True  # skinned meshes need the FBX path
+elif not meshes:
+    raise Exception("Nothing to send: no visible mesh (create/import a model first, or pass objects: [names]).")
+else:
+    collect()
+print("${MARKER}" + json.dumps(out))
+`;
+}
+
+export interface MeshPartRequest {
+  model: string;
+  /** Position in the model: identifies a re-delivered copy of the same request. */
+  index: number;
+  name: string;
+  center: number[];
+  v: number[];
+  n: number[];
+  t: number[];
+  color: number[];
+  alpha: number;
+  metal: number;
+  /** Save the mesh as a Roblox asset with the Studio login, so it survives saving the place. */
+  upload: boolean;
+  description: string;
+}
+
+/**
+ * One MeshPart in Workspace/<model> from raw geometry. An EditableMesh alone is lost when the
+ * place is saved, so it is uploaded with the Studio login (CreateAssetAsync, allowed in local
+ * plugins) and the MeshPart is made from that asset; it falls back to the live mesh.
+ */
+export function meshPartLuau(req: MeshPartRequest): string {
+  return `
+local HttpService = game:GetService("HttpService")
+local AssetService = game:GetService("AssetService")
+local req = HttpService:JSONDecode(${luauJson(req)})
+local ok, result = pcall(function()
+	local model = workspace:FindFirstChild(req.model)
+	if not model then
+		model = Instance.new("Model")
+		model.Name = req.model
+		model.Parent = workspace
+	end
+	-- A copy of this request may run while the first one uploads: it waits and answers the same.
+	local claim = "GK_Mesh" .. req.index
+	if model:GetAttribute(claim) ~= nil then
+		for _ = 1, 50 do
+			if model:GetAttribute(claim) ~= "" then return HttpService:JSONDecode(model:GetAttribute(claim)) end
+			task.wait(0.5)
+		end
+		error("the first copy of this request did not finish")
+	end
+	model:SetAttribute(claim, "")
+	local mesh = AssetService:CreateEditableMesh()
+	if not mesh then error("Studio could not create an EditableMesh (memory budget)") end
+	local v, n, t = req.v, req.n, req.t
+	local vid, nid = table.create(#v // 3), table.create(#n // 3)
+	for i = 1, #v, 3 do table.insert(vid, mesh:AddVertex(Vector3.new(v[i], v[i + 1], v[i + 2]))) end
+	for i = 1, #n, 3 do table.insert(nid, mesh:AddNormal(Vector3.new(n[i], n[i + 1], n[i + 2]))) end
+	for i = 1, #t, 6 do
+		local face = mesh:AddTriangle(vid[t[i] + 1], vid[t[i + 1] + 1], vid[t[i + 2] + 1])
+		mesh:SetFaceNormals(face, { nid[t[i + 3] + 1], nid[t[i + 4] + 1], nid[t[i + 5] + 1] })
+	end
+	local assetId, uploadError, part = nil, nil, nil
+	if req.upload then
+		local called, status, idOrError = pcall(function()
+			return AssetService:CreateAssetAsync(mesh, Enum.AssetType.Mesh, { Name = req.name, Description = req.description })
+		end)
+		if called and status == Enum.CreateAssetResult.Success then
+			assetId = idOrError
+		else
+			uploadError = if called then tostring(status) .. " " .. tostring(idOrError) else tostring(status)
+		end
+	end
+	if assetId then
+		-- a fresh upload can take a few seconds before Studio can load it (and requests time out at 30 s)
+		for _ = 1, 5 do
+			local loaded, p = pcall(function()
+				return AssetService:CreateMeshPartAsync(Content.fromAssetId(assetId))
+			end)
+			if loaded then part = p break end
+			task.wait(2)
+		end
+		if not part then uploadError = "uploaded as " .. tostring(assetId) .. " but not loadable yet" end
+	end
+	if not part then
+		part = AssetService:CreateMeshPartAsync(Content.fromObject(mesh))
+	end
+	part.Name = req.name
+	part.Anchored = true
+	part.CFrame = CFrame.new(req.center[1], req.center[2], req.center[3])
+	part.Color = Color3.fromRGB(req.color[1], req.color[2], req.color[3])
+	part.Material = if req.metal > 0.5 then Enum.Material.Metal else Enum.Material.SmoothPlastic
+	part.Transparency = 1 - req.alpha
+	part.Parent = model
+	local answer = { ok = true, assetId = assetId, live = part.MeshContent.SourceType == Enum.ContentSourceType.Object, uploadError = uploadError }
+	model:SetAttribute(claim, HttpService:JSONEncode(answer))
+	return answer
+end)
+if not ok then return HttpService:JSONEncode({ ok = false, error = tostring(result) }) end
+return HttpService:JSONEncode(result)`;
 }
 
 /** Reads a file Blender wrote (when Blender runs on another machine) as base64 chunks. */
@@ -603,7 +845,7 @@ export const BLENDER_TOOLS: ToolDef[] = [
     name: 'blender_to_roblox',
     category: 'write',
     tier: 'starter',
-    description: 'Send a Blender model into the game: export (<= 20k triangles/mesh), upload (Open Cloud key), insert at real size on the ground. Without a key: exported file + manual import. Slow: use start_job. roblox_guide blender.',
+    description: 'Send a Blender model into the game, at real size on the ground. With an Open Cloud key: FBX upload (keeps textures). Without: Studio rebuilds the meshes (base colors) and saves them as Roblox meshes with the Studio login. Uploads: ask the user first. Slow: use start_job. roblox_guide blender.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -615,6 +857,7 @@ export const BLENDER_TOOLS: ToolDef[] = [
         assetId: { type: 'number', description: 'Insert an existing Roblox model instead' },
         existing: { type: 'string', description: 'Only resize/place a model already in Studio' },
         rig: { type: 'boolean', description: 'Export the armature too (default: when the model has one)' },
+        upload: { type: 'boolean', description: 'Without a key: false = live preview, nothing uploaded (lost when the place closes)' },
       },
       required: ['name'],
     },
@@ -848,8 +1091,20 @@ export class BlenderTools {
     let assetId = Number(args.assetId) || 0;
     let sizeMeters: Vec3 | undefined;
     let rigged = false;
+    let existing = args.existing ? String(args.existing) : undefined;
+    let liveOnly: string[] = [];
 
-    if (!assetId && !args.existing) {
+    if (!assetId && !existing && !this.host.hasOpenCloudKey?.() && this.host.isStudioConnected()) {
+      const built = await this.buildInStudio(name, args);
+      if (built && !built.ok) return text({ ok: false, steps: { build: built.meshes }, problem: built.problem, fix: 'Check that Studio is signed in and in Edit mode, then call blender_to_roblox again.' });
+      if (built) {
+        existing = `Workspace/${built.model}`;
+        liveOnly = built.meshes.filter((m) => m.live).map((m) => m.name);
+        steps.build = { meshes: built.meshes.length, triangles: built.triangles, savedAsAssets: built.meshes.length - liveOnly.length, warnings: built.warnings, uploadError: built.meshes.find((m) => m.uploadError)?.uploadError };
+      }
+    }
+
+    if (!assetId && !existing) {
       const format = args.format === 'glb' ? 'glb' : 'fbx';
       const dir = path.join(os.tmpdir(), 'roblox-ultimate-mcp', 'blender');
       const file = path.join(dir, `${name.replace(/\s+/g, '_')}-${Date.now()}.${format}`);
@@ -874,7 +1129,9 @@ export class BlenderTools {
           uploaded: false,
           file: localFile,
           steps,
-          why: 'No Open Cloud API key, so the model was exported but not uploaded.',
+          why: rigged
+            ? 'Rigged models need the FBX import, and there is no Open Cloud API key to upload it.'
+            : 'No Open Cloud API key and Studio is not connected, so the model was only exported.',
           manualImport: [
             'In Studio: Home (Accueil) tab > Import 3D > choose the file above > Import.',
             `Then call blender_to_roblox again with {"name": "${name}", "existing": "Workspace/<imported model name>"} to size and place it.`,
@@ -903,7 +1160,7 @@ export class BlenderTools {
     const place = {
       name,
       assetId,
-      existing: args.existing ? String(args.existing) : undefined,
+      existing,
       parent: String(args.parent ?? 'Workspace/GameKit/Props'),
       position: vec3(args.position, [0, 0, 0]),
       size: targetSize,
@@ -932,12 +1189,48 @@ export class BlenderTools {
       sizeStuds: inserted?.size,
       rigged: rigged || undefined,
       steps,
+      notSaved: liveOnly.length
+        ? {
+          meshes: liveOnly,
+          effect: 'Live previews only: they disappear when the place is closed.',
+          fix: args.upload === false
+            ? 'With the user\'s OK, call blender_to_roblox again without upload: false to save them as Roblox meshes.'
+            : 'The upload failed (steps.build.uploadError): sign in to Studio, then call blender_to_roblox again.',
+        }
+        : undefined,
       next: !inserted?.ok
         ? 'Roblox may still be processing/moderating the upload: wait a minute and call blender_to_roblox again with {"name", "assetId"}.'
         : rigged
           ? `Rigged model ready. Animate it: blender_animation {"rig": "${inserted.path}", "action": "<Blender action>"} for each animation (Idle, Walk, Attack...).`
           : 'Check it with look_at_game (or capture_screenshot). Clone it around with populate_world {items:[{from: "<path>", count: 10}]}.',
     });
+  }
+
+  /**
+   * No Open Cloud key: Studio rebuilds each mesh from Blender's geometry into Workspace/<model>,
+   * saved as mesh assets with the Studio login (unless upload: false). Undefined for rigged models.
+   */
+  private async buildInStudio(name: string, args: Record<string, any>) {
+    const data = await this.connected(() => this.client.pythonJson(meshDataPython({
+      objects: Array.isArray(args.objects) ? args.objects.map(String) : undefined,
+      scale: STUDS_PER_METER,
+      maxTriangles: Math.max(500, Number(args.maxTriangles ?? DEFAULT_MAX_TRIANGLES)),
+      chunk: 5000,
+      merge: args.merge === true,
+    }), 300_000));
+    if (data.rigged) return undefined;
+    const model = `GameKitImport_${name.replace(/\W/g, '')}_${Date.now()}`;
+    const meshes: Array<{ name: string; ok: boolean; live?: boolean; assetId?: number; uploadError?: string; error?: string }> = [];
+    for (const [index, mesh] of (data.meshes ?? []).entries()) {
+      const r = await runLuauJson<any>(this.host, meshPartLuau({
+        ...mesh, model, index, upload: args.upload !== false, description: String(args.description ?? `${name} (made in Blender)`),
+      }), `Build mesh ${mesh.name}`);
+      meshes.push({ name: mesh.name, ...r });
+      if (!r?.ok) return { ok: false as const, model, meshes, problem: `Studio could not build ${mesh.name}: ${r?.error}` };
+    }
+    await this.host.runLuau(`local m = workspace:FindFirstChild(${JSON.stringify(model)})
+if m then for k in m:GetAttributes() do if k:match("^GK_Mesh") then m:SetAttribute(k, nil) end end end`);
+    return { ok: true as const, model, meshes, triangles: data.triangles as number, warnings: data.warnings?.length ? data.warnings as string[] : undefined };
   }
 
   async animation(args: Record<string, any>): Promise<ToolResult> {

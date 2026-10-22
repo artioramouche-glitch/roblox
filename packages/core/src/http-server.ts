@@ -1,5 +1,4 @@
 import express from 'express';
-import cors from 'cors';
 import http from 'http';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
@@ -246,7 +245,18 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
     return bridge.getInstances().length > 0;
   };
 
-  app.use(cors());
+  // No CORS: only Studio and local MCP processes talk to this port. A web page open in the
+  // user's browser must not be able to run Luau in Studio, so browser cross-site calls are refused.
+  app.use((req, res, next) => {
+    const origin = req.headers.origin;
+    const site = req.headers['sec-fetch-site'];
+    const loopback = !origin || /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i.test(origin);
+    if (!loopback || site === 'cross-site' || site === 'same-site') {
+      res.status(403).json({ error: 'Browser requests are not allowed on the Studio bridge' });
+      return;
+    }
+    next();
+  });
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
@@ -329,7 +339,9 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
       // Happens when the plugin's /ready POST landed on a primary that since died,
       // or when the plugin reconnects to a fresh server without re-firing /ready.
       if (!inst) {
-        bridge.registerInstance(instanceId, 'edit');
+        // Older plugins send no role: assume edit, as before.
+        const role = String(req.query.role ?? 'edit');
+        bridge.registerInstance(instanceId, ['edit', 'server', 'client'].includes(role) ? role : 'edit');
         inst = bridge.getInstances().find(i => i.instanceId === instanceId);
       }
       if (inst) {
@@ -601,35 +613,28 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
  * Attempt to bind an Express app to a port, using an explicit http.Server
  * so that EADDRINUSE errors are properly caught.
  */
-export function listenWithRetry(
+export async function listenWithRetry(
   app: express.Express,
   host: string,
   startPort: number,
   maxAttempts: number = 5
 ): Promise<{ server: http.Server; port: number }> {
-  return new Promise(async (resolve, reject) => {
-    for (let i = 0; i < maxAttempts; i++) {
-      const port = startPort + i;
-      try {
-        const server = await bindPort(app, host, port);
-        resolve({ server, port });
-        return;
-      } catch (err: any) {
-        if (err.code === 'EADDRINUSE') {
-          // Only when there IS a next one. server.ts asks for a single attempt at the
-          // base port precisely so it can decide to proxy instead, and announcing a
-          // climb that never happens sends anyone reading the log the wrong way.
-          if (i < maxAttempts - 1) {
-            console.error(`Port ${port} in use, trying next...`);
-          }
-          continue;
-        }
-        reject(err);
-        return;
+  for (let i = 0; i < maxAttempts; i++) {
+    const port = startPort + i;
+    try {
+      const server = await bindPort(app, host, port);
+      return { server, port };
+    } catch (err: any) {
+      if (err.code !== 'EADDRINUSE') throw err;
+      // Only when there IS a next one. server.ts asks for a single attempt at the
+      // base port precisely so it can decide to proxy instead, and announcing a
+      // climb that never happens sends anyone reading the log the wrong way.
+      if (i < maxAttempts - 1) {
+        console.error(`Port ${port} in use, trying next...`);
       }
     }
-    reject(new Error(`All ports ${startPort}-${startPort + maxAttempts - 1} are in use. Stop some MCP server instances and retry.`));
-  });
+  }
+  throw new Error(`All ports ${startPort}-${startPort + maxAttempts - 1} are in use. Stop some MCP server instances and retry.`);
 }
 
 function bindPort(app: express.Express, host: string, port: number): Promise<http.Server> {

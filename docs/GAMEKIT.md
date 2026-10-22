@@ -6,13 +6,13 @@
 ## GameKit tools
 
 - **roblox_start_here** — START HERE: checks the Studio connection, shows what the game contains and the step-by-step plan.
-- **roblox_guide** — Short guides. Topics: workflow, design, reference, luau, client-server, data, ui, building, testing, errors, coding, blender, team, localization, publishing, performance, gamekit-api, catalog, or a system/template id. Read "workflow" first, "errors" when stuck.
+- **roblox_guide** — Short guides. Topics: workflow, design, reference, luau, client-server, data, ui, building, testing, errors, coding, blender, map, sound, team, localization, publishing, performance, gamekit-api, catalog, or a system/template id. Read "workflow" first, "errors" when stuck.
 - **gamekit_catalog** — Everything installable without code: templates, systems, world pieces, lighting presets, code recipes.
 - **create_game** — Build a COMPLETE playable game in one call (scripts, config, world, UI, lighting; backs up the old place). Then test_game.
 - **add_system** — Install a tested game system (+ what it needs). Its settings: roblox_guide <system>.
 - **build_world** — Build anchored, tagged geometry in Workspace/GameKit: worlds (obby_course, lobby, arena, maze, tycoon_plots, simulator_world, decor_scatter, td_map, farm, race_track, fishing_lake, survival_camp) or one of 53 pieces (jump_pad, coin, checkpoint, spinner, tower_pad...: roblox_guide building). Same name = replaced. [x,y,z] studs, y up.
 - **build_ui** — Screen UI from JSON, no Luau: frame/label/button/image/textbox/scroll/bar; bind "stat:Coins", bar, showIf, action "toggle:Window". See roblox_guide ui.
-- **set_environment** — Mood: lighting preset, time of day, terrain, remove the Baseplate.
+- **set_environment** — Mood and map: lighting preset, time of day, base terrain, remove the Baseplate, and terrain features placed where the plan says (mountain, hill, lake, river, road, path, plateau, paint). See roblox_guide map.
 - **write_script** — The SAFE way to create/replace a whole script: auto-fixes JS-style mistakes, then checks with the Luau compiler, a beginner linter and the Roblox API list; refuses broken code. For small changes use edit_script.
 - **check_luau** — Check Luau without writing it (compiler, beginner linter, Roblox API names) and get an auto-fixed version. Works offline.
 - **check_game** — Audit the place without playing: script errors, wrong script locations, bad API names, missing spawn, loose parts, pieces without their system.
@@ -31,12 +31,13 @@
 - **start_job** — Run another tool in the background and keep working (blender_to_roblox, long test_game...). Get the result with job_status.
 - **job_status** — Result of a start_job job (wait up to 60 s with wait). Without id: list jobs.
 - **blender_status** — Blender link for custom 3D models (statues, characters, creatures, eggs, portals, trees: anything plain parts cannot shape): checks the connection, lists the scene, explains the addon setup. When connected, more blender_* tools appear.
-- **blender_to_roblox** — Send a Blender model into the game: export (<= 20k triangles/mesh), upload (Open Cloud key), insert at real size on the ground. Without a key: exported file + manual import. Slow: use start_job. roblox_guide blender.
+- **blender_to_roblox** — Send a Blender model into the game, at real size on the ground. With an Open Cloud key: FBX upload (keeps textures). Without: Studio rebuilds the meshes (base colors) and saves them as Roblox meshes with the Studio login. Uploads: ask the user first. Slow: use start_job. roblox_guide blender.
 - **blender_animation** — Blender action (animation of an armature) -> Roblox KeyframeSequence in ServerStorage/GameKit/Animations, testable at once (temporary id), + an animated FBX for Animation Editor import. Import the rigged model first with blender_to_roblox.
 - **blender_python** — Run Python (bpy) in Blender, in small steps; print() what you need. Model in meters, base at Z=0, < 20k triangles, 1 material per mesh.
 - **blender_scene** — Blender scene: objects (meters, triangles, materials), one object in detail, and/or a viewport screenshot.
 - **blender_assets** — Ready-made 3D content into Blender: search/download (polyhaven, sketchfab, polypizza) or AI generation from text and/or reference images (hyper3d, hunyuan3d: generate, poll, import). Enable sources in the addon panel.
 - **blender_command** — Advanced: raw command to the Blender addon ({type, params}).
+- **make_sound** — Custom sound effects (Mirelo AI) from a text prompt. "generate" (MIRELO_API_KEY): prompt -> audio -> uploaded to Roblox (Open Cloud key) -> Sound on a part or in SoundService. "plugin" (no key, free Mirelo Studio plugin): selects the objects the plugin reads and gives the steps; then "collect" moves the new Sounds where they belong. Uploads go to the user's Roblox account: ask first. See roblox_guide sound.
 - **balance_economy** — Simulate player progression and check prices (first purchase, walls, total time) with suggested prices. fromGame reads the installed economy; or pass items and income.
 - **publish_checklist** — Before publishing: verifies what Studio can check and lists the manual steps (icon, description, questionnaire, visibility).
 
@@ -1708,7 +1709,7 @@ Action -> reward -> upgrade -> bigger action. Examples:
 - Rebirth/prestige gives long-term goals (simulator template has it).
 #### Juice (feedback) -- makes cheap games feel premium
 - Every reward shows a toast or "+N" pop-up (GameKit HUD does this automatically).
-- Sounds on actions, particles on pickups, tweens on buttons (UIKit buttons animate).
+- Sounds on actions (make_sound: roblox_guide sound), particles on pickups, tweens on buttons (UIKit buttons animate).
 - Lighting preset + color theme: set_environment { preset: "day" | "sunset" | "neon" | ... }.
 #### Social & retention
 - Global leaderboard (leaderboard system), daily reward with streak (daily system),
@@ -2038,7 +2039,9 @@ Reading errors: "ServerScriptService.Shop:42: attempt to index nil with 'Value'"
 - It takes 30 s - 2 min: use start_job { tool: "blender_to_roblox", arguments: {...} } and keep working.
 - More options: parent (default Workspace/GameKit/Props), format (fbx | glb), maxTriangles (20000), decimate (true),
   anchored (true), collide (true), description (asset description on Roblox).
-- No API key: it exports the file; import it in Studio (Home > Import 3D) then blender_to_roblox { name, existing: "Workspace/<model>" }.
+- No API key: Studio rebuilds the meshes from Blender (base colors, no textures) and saves them as Roblox meshes with the
+  signed-in Studio account; upload: false = live preview, lost when the place closes. Ask the user before uploading.
+  Rigged models still need the file: Home > Import 3D, then blender_to_roblox { name, existing: "Workspace/<model>" }.
 - Many copies around the map: populate_world { items: [{ from: "Workspace/GameKit/Props/<name>", count: 10, size: [6, 10] }] }.
 #### Characters and animations
 - Rig in Blender (armature + weights, max 4 bones per vertex, < 100 bones). blender_to_roblox exports mesh + armature
@@ -2046,6 +2049,55 @@ Reading errors: "ServerScriptService.Shop:42: attempt to index nil with 'Value'"
 - Each Blender action -> blender_animation { rig: "<model path>", action: "Walk", priority: "Movement" }:
   a KeyframeSequence in ServerStorage/GameKit/Animations with a temporary id to test in Studio, plus an animated FBX.
 - Publish it (right-click the KeyframeSequence > Save to Roblox), use the new id, then check_assets { ids: [id] }.
+
+### Making a map: layout first, then terrain, gameplay, decoration (`map`)
+
+#### 1. Plan on paper (game_notes)
+Draw the map as a top view in studs: spawn/lobby in the middle or at one edge, 3-5 areas around it, the routes
+between them, landmarks visible from far (a mountain, a tower, a lake). Players walk ~16 studs/s: 200 studs = 12 s.
+Keep gameplay areas flat; put relief at the edges and between areas so they read as separate places.
+#### 2. Terrain in ONE call
+set_environment { removeBaseplate: true, terrain: "flat", terrainSize: 1024, preset: "day", features: [
+  { type: "mountain", at: [-300, -250], radius: 140, height: 120 },
+  { type: "hill", at: [220, 180], radius: 80, height: 20 },
+  { type: "lake", at: [150, -120], radius: 50, depth: 10 },
+  { type: "river", points: [[-400, 0], [-100, 40], [150, -120]], width: 16 },
+  { type: "plateau", at: [0, 0], size: [140, 140], height: 0 },
+  { type: "road", points: [[0, 0], [220, 180]], width: 12 },
+  { type: "path", points: [[0, 0], [-250, -200]], material: "Cobblestone" },
+  { type: "paint", at: [150, -60], size: [60, 30], material: "Sand" } ] }
+Mountains get snow above 60 studs, lakes a sand shore, roads follow the ground, plateau height 0 flattens a spot.
+Order matters: relief first, then lakes/rivers, then plateaus, then roads and paint on top.
+Terrain only from the base: "island" is a whole map in the sea, "hills" is random rolling ground.
+#### 3. Gameplay on top
+create_game / build_world pieces at the planned spots (y = ground level, + height of a plateau).
+#### 4. Decorate and check
+populate_world by theme around (not on) the routes, Blender/Creator Store models for landmarks.
+look_at_game { view: "aerial" } must match the plan; test_game { device: "phone" } for frame rate on big maps.
+Zone ambience: make_sound { loop: true } + code_recipe area_music.
+
+### Custom sound effects with Mirelo AI (make_sound) (`sound`)
+
+Every action deserves a sound: pickups, buys, jumps, hits, doors, UI clicks, plus ambience per zone.
+#### Prompts that work
+Source + material + action + space + length/feel: "wooden crate breaking on stone floor, short punchy",
+"soft bright coin pickup chime, cartoon", "wind through pine forest with distant birds, calm loop".
+One sound per prompt, no music words in an effect. Ambience and music beds: loop: true, 10-30 seconds.
+#### Automatic (MIRELO_API_KEY)
+make_sound { prompt, name: "CoinPickup", seconds: 1, parent: "Workspace/GameKit/Coin" }
+-> generates (Mirelo credits, about 10 per second of audio), uploads to Roblox (ROBLOX_OPEN_CLOUD_API_KEY +
+ROBLOX_CREATOR_USER_ID, ID-verified account, 100 audio uploads per month), puts the Sound on the part (3D, heard
+within 80 studs) or in SoundService (global/UI). Ask the user before uploading. upload: false = file only.
+New audio may need a few minutes of moderation: check_assets { ids: [id] } before relying on it.
+#### Free, no key: the Mirelo Studio plugin
+1. make_sound { action: "plugin", prompt, parent: "<part the sound belongs to>" }: selects that part (the plugin
+   reads its material, size and physics) and returns the steps for the user.
+2. The user clicks Generate in Plugins > Mirelo AI SFX Generation (signs in once). The sound lands in SoundService.
+3. make_sound { action: "collect", parent, name } moves the new Sound onto the part.
+#### Play it
+- Server event (door, explosion, coin): the Sound on the part, sound:Play() in the server script.
+- UI click or personal feedback: Sound in SoundService, SoundService:PlayLocalSound(sound) in a LocalScript.
+- Zone ambience: code_recipe area_music with the new id.
 
 ### Several AIs building one game at the same time (team) (`team`)
 

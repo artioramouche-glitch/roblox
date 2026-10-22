@@ -35,6 +35,23 @@ describe('HTTP Server', () => {
     });
   });
 
+  describe('Browser guard', () => {
+    test('refuses cross-site browser requests and keeps local callers working', async () => {
+      await request(app).post('/ready').set('Origin', 'https://evil.example').send({ instanceId: 'x', role: 'edit' }).expect(403);
+      await request(app).get('/poll?instanceId=x').set('Sec-Fetch-Site', 'cross-site').expect(403);
+      expect(app.isPluginConnected()).toBe(false);
+      await request(app).get('/health').set('Origin', 'http://localhost:5173').expect(200);
+      await request(app).get('/health').expect(200);
+    });
+
+    test('an unknown poller registers with the role it reports', async () => {
+      await request(app).get('/poll?instanceId=srv-1&role=server');
+      expect(bridge.getInstances().find((i) => i.instanceId === 'srv-1')?.role).toBe('server');
+      await request(app).get('/poll?instanceId=old-1');
+      expect(bridge.getInstances().find((i) => i.instanceId === 'old-1')?.role).toBe('edit');
+    });
+  });
+
   describe('Plugin Connection Management', () => {
     test('should handle plugin ready notification', async () => {
       const response = await request(app)

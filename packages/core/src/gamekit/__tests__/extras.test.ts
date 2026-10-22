@@ -3,7 +3,7 @@ import net from 'net';
 import os from 'os';
 import path from 'path';
 import { checkLuauSyntax } from '../luau-syntax.js';
-import { animationPython, animatorLuau, BlenderClient, BlenderTools, exportPython, keyframeLuau, safeModeViolation, STUDS_PER_METER } from '../blender.js';
+import { animationPython, animatorLuau, BlenderClient, BlenderTools, exportPython, keyframeLuau, meshDataPython, meshPartLuau, safeModeViolation, STUDS_PER_METER } from '../blender.js';
 import { spawnSync } from 'child_process';
 import { analyse, farmingReport, nicePrice, simulate, suggestPrices, towerDefenseReport } from '../economy.js';
 import { JobRegistry, handleJobTool } from '../jobs.js';
@@ -20,6 +20,7 @@ import { assetsLuau, assetVerdict, optimizeFindings, optimizeLuau } from '../qua
 import { pickDevice, runPlaytest } from '../playtest.js';
 import { checkRobloxApi } from '../api-check.js';
 import type { InstanceNode } from '../installer.js';
+import { listSoundsLuau, mireloAudio, mireloRequest, SoundTools } from '../sound.js';
 
 const parse = (result: any) => JSON.parse(result.content[0].text);
 
@@ -107,13 +108,52 @@ describe('Blender bridge', () => {
     expect(status.fix.join(' ')).toMatch(/addon\.py/);
   });
 
-  test('blender_to_roblox exports, and without an API key explains the manual import', async () => {
+  test('blender_to_roblox without a key rebuilds the meshes in Studio, saves them and places the model', async () => {
+    const meshData = { meshes: [{ name: 'Statue', center: [0, 1, 0], v: [0, 0, 0, 1, 0, 0, 0, 1, 0], n: [0, 0, -1], t: [0, 1, 2, 0, 0, 0], color: [255, 0, 0], alpha: 1, metal: 0 }], triangles: 1, sizeStuds: [1, 1, 0], warnings: [] };
+    let rigged = false;
+    const addon = await fakeAddon((cmd) => {
+      const isMeshData = JSON.stringify(cmd).includes('def collect');
+      const out = isMeshData ? (rigged ? { rigged: true, meshes: [], warnings: [] } : meshData) : { path: '/nonexistent/x.fbx', bytes: 0, sizeMeters: [2, 3, 1], rigged: true, warnings: [], objects: [] };
+      return { status: 'success', result: { executed: true, result: `@@GAMEKIT@@${JSON.stringify(out)}\n` } };
+    });
+    const host = recordingHost({
+      hasOpenCloudKey: () => false,
+      runLuau: async (code: string) => {
+        host.calls.push(code);
+        if (code.includes('CreateEditableMesh')) return { success: true, returnValue: JSON.stringify({ ok: true, assetId: 123, live: false }) };
+        return { success: true, returnValue: JSON.stringify({ ok: true, path: 'Workspace.GameKit.Props.Statue', size: [1, 1, 0.1] }) };
+      },
+    });
+    const tools = new BlenderTools(host, new BlenderClient('127.0.0.1', addon.port));
+    try {
+      const result = parse(await tools.call('blender_to_roblox', { name: 'Statue', position: [0, 0, 5] }));
+      expect(result).toMatchObject({ ok: true, path: 'Workspace.GameKit.Props.Statue', steps: { build: { meshes: 1, savedAsAssets: 1 } } });
+      expect(result.notSaved).toBeUndefined();
+      const build = host.calls.find((c) => c.includes('CreateEditableMesh'))!;
+      expect(build).toContain('CreateAssetAsync');
+      expect(build).toContain('"upload":true');
+      expect(host.calls[host.calls.length - 1]).toMatch(/GameKitImport_Statue_/); // placed from the rebuilt model
+
+      host.calls.length = 0;
+      await tools.call('blender_to_roblox', { name: 'Statue', upload: false });
+      expect(host.calls[0]).toContain('"upload":false');
+
+      rigged = true; // skinned meshes cannot be rebuilt: back to the FBX file and the manual import
+      const riggedResult = parse(await tools.call('blender_to_roblox', { name: 'Knight' }));
+      expect(riggedResult.manualImport.join(' ')).toMatch(/Import 3D/);
+      expect(riggedResult.why).toMatch(/Rigged/);
+    } finally {
+      addon.close();
+    }
+  });
+
+  test('blender_to_roblox exports, and without an API key or Studio explains the manual import', async () => {
     const addon = await fakeAddon((cmd) => ({
       status: 'success',
       result: { executed: true, result: `log\n@@GAMEKIT@@${JSON.stringify({ path: '/nonexistent/x.fbx', bytes: 0, sizeMeters: [2, 3, 1], triangles: 1200, warnings: [], objects: [] })}\n` },
     }));
     let connected = 0;
-    const tools = new BlenderTools(recordingHost({ hasOpenCloudKey: () => false }), new BlenderClient('127.0.0.1', addon.port), { onConnected: () => connected++ });
+    const tools = new BlenderTools(recordingHost({ hasOpenCloudKey: () => false, isStudioConnected: () => false }), new BlenderClient('127.0.0.1', addon.port), { onConnected: () => connected++ });
     const result = parse(await tools.call('blender_to_roblox', { name: 'Statue' }));
     expect(result.uploaded).toBe(false);
     expect(result.manualImport.join(' ')).toMatch(/Import 3D/);
@@ -171,6 +211,7 @@ describe('Blender bridge', () => {
     const scripts = {
       export: exportPython({ format: 'fbx', path: '/tmp/a.fbx', maxTriangles: 20000, decimate: true, textureMax: 1024 }),
       animation: animationPython({ fps: 30, maxFrames: 400, scale: STUDS_PER_METER, fbxPath: '/tmp/anim.fbx', action: "Walk'\"" }),
+      meshData: meshDataPython({ objects: ['Statue'], scale: STUDS_PER_METER, maxTriangles: 20000, chunk: 5000, merge: false }),
     };
     expect(scripts.export).toContain("'ARMATURE'");
     expect(scripts.export).toContain('add_leaf_bones=False');
@@ -184,7 +225,8 @@ describe('Blender bridge', () => {
       bones: [{ name: 'Hips', parent: null }, { name: 'Leg', parent: 'Hips' }],
       samples: [{ t: 0, p: { Leg: [0, 0, 0, 0, 0, 0.38, 0.92] } }, { t: 0.5, p: {} }],
     });
-    for (const [label, code] of [['keyframes', kfs], ['animator', animatorLuau('Workspace/GameKit/Props/Knight')]] as const) {
+    const meshPart = meshPartLuau({ model: 'GameKitImport_Statue_1', index: 0, name: 'Statue', center: [0, 1, 0], v: [0, 0, 0, 1, 0, 0, 0, 1, 0], n: [0, 0, -1], t: [0, 1, 2, 0, 0, 0], color: [255, 0, 0], alpha: 1, metal: 0, upload: true, description: ']]==] x' });
+    for (const [label, code] of [['keyframes', kfs], ['animator', animatorLuau('Workspace/GameKit/Props/Knight')], ['meshPart', meshPart]] as const) {
       await expectCompiles(code, label);
       expect({ label, issues: checkRobloxApi(code) }).toEqual({ label, issues: [] });
     }
@@ -540,4 +582,98 @@ describe('Quality: assets, performance, multiplayer and phone tests', () => {
     expect(simulator[0]).toBe('get');
     expect(simulator[simulator.length - 1]).toBe('set:stop');
   }, 30000);
+});
+
+describe('make_sound (Mirelo)', () => {
+  const job = (status: string, url?: string) => ({
+    id: 'gen_1', status, credits: 20, urls: { self: 'https://api.mirelo.ai/v3/text-to-sfx/generations/gen_1' },
+    result: url ? { output: { variants: [{ status: 'succeeded', files: { audio: { url, format: 'mp3' } } }] } } : undefined,
+  });
+  /** Fake Mirelo: create answers 202 queued, the first poll succeeds, the CDN serves 3 bytes. */
+  function fakeMirelo() {
+    const calls: Array<{ url: string; init?: any }> = [];
+    const impl = (async (url: string, init?: any) => {
+      calls.push({ url, init });
+      const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
+      if (url.includes('generations?wait=25')) return json(job('queued'), 202);
+      if (url.includes('generations/gen_1')) return json(job('succeeded', 'https://cdn.mirelo.ai/output/a.mp3'));
+      if (url.startsWith('https://cdn.mirelo.ai/')) return new Response(new Uint8Array([1, 2, 3]));
+      return json({ error: { code: 'not_found', message: url } }, 404);
+    }) as unknown as typeof fetch;
+    return { calls, impl };
+  }
+
+  test('request body: sfx-2.0 for effects, sfx-1.6 with controls.loop for loops', () => {
+    expect(mireloRequest('boom', 2, false)).toMatchObject({ model: 'sfx-2.0', duration_ms: 2000, input: { prompt: 'boom' }, output: { format: 'mp3_192' } });
+    const loop = mireloRequest('wind', 0.2, true);
+    expect(loop).toMatchObject({ model: 'sfx-1.6', duration_ms: 1000, controls: { loop: true } });
+    expect(mireloRequest('x', 999, false).duration_ms).toBe(60000);
+    expect(mireloAudio({ status: 'failed', errors: [{ code: 'result_unreadable', message: 'gone' }] }).problem).toMatch(/result_unreadable/);
+  });
+
+  test('generate: prompt -> file -> upload_asset -> Sound in Studio', async () => {
+    const mirelo = fakeMirelo();
+    const tools: string[] = [];
+    const host = recordingHost({
+      hasOpenCloudKey: () => true,
+      callTool: async (name: string, args: Record<string, any>) => {
+        tools.push(name);
+        expect(args).toMatchObject({ assetType: 'Audio', displayName: 'CoinPickup' });
+        expect(fs.readFileSync(args.filePath)).toEqual(Buffer.from([1, 2, 3]));
+        return { content: [{ type: 'text', text: JSON.stringify({ done: true, response: { assetId: '987' } }) }] };
+      },
+    });
+    const previous = process.env.MIRELO_API_KEY;
+    process.env.MIRELO_API_KEY = 'sk-test';
+    try {
+      const out = parse(await new SoundTools(host, mirelo.impl, 1).call({ prompt: 'coin pickup chime', name: 'coin pickup', parent: 'Workspace/Coin' }));
+      expect(out).toMatchObject({ ok: true, soundId: 'rbxassetid://987', credits: 20 });
+      expect(tools).toEqual(['upload_asset']);
+      const create = mirelo.calls[0];
+      expect(create.init.headers.Authorization).toBe('Bearer sk-test');
+      expect(create.init.headers['Idempotency-Key']).toBeTruthy();
+      // The CDN download must not carry the API key.
+      expect(mirelo.calls.find((c) => c.url.startsWith('https://cdn.'))?.init).toBeUndefined();
+      const place = host.calls.find((c) => c.includes('Instance.new("Sound")'))!;
+      expect(place).toContain('"soundId":"987"');
+      await expectCompiles(place, 'place sound');
+      expect(checkRobloxApi(place)).toEqual([]);
+    } finally {
+      if (previous === undefined) delete process.env.MIRELO_API_KEY; else process.env.MIRELO_API_KEY = previous;
+    }
+  });
+
+  test('generate without keys explains both ways; plugin + collect find the new Sound', async () => {
+    const previous = process.env.MIRELO_API_KEY;
+    delete process.env.MIRELO_API_KEY;
+    try {
+      const noKey = parse(await new SoundTools(recordingHost()).call({ prompt: 'door slam' }));
+      expect(noKey.ok).toBe(false);
+      expect(noKey.options.join(' ')).toMatch(/action: "plugin"/);
+    } finally {
+      if (previous !== undefined) process.env.MIRELO_API_KEY = previous;
+    }
+    let sounds = [{ id: 'a', path: 'SoundService.Old', name: 'Old', soundId: 'rbxassetid://1', seconds: 1 }];
+    const host = recordingHost({
+      runLuau: async (code: string) => {
+        host.calls.push(code);
+        if (code.includes('GetDebugId(), path')) return { success: true, returnValue: JSON.stringify({ ok: true, sounds, selected: 1 }) };
+        return { success: true, returnValue: JSON.stringify({ ok: true, moved: ['Workspace.Door.DoorSlam'] }) };
+      },
+    });
+    const tools = new SoundTools(host);
+    const plan = parse(await tools.call({ action: 'plugin', prompt: 'door slam', parent: 'Workspace/Door' }));
+    expect(plan).toMatchObject({ ok: true, selected: 1, prompt: 'door slam', soundsAlreadyThere: 1 });
+    expect(parse(await tools.call({ action: 'collect' })).ok).toBe(false);
+    sounds = [...sounds, { id: 'b', path: 'SoundService.Door slam', name: 'Door slam', soundId: 'rbxassetid://2', seconds: 1.4 }];
+    const moved = parse(await tools.call({ action: 'collect', parent: 'Workspace/Door', name: 'DoorSlam' }));
+    expect(moved.moved).toEqual(['Workspace.Door.DoorSlam']);
+    expect(moved.newSounds).toEqual([{ path: 'SoundService.Door slam', soundId: 'rbxassetid://2', seconds: 1.4 }]);
+    const move = host.calls[host.calls.length - 1];
+    expect(move).toContain('"ids":["b"]');
+    for (const [label, code] of [['list', listSoundsLuau([['Workspace', 'Door']])], ['move', move]] as const) {
+      await expectCompiles(code, label);
+      expect(checkRobloxApi(code)).toEqual([]);
+    }
+  });
 });

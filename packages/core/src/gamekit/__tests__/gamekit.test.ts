@@ -9,7 +9,8 @@ import { SYSTEMS, systemPlacements, resolveSystems } from '../catalog.js';
 import { TEMPLATES } from '../templates.js';
 import { buildWorld, countParts, obbyCourse, PIECES, WORLDS, OBSTACLES } from '../world.js';
 import { buildScreenGui, missingActionTargets, UI_EXAMPLE } from '../ui.js';
-import { buildEnvironmentLuau, LIGHTING_PRESETS, TERRAIN_MODES } from '../environment.js';
+import { buildEnvironmentLuau, featurePayload, LIGHTING_PRESETS, TERRAIN_MODES } from '../environment.js';
+import { checkRobloxApi } from '../api-check.js';
 import { configModule, longString, toLuau } from '../luau-table.js';
 import { guideText, GUIDES, catalogText } from '../knowledge.js';
 import { PROMPTS, listResources, SERVER_INSTRUCTIONS } from '../mcp-extras.js';
@@ -306,6 +307,29 @@ describe('UI builder, environment, knowledge', () => {
     for (const preset of Object.keys(LIGHTING_PRESETS)) await expectCompiles(buildEnvironmentLuau({ preset }), preset);
     for (const terrain of TERRAIN_MODES) await expectCompiles(buildEnvironmentLuau({ terrain, water: true }), terrain);
     expect(() => buildEnvironmentLuau({ preset: 'nope' })).toThrow(/Unknown lighting preset/);
+  });
+
+  test('terrain features compile, use real APIs and are validated', async () => {
+    const features = [
+      { type: 'mountain', at: [-300, -250], radius: 140, height: 120 },
+      { type: 'hill', at: [220, 0, 180], material: 'LeafyGrass' },
+      { type: 'lake', at: [150, -120], radius: 50 },
+      { type: 'river', points: [[-400, 0], [-100, 40], [150, -120]] },
+      { type: 'road', points: [[0, 0], [220, 180]] },
+      { type: 'path', points: [[0, 0], [-250, -200]], material: 'Cobblestone' },
+      { type: 'plateau', at: [0, 0], size: [140], height: 0 },
+      { type: 'paint', at: [150, -60], size: [60, 30], material: 'Sand' },
+    ] as any;
+    const code = buildEnvironmentLuau({ terrain: 'flat', features });
+    await expectCompiles(code, 'features');
+    expect(checkRobloxApi(code)).toEqual([]);
+    const payload = featurePayload(features);
+    expect(payload[1].at).toEqual([220, 180]);
+    expect(payload[6].size).toEqual([140, 140]);
+    expect(payload[4].width).toBe(12);
+    expect(() => featurePayload([{ type: 'volcano', at: [0, 0] } as any])).toThrow(/unknown type/);
+    expect(() => featurePayload([{ type: 'road', points: [[0, 0]] } as any])).toThrow(/needs points/);
+    expect(() => featurePayload([{ type: 'lake' } as any])).toThrow(/needs at/);
   });
 
   test('guides, catalog, prompts and resources', () => {

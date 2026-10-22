@@ -338,6 +338,23 @@ dans ton IA pour Studio **et** Blender.
   (`blender_to_roblox { name, existing: "Workspace/MonModele" }`).
 - `BLENDER_MCP_SAFE_MODE=1` fait valider chaque script Python par le validateur de blender-mcp (Python requis).
 
+## 🔊 Sons sur mesure (Mirelo AI)
+
+`make_sound` crée des effets sonores à partir d'un texte (« coffre en bois qui se brise sur de la pierre, court »).
+- **Automatique** : `MIRELO_API_KEY` (clé `sk-…` créée sur mirelo.ai, Studio → Developer → API Keys ; crédits
+  Mirelo, environ 10 par seconde de son) génère le son, puis la clé Open Cloud l'uploade et l'IA place le `Sound` sur
+  une pièce (son 3D) ou dans `SoundService`. `upload: false` = fichier seulement.
+- **Gratuit, sans clé** : avec le plugin Studio *Mirelo AI SFX Generation (BETA)*. `make_sound { action: "plugin",
+  prompt, parent }` sélectionne l'objet que le plugin doit « écouter » et donne les étapes ; tu cliques *Generate*
+  dans le plugin ; `make_sound { action: "collect", parent, name }` range le nouveau son au bon endroit.
+- Guide pour l'IA : `roblox_guide sound`.
+
+## 🗺️ Cartes : relief placé où on veut
+
+`set_environment { features: [...] }` pose montagnes (neige au-dessus de 60 studs), collines, lacs (rive de sable),
+rivières, routes et chemins (qui suivent le sol), plateaux (`height: 0` = aplanir un emplacement) et zones repeintes,
+aux coordonnées du plan. Guide : `roblox_guide map`.
+
 ## 🤝 Plusieurs IA sur le même jeu
 
 Lance plusieurs clients (Claude, Gemini, Codex, un modèle local…) : le premier serveur tient le port, les suivants
