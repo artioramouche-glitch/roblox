@@ -1,10 +1,13 @@
-import { CollectionService } from "@rbxts/services";
+import { CollectionService, RunService } from "@rbxts/services";
 import Utils from "../Utils";
+import Recording from "../Recording";
+import Activity from "../Activity";
 
 const ChangeHistoryService = game.GetService("ChangeHistoryService");
 const Selection = game.GetService("Selection");
 
 const { getInstancePath, getInstanceByPath } = Utils;
+const { beginRecording, finishRecording } = Recording;
 
 function serializeValue(value: unknown): unknown {
 	const vType = typeOf(value);
@@ -51,32 +54,6 @@ function deserializeValue(attributeValue: unknown, valueType?: string): unknown 
 	return attributeValue;
 }
 
-function getAttribute(requestData: Record<string, unknown>) {
-	const instancePath = requestData.instancePath as string;
-	const attributeName = requestData.attributeName as string;
-
-	if (!instancePath || !attributeName) {
-		return { error: "Instance path and attribute name are required" };
-	}
-
-	const instance = getInstanceByPath(instancePath);
-	if (!instance) return { error: `Instance not found: ${instancePath}` };
-
-	const [success, result] = pcall(() => {
-		const value = instance.GetAttribute(attributeName);
-		return {
-			instancePath,
-			attributeName,
-			value: serializeValue(value),
-			valueType: typeOf(value),
-			exists: value !== undefined,
-		};
-	});
-
-	if (success) return result;
-	return { error: `Failed to get attribute: ${result}` };
-}
-
 function setAttribute(requestData: Record<string, unknown>) {
 	const instancePath = requestData.instancePath as string;
 	const attributeName = requestData.attributeName as string;
@@ -89,11 +66,11 @@ function setAttribute(requestData: Record<string, unknown>) {
 
 	const instance = getInstanceByPath(instancePath);
 	if (!instance) return { error: `Instance not found: ${instancePath}` };
+	const recordingId = beginRecording(`Set attribute ${attributeName} on ${instance.Name}`);
 
 	const [success, result] = pcall(() => {
 		const value = deserializeValue(attributeValue, valueType);
 		instance.SetAttribute(attributeName, value as AttributeValue);
-		ChangeHistoryService.SetWaypoint(`Set attribute ${attributeName} on ${instance.Name}`);
 
 		return {
 			success: true, instancePath, attributeName,
@@ -101,7 +78,11 @@ function setAttribute(requestData: Record<string, unknown>) {
 		};
 	});
 
-	if (success) return result;
+	if (success) {
+		finishRecording(recordingId, true);
+		return result;
+	}
+	finishRecording(recordingId, false);
 	return { error: `Failed to set attribute: ${result}` };
 }
 
@@ -142,11 +123,11 @@ function deleteAttribute(requestData: Record<string, unknown>) {
 
 	const instance = getInstanceByPath(instancePath);
 	if (!instance) return { error: `Instance not found: ${instancePath}` };
+	const recordingId = beginRecording(`Delete attribute ${attributeName} from ${instance.Name}`);
 
 	const [success, result] = pcall(() => {
 		const existed = instance.GetAttribute(attributeName) !== undefined;
 		instance.SetAttribute(attributeName, undefined);
-		ChangeHistoryService.SetWaypoint(`Delete attribute ${attributeName} from ${instance.Name}`);
 
 		return {
 			success: true, instancePath, attributeName, existed,
@@ -154,7 +135,11 @@ function deleteAttribute(requestData: Record<string, unknown>) {
 		};
 	});
 
-	if (success) return result;
+	if (success) {
+		finishRecording(recordingId, true);
+		return result;
+	}
+	finishRecording(recordingId, false);
 	return { error: `Failed to delete attribute: ${result}` };
 }
 
@@ -184,11 +169,11 @@ function addTag(requestData: Record<string, unknown>) {
 
 	const instance = getInstanceByPath(instancePath);
 	if (!instance) return { error: `Instance not found: ${instancePath}` };
+	const recordingId = beginRecording(`Add tag ${tagName} to ${instance.Name}`);
 
 	const [success, result] = pcall(() => {
 		const alreadyHad = CollectionService.HasTag(instance, tagName);
 		CollectionService.AddTag(instance, tagName);
-		ChangeHistoryService.SetWaypoint(`Add tag ${tagName} to ${instance.Name}`);
 
 		return {
 			success: true, instancePath, tagName, alreadyHad,
@@ -196,7 +181,11 @@ function addTag(requestData: Record<string, unknown>) {
 		};
 	});
 
-	if (success) return result;
+	if (success) {
+		finishRecording(recordingId, true);
+		return result;
+	}
+	finishRecording(recordingId, false);
 	return { error: `Failed to add tag: ${result}` };
 }
 
@@ -210,11 +199,11 @@ function removeTag(requestData: Record<string, unknown>) {
 
 	const instance = getInstanceByPath(instancePath);
 	if (!instance) return { error: `Instance not found: ${instancePath}` };
+	const recordingId = beginRecording(`Remove tag ${tagName} from ${instance.Name}`);
 
 	const [success, result] = pcall(() => {
 		const hadTag = CollectionService.HasTag(instance, tagName);
 		CollectionService.RemoveTag(instance, tagName);
-		ChangeHistoryService.SetWaypoint(`Remove tag ${tagName} from ${instance.Name}`);
 
 		return {
 			success: true, instancePath, tagName, hadTag,
@@ -222,7 +211,11 @@ function removeTag(requestData: Record<string, unknown>) {
 		};
 	});
 
-	if (success) return result;
+	if (success) {
+		finishRecording(recordingId, true);
+		return result;
+	}
+	finishRecording(recordingId, false);
 	return { error: `Failed to remove tag: ${result}` };
 }
 
@@ -289,12 +282,18 @@ function executeLuau(requestData: Record<string, unknown>) {
 		oldWarn(...(args as [defined, ...defined[]]));
 	};
 
+	// GameKit changes are one undo step each ("MCP: AI create_game obby"), which the AI
+	// panel's "Undo last AI action" button reverts. A failed change is rolled back.
+	const tag = Activity.parseTag(code);
+	const recordingId = tag !== undefined && tag[0] && !RunService.IsRunning() ? beginRecording(`AI ${tag[1]}`) : undefined;
+
 	const [success, result] = pcall(() => {
 		const [fn, compileError] = loadstring(code);
 		if (!fn) error(`Compile error: ${compileError}`);
 		return fn();
 	});
 
+	finishRecording(recordingId, success);
 	env["print"] = oldPrint;
 	env["warn"] = oldWarn;
 
@@ -315,8 +314,75 @@ function executeLuau(requestData: Record<string, unknown>) {
 	}
 }
 
+function undo(_requestData: Record<string, unknown>) {
+	const [success, result] = pcall(() => {
+		ChangeHistoryService.Undo();
+		return {
+			success: true,
+			message: "Undo executed successfully",
+		};
+	});
+
+	if (success) return result;
+	return { error: `Failed to undo: ${result}` };
+}
+
+function redo(_requestData: Record<string, unknown>) {
+	const [success, result] = pcall(() => {
+		ChangeHistoryService.Redo();
+		return {
+			success: true,
+			message: "Redo executed successfully",
+		};
+	});
+
+	if (success) return result;
+	return { error: `Failed to redo: ${result}` };
+}
+
+function bulkSetAttributes(requestData: Record<string, unknown>) {
+	const instancePath = requestData.instancePath as string;
+	const attributes = requestData.attributes as Record<string, unknown>;
+
+	if (!instancePath || !attributes) {
+		return { error: "Instance path and attributes are required" };
+	}
+
+	const instance = getInstanceByPath(instancePath);
+	if (!instance) return { error: `Instance not found: ${instancePath}` };
+
+	const recordingId = beginRecording(`Bulk set attributes on ${instance.Name}`);
+
+	const results: Record<string, unknown>[] = [];
+	let successCount = 0;
+	let failureCount = 0;
+
+	for (const [name, rawValue] of pairs(attributes)) {
+		const attrName = name as string;
+		const [ok, err] = pcall(() => {
+			const value = deserializeValue(rawValue);
+			instance.SetAttribute(attrName, value as AttributeValue);
+		});
+
+		if (ok) {
+			successCount++;
+			results.push({ attributeName: attrName, success: true });
+		} else {
+			failureCount++;
+			results.push({ attributeName: attrName, success: false, error: tostring(err) });
+		}
+	}
+
+	finishRecording(recordingId, successCount > 0);
+
+	return {
+		instancePath,
+		results,
+		summary: { total: successCount + failureCount, succeeded: successCount, failed: failureCount },
+	};
+}
+
 export = {
-	getAttribute,
 	setAttribute,
 	getAttributes,
 	deleteAttribute,
@@ -326,4 +392,7 @@ export = {
 	getTagged,
 	getSelection,
 	executeLuau,
+	undo,
+	redo,
+	bulkSetAttributes,
 };

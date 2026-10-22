@@ -1,12 +1,9 @@
 {
-  "name": "@6xvl/robloxstudio-mcp-core",
-  "version": "3.3.0",
+  "name": "roblox-ultimate-mcp-core",
+  "version": "4.0.0",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "publishConfig": {
-    "access": "public"
-  },
   "files": [
     "dist/**/*",
     "assets"
@@ -14,14 +11,15 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/6xvl/robloxstudio-mcp-server.git",
+    "url": "https://github.com/artioramouche-glitch/roblox.git",
     "directory": "packages/core"
   },
   "scripts": {
     "build": "tsc",
-    "test": "jest",
+    "test": "jest && npm run test:gamekit",
     "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage"
+    "test:coverage": "jest --coverage",
+    "test:gamekit": "node --experimental-vm-modules ../../node_modules/jest/bin/jest.js -c jest.gamekit.config.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.27.1",
@@ -30,7 +28,8 @@
     "fzstd": "^0.1.1",
     "node-fetch": "^3.3.2",
     "uuid": "^9.0.1",
-    "ws": "^8.14.2"
+    "ws": "^8.14.2",
+    "luau-web": "^1.4.0"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",
@@ -44,5 +43,10 @@
     "supertest": "^6.3.3",
     "ts-jest": "^29.1.1",
     "typescript": "^5.3.2"
+  },
+  "description": "Core of Roblox Ultimate MCP: Studio bridge, 140+ Studio tools and the GameKit (templates, systems, Luau validation, automatic playtests).",
+  "homepage": "https://github.com/artioramouche-glitch/roblox#readme",
+  "bugs": {
+    "url": "https://github.com/artioramouche-glitch/roblox/issues"
   }
 }

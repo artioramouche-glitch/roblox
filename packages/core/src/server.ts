@@ -14,6 +14,17 @@ import { ProxyBridgeService } from './proxy-bridge-service.js';
 import type { ToolDefinition } from './tools/definitions.js';
 import { RobloxOfficialMCPClient } from './roblox-mcp-client.js';
 import { ToolRegistry } from './managers/tool-registry.js';
+import {
+  SERVER_INSTRUCTIONS,
+  handleMetaTool,
+  metaToolDefinitions,
+  registerPromptsAndResources,
+  toolVisible,
+  listingView,
+  type ListedTool,
+} from './gamekit/mcp-extras.js';
+import { getProfile, onProfileChange, revealGroup } from './gamekit/profiles.js';
+import { probeBlender } from './gamekit/blender.js';
 
 export interface ServerConfig {
   name: string;
@@ -60,9 +71,19 @@ export class RobloxStudioMCPServer {
           // and a hot-reloaded tool is invisible until it reconnects -- which is the
           // restart this exists to remove.
           tools: { listChanged: true },
+          prompts: {},
+          resources: {},
         },
+        // Most clients put this in the model's system prompt: the GameKit golden path.
+        instructions: SERVER_INSTRUCTIONS,
       }
     );
+    // A tool profile switch changes the listed tools.
+    onProfileChange(() => {
+      this.server.sendToolListChanged().catch(() => {
+        // not connected yet; find_tools + call_tool still work
+      });
+    });
 
     this.bridge = new BridgeService();
     this.tools = new RobloxStudioTools(this.bridge);
@@ -76,100 +97,133 @@ export class RobloxStudioMCPServer {
   }
 
   private setupToolHandlers() {
+    // Blender already open? Reveal the blender_* tools before the first list (bounded wait).
+    const blenderReady = process.env.ROBLOX_MCP_BLENDER_PROBE === '0'
+      ? Promise.resolve()
+      : probeBlender().then((ok) => { if (ok) revealGroup('blender'); }, () => undefined);
     this.server.setRequestHandler(ListToolsRequestSchema, async () => {
-      // THE REGISTRY, NOT config.tools. config.tools is frozen at construction, so a
-      // hot-reloaded tool would never appear in the list however many notifications
-      // were sent -- the list would simply be regenerated from the old array.
-      const ours = this.registry.definitions.map(t => ({
-        name: t.name,
-        description: t.description,
-        inputSchema: t.inputSchema,
-      }));
-      // Multi-Studio routing tools (built-in)
-      const routingTools = [
-        {
-          name: 'list_studios',
-          description: 'List connected Roblox Studio plugin instances. Returns roles, instance IDs, last activity. Use to pick a target with set_active_studio.',
-          inputSchema: { type: 'object', properties: {} },
-        },
-        {
-          name: 'set_active_studio',
-          description: 'Set the active Studio target for subsequent tool calls in this Claude session. Pass role (e.g. "client-1") or instanceId from list_studios.',
-          inputSchema: {
-            type: 'object',
-            properties: { target: { type: 'string', description: 'Studio role or instanceId' } },
-            required: ['target'],
-          },
-        },
-      ];
-      const hookTools = this.robloxHook?.isConnected() ? this.robloxHook.getTools() : [];
-      return { tools: [...ours, ...routingTools, ...hookTools] };
+      await Promise.race([blenderReady, new Promise((resolve) => setTimeout(resolve, 700))]);
+      return { tools: this.listedTools() };
     });
+    registerPromptsAndResources(this.server);
+    this.setupCallHandler();
+  }
 
+  /** Every callable tool: our own, multi-Studio routing, and the official Roblox hook. */
+  private allTools(): ListedTool[] {
+    // THE REGISTRY, NOT config.tools. config.tools is frozen at construction, so a
+    // hot-reloaded tool would never appear in the list however many notifications
+    // were sent -- the list would simply be regenerated from the old array.
+    const ours = this.registry.definitions.map(t => ({
+      name: t.name,
+      description: t.description,
+      inputSchema: t.inputSchema,
+    }));
+    // Multi-Studio routing tools (built-in)
+    const routingTools = [
+      {
+        name: 'list_studios',
+        description: 'List connected Roblox Studio plugin instances. Returns roles, instance IDs, last activity. Use to pick a target with set_active_studio.',
+        inputSchema: { type: 'object', properties: {} },
+      },
+      {
+        name: 'set_active_studio',
+        description: 'Set the active Studio target for subsequent tool calls in this Claude session. Pass role (e.g. "client-1") or instanceId from list_studios.',
+        inputSchema: {
+          type: 'object',
+          properties: { target: { type: 'string', description: 'Studio role or instanceId' } },
+          required: ['target'],
+        },
+      },
+    ];
+    const hookTools = this.robloxHook?.isConnected() ? this.robloxHook.getTools() : [];
+    return [...ours, ...routingTools, ...hookTools];
+  }
+
+  /** What the client sees: filtered by the tool profile (see gamekit/profiles.ts). */
+  private listedTools(): ListedTool[] {
+    const all = this.allTools();
+    const hookNames = new Set(this.robloxHook?.isConnected() ? this.robloxHook.getTools().map((t: any) => t.name) : []);
+    const visible = all.filter((t) => (hookNames.has(t.name) ? getProfile() !== 'starter' : toolVisible(t.name)));
+    return [...metaToolDefinitions(all.length), ...visible].map(listingView);
+  }
+
+  private setupCallHandler() {
     this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const { name, arguments: args } = request.params;
+      return this.dispatch(name, (args ?? {}) as Record<string, any>);
+    });
+  }
 
-      // 1. Roblox official MCP forwarding
-      const robloxName = RobloxOfficialMCPClient.stripPrefix(name);
-      if (robloxName && this.robloxHook?.isConnected()) {
-        try {
-          return await this.robloxHook.callTool(robloxName, args ?? {});
-        } catch (error) {
-          throw new McpError(
-            ErrorCode.InternalError,
-            `Roblox official MCP call failed: ${error instanceof Error ? error.message : String(error)}`
-          );
-        }
-      }
+  private async dispatch(name: string, args: Record<string, any>): Promise<any> {
+    // 0. Tool profile / discovery tools (set_tool_profile, find_tools, call_tool)
+    const meta = await handleMetaTool(name, args, {
+      allTools: () => this.allTools(),
+      dispatch: (n, a) => this.dispatch(n, a),
+      listedCount: () => this.listedTools().length,
+    });
+    if (meta) return meta;
 
-      // 2. Built-in routing tools
-      if (name === 'list_studios') {
-        const instances = this.bridge.getInstances();
-        return {
-          content: [{ type: 'text', text: JSON.stringify({
-            studios: instances,
-            active: this.activeStudioByClient.get('_default') || null,
-          }) }],
-        };
-      }
-      if (name === 'set_active_studio') {
-        const target = (args as any)?.target;
-        if (!target) throw new McpError(ErrorCode.InvalidParams, 'target is required');
-        const resolved = this.bridge.resolveTarget(target);
-        if ('error' in resolved) {
-          return { content: [{ type: 'text', text: JSON.stringify({
-            success: false,
-            error: resolved.error,
-            availableStudios: resolved.candidates.map(i => ({ instanceId: i.instanceId, role: i.role })),
-          }) }] };
-        }
-        const match = resolved.match;
-        this.activeStudioByClient.set('_default', match.role);
-        // Bind the INSTANCE, not just the role -- see the twin in http-server.ts.
-        this.bridge.setPreferredInstance(match.instanceId);
-        return { content: [{ type: 'text', text: JSON.stringify({ success: true, active: match.role, instanceId: match.instanceId }) }] };
-      }
-
-      // 3. Our own tools
-      if (!this.allowedToolNames.has(name) && !this.registry.has(name)) {
-        throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${name}`);
-      }
-
-      const handler = this.registry.handler(name);
-      if (!handler) {
-        throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${name}`);
-      }
-
+    // 1. Roblox official MCP forwarding
+    const robloxName = RobloxOfficialMCPClient.stripPrefix(name);
+    if (robloxName && this.robloxHook?.isConnected()) {
       try {
-        return await handler(this.registry.tools, args ?? {});
+        return await this.robloxHook.callTool(robloxName, args ?? {});
       } catch (error) {
-        if (error instanceof McpError) throw error;
         throw new McpError(
           ErrorCode.InternalError,
-          `Tool execution failed: ${error instanceof Error ? error.message : String(error)}`
+          `Roblox official MCP call failed: ${error instanceof Error ? error.message : String(error)}`
         );
       }
-    });
+    }
+
+    // 2. Built-in routing tools
+    if (name === 'list_studios') {
+      const instances = this.bridge.getInstances();
+      return {
+        content: [{ type: 'text', text: JSON.stringify({
+          studios: instances,
+          active: this.activeStudioByClient.get('_default') || null,
+        }) }],
+      };
+    }
+    if (name === 'set_active_studio') {
+      const target = (args as any)?.target;
+      if (!target) throw new McpError(ErrorCode.InvalidParams, 'target is required');
+      const resolved = this.bridge.resolveTarget(target);
+      if ('error' in resolved) {
+        return { content: [{ type: 'text', text: JSON.stringify({
+          success: false,
+          error: resolved.error,
+          availableStudios: resolved.candidates.map(i => ({ instanceId: i.instanceId, role: i.role })),
+        }) }] };
+      }
+      const match = resolved.match;
+      this.activeStudioByClient.set('_default', match.role);
+      // Bind the INSTANCE, not just the role -- see the twin in http-server.ts.
+      this.bridge.setPreferredInstance(match.instanceId);
+      return { content: [{ type: 'text', text: JSON.stringify({ success: true, active: match.role, instanceId: match.instanceId }) }] };
+    }
+
+    // 3. Our own tools
+    if (!this.allowedToolNames.has(name) && !this.registry.has(name)) {
+      throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${name}`);
+    }
+
+    const handler = this.registry.handler(name);
+    if (!handler) {
+      throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${name}`);
+    }
+
+    try {
+      return await handler(this.registry.tools, args ?? {});
+    } catch (error) {
+      if (error instanceof McpError) throw error;
+      throw new McpError(
+        ErrorCode.InternalError,
+        `Tool execution failed: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
   }
 
   async run() {

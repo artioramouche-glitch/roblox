@@ -1,97 +1,56 @@
 {
-  "name": "@aaronalm19/roblox-mcp",
-  "version": "2.3.0",
-  "description": "MCP Server for Roblox Studio Integration - Access Studio data, scripts, and objects through AI tools",
-  "main": "dist/index.js",
+  "name": "roblox-ultimate-mcp-monorepo",
+  "version": "4.0.0",
+  "private": true,
   "type": "module",
-  "bin": {
-    "roblox-mcp": "dist/index.js",
-    "studio": "scripts/studio-cli.mjs"
-  },
-  "files": [
-    "dist/**/*",
-    "studio-plugin/**/*",
-    "README.md"
+  "description": "Roblox Ultimate MCP - lets ANY AI build complete Roblox games in Roblox Studio.",
+  "workspaces": [
+    "packages/*"
   ],
   "scripts": {
-    "build": "tsc",
+    "build": "node scripts/embed-gamekit.mjs && node scripts/embed-roblox-api.mjs && npm run build -w packages/core && npm run build -w packages/roblox-ultimate-mcp && npm run build -w packages/roblox-ultimate-mcp-inspector",
+    "prepare": "npm run build",
+    "start": "node packages/roblox-ultimate-mcp/dist/index.js",
+    "start:inspector": "node packages/roblox-ultimate-mcp-inspector/dist/index.js",
+    "setup": "node packages/roblox-ultimate-mcp/dist/index.js setup",
+    "doctor": "node packages/roblox-ultimate-mcp/dist/index.js doctor",
+    "install-plugin": "node packages/roblox-ultimate-mcp/dist/index.js --install-plugin",
+    "install-blender-addon": "node scripts/install-blender-addon.mjs",
     "build:plugin": "node scripts/build-plugin.mjs",
+    "build:plugin:inspector": "node scripts/build-plugin.mjs --variant inspector",
     "build:all": "npm run build && npm run build:plugin",
-    "places": "node scripts/places.mjs",
-    "place:detect": "node scripts/places.mjs detect --init-if-missing --set-active",
-    "place:list": "node scripts/places.mjs list",
-    "place:status": "node scripts/places.mjs status",
-    "blueprint:doctor": "node scripts/blueprint-doctor.mjs",
-    "blueprint:sync": "node scripts/sync-roblox-properties.mjs",
-    "blueprint:watch": "node scripts/watch-roblox-properties.mjs",
-    "blueprint:reverse-sync": "node scripts/reverse-sync-rojo.mjs",
-    "push:fast": "node scripts/push-script-fast.mjs",
-    "push:diff": "node scripts/push-script-diff.mjs",
-    "apply:verify": "node scripts/apply-verify.mjs",
-    "drift:check": "node scripts/check-drift.mjs",
-    "lint:deprecated": "node scripts/lint-deprecated-apis.mjs",
-    "luau:install": "node scripts/install-luau-cli.mjs",
-    "luau:lint": "node scripts/luau-lint.mjs",
-    "luau:lint:strict": "node scripts/luau-lint.mjs --strict --fail-on-findings",
-    "transcribe:whisper": "node scripts/transcribe-whisper.mjs",
-    "dev:cockpit": "node scripts/dev-cockpit.mjs",
-    "dev:studio": "node scripts/dev-studio.mjs --with-rojo --with-watch --with-reverse",
-    "studio": "node scripts/studio-cli.mjs",
-    "telemetry:once": "node scripts/telemetry-dashboard.mjs --once",
-    "telemetry:watch": "node scripts/telemetry-dashboard.mjs",
-    "test:live": "node scripts/live-smoke.mjs",
-    "dev": "tsx src/index.ts",
-    "start": "node dist/index.js",
-    "lint": "eslint src/**/*.ts",
-    "typecheck": "tsc --noEmit",
-    "test": "jest",
-    "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage",
-    "test:e2e": "lune run tests/luau/e2e.luau",
-    "test:all": "npm test && npm run test:e2e",
-    "prepublishOnly": "npm run build:all"
+    "dev": "npm run build && tsx packages/roblox-ultimate-mcp/src/index.ts",
+    "lint": "eslint packages/*/src/**/*.ts",
+    "typecheck": "tsc --noEmit -p packages/core/tsconfig.json",
+    "test": "npm test -w packages/core",
+    "gamekit:embed": "node scripts/embed-gamekit.mjs && node scripts/embed-roblox-api.mjs",
+    "gamekit:verify": "node scripts/verify-gamekit-luau.mjs",
+    "gamekit:docs": "node scripts/gen-gamekit-docs.mjs",
+    "gamekit:smoke": "node scripts/gamekit-smoke.mjs",
+    "gamekit:integration": "node scripts/gamekit-integration.mjs",
+    "publish:all": "node scripts/publish.mjs"
   },
-  "keywords": [
-    "mcp",
-    "roblox",
-    "studio",
-    "ai",
-    "model-context-protocol",
-    "game-development"
-  ],
-  "author": "",
-  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
   "repository": {
     "type": "git",
-    "url": "https://github.com/aaronaalmendarez/roblox-mcp.git"
+    "url": "https://github.com/artioramouche-glitch/roblox.git"
   },
-  "homepage": "https://github.com/aaronaalmendarez/roblox-mcp#readme",
+  "homepage": "https://github.com/artioramouche-glitch/roblox#readme",
   "bugs": {
-    "url": "https://github.com/aaronaalmendarez/roblox-mcp/issues"
+    "url": "https://github.com/artioramouche-glitch/roblox/issues"
   },
-  "dependencies": {
-    "@modelcontextprotocol/sdk": "^0.6.0",
-    "cors": "^2.8.5",
-    "express": "^4.18.2",
-    "node-fetch": "^3.3.2",
-    "uuid": "^9.0.1",
-    "ws": "^8.14.2"
-  },
+  "license": "MIT",
   "devDependencies": {
-    "@types/cors": "^2.8.17",
-    "@types/express": "^4.17.21",
-    "@types/jest": "^29.5.11",
-    "@types/node": "^20.10.0",
-    "@types/supertest": "^6.0.2",
-    "@types/uuid": "^9.0.7",
-    "@types/ws": "^8.5.10",
     "@typescript-eslint/eslint-plugin": "^7.0.0",
     "@typescript-eslint/parser": "^7.0.0",
     "eslint": "^8.57.0",
-    "jest": "^29.7.0",
-    "supertest": "^6.3.3",
-    "ts-jest": "^29.1.1",
+    "tsup": "^8.0.0",
     "tsx": "^4.6.0",
     "typescript": "^5.3.2"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.27.1"
   }
 }

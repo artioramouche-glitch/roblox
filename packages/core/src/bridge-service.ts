@@ -81,10 +81,11 @@ export class BridgeService {
     for (const [id, req] of this.pendingRequests.entries()) {
       const targetRole = req.target;
       const hasHandler = Array.from(this.instances.values()).some(i => i.role === targetRole);
-      if (!hasHandler) {
+      // A request pinned to this Studio can never be taken by another one: fail now, not at the timeout.
+      if (!hasHandler || req.targetInstanceId === instanceId) {
         clearTimeout(req.timeoutId);
         this.pendingRequests.delete(id);
-        req.reject(new Error(`Target instance "${targetRole}" disconnected`));
+        req.reject(new Error(`Target instance "${req.targetInstanceId ?? targetRole}" disconnected`));
       } else if (req.claimedBy === instanceId) {
         // It held a claim and went away without answering. Release it so a surviving
         // instance on the same role can pick it up, rather than letting it sit until

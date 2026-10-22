@@ -1,0 +1,420 @@
+/**
+ * Lighting presets and terrain generation, produced as a Luau chunk that the plugin runs
+ * in edit mode (one undo step). Good lighting is the cheapest way to make a game look
+ * professional, so templates always apply a preset.
+ */
+
+import { luauJson } from './result.js';
+
+type RGB = [number, number, number];
+
+interface Preset {
+  description: string;
+  lighting: Record<string, number | RGB | boolean>;
+  atmosphere?: { Density: number; Offset?: number; Color: RGB; Decay: RGB; Glare?: number; Haze?: number };
+  bloom?: { Intensity: number; Size: number; Threshold: number };
+  colorCorrection?: { Brightness?: number; Contrast?: number; Saturation?: number; TintColor?: RGB };
+  sunRays?: { Intensity: number; Spread: number };
+  blur?: number;
+  stars?: number;
+}
+
+export const LIGHTING_PRESETS: Record<string, Preset> = {
+  day: {
+    description: 'Bright, friendly daylight. Good default for obbies, simulators and tycoons.',
+    lighting: { ClockTime: 14, Brightness: 2.5, Ambient: [70, 70, 80], OutdoorAmbient: [128, 128, 140], EnvironmentDiffuseScale: 1, EnvironmentSpecularScale: 1, GlobalShadows: true, ExposureCompensation: 0 },
+    atmosphere: { Density: 0.3, Offset: 0.25, Color: [199, 199, 210], Decay: [106, 112, 125], Glare: 0, Haze: 1 },
+    bloom: { Intensity: 0.6, Size: 24, Threshold: 1.5 },
+    colorCorrection: { Saturation: 0.1, Contrast: 0.05 },
+    sunRays: { Intensity: 0.05, Spread: 0.8 },
+  },
+  sunset: {
+    description: 'Warm orange evening light, cinematic.',
+    lighting: { ClockTime: 17.8, Brightness: 2, Ambient: [90, 60, 60], OutdoorAmbient: [140, 100, 90], EnvironmentDiffuseScale: 1, EnvironmentSpecularScale: 1, GlobalShadows: true },
+    atmosphere: { Density: 0.4, Offset: 0.2, Color: [255, 170, 120], Decay: [180, 90, 90], Glare: 0.6, Haze: 2 },
+    bloom: { Intensity: 0.8, Size: 30, Threshold: 1.2 },
+    colorCorrection: { Saturation: 0.2, TintColor: [255, 230, 210] },
+    sunRays: { Intensity: 0.15, Spread: 1 },
+  },
+  night: {
+    description: 'Calm starry night with blue moonlight.',
+    lighting: { ClockTime: 0, Brightness: 1, Ambient: [40, 40, 70], OutdoorAmbient: [60, 60, 110], GlobalShadows: true },
+    atmosphere: { Density: 0.35, Offset: 0.1, Color: [70, 80, 120], Decay: [30, 30, 60], Haze: 1 },
+    bloom: { Intensity: 0.8, Size: 24, Threshold: 1 },
+    colorCorrection: { TintColor: [200, 210, 255], Brightness: -0.03 },
+    stars: 5000,
+  },
+  horror: {
+    description: 'Very dark, dense fog, desaturated. For horror/escape games (add FlickerLight lamps).',
+    lighting: { ClockTime: 0, Brightness: 0, Ambient: [15, 15, 18], OutdoorAmbient: [25, 25, 30], GlobalShadows: true, ExposureCompensation: -0.3 },
+    atmosphere: { Density: 0.6, Offset: 0, Color: [20, 20, 25], Decay: [10, 10, 12], Haze: 3 },
+    bloom: { Intensity: 0.3, Size: 20, Threshold: 1.5 },
+    colorCorrection: { Saturation: -0.6, Contrast: 0.2, TintColor: [200, 210, 200], Brightness: -0.08 },
+    stars: 0,
+  },
+  fantasy: {
+    description: 'Dreamy purple-pink magical light with strong glow.',
+    lighting: { ClockTime: 15.5, Brightness: 2.5, Ambient: [100, 80, 120], OutdoorAmbient: [150, 120, 170], GlobalShadows: true },
+    atmosphere: { Density: 0.35, Offset: 0.2, Color: [220, 190, 255], Decay: [160, 120, 200], Glare: 0.4, Haze: 2 },
+    bloom: { Intensity: 1.2, Size: 40, Threshold: 1 },
+    colorCorrection: { Saturation: 0.35, TintColor: [255, 240, 255] },
+    sunRays: { Intensity: 0.15, Spread: 1 },
+  },
+  neon: {
+    description: 'Cyberpunk night: purple haze and heavy glow on Neon parts.',
+    lighting: { ClockTime: 21, Brightness: 1, Ambient: [60, 30, 80], OutdoorAmbient: [80, 40, 120], GlobalShadows: true },
+    atmosphere: { Density: 0.45, Offset: 0.1, Color: [120, 60, 200], Decay: [40, 20, 90], Haze: 2.5 },
+    bloom: { Intensity: 1.5, Size: 30, Threshold: 0.8 },
+    colorCorrection: { Saturation: 0.5, Contrast: 0.15 },
+    stars: 3000,
+  },
+  winter: {
+    description: 'Cold bright snowy day.',
+    lighting: { ClockTime: 13, Brightness: 2.2, Ambient: [150, 160, 180], OutdoorAmbient: [170, 180, 200], GlobalShadows: true },
+    atmosphere: { Density: 0.45, Offset: 0.2, Color: [220, 230, 255], Decay: [180, 190, 220], Haze: 2 },
+    bloom: { Intensity: 0.7, Size: 24, Threshold: 1.3 },
+    colorCorrection: { TintColor: [230, 240, 255], Saturation: -0.1 },
+  },
+  desert: {
+    description: 'Hot hazy desert sun.',
+    lighting: { ClockTime: 13, Brightness: 3, Ambient: [120, 100, 80], OutdoorAmbient: [160, 140, 110], GlobalShadows: true },
+    atmosphere: { Density: 0.4, Offset: 0.3, Color: [255, 220, 170], Decay: [200, 150, 100], Glare: 0.3, Haze: 2.5 },
+    bloom: { Intensity: 0.6, Size: 24, Threshold: 1.4 },
+    colorCorrection: { TintColor: [255, 240, 220], Saturation: 0.15 },
+    sunRays: { Intensity: 0.1, Spread: 1 },
+  },
+  space: {
+    description: 'Black sky full of stars, no atmosphere.',
+    lighting: { ClockTime: 0, Brightness: 0.5, Ambient: [30, 30, 50], OutdoorAmbient: [40, 40, 70], GlobalShadows: true },
+    bloom: { Intensity: 1, Size: 24, Threshold: 1 },
+    colorCorrection: { Saturation: 0.2 },
+    stars: 10000,
+  },
+  underwater: {
+    description: 'Blue-green murky underwater look.',
+    lighting: { ClockTime: 12, Brightness: 1, Ambient: [40, 90, 120], OutdoorAmbient: [50, 110, 140], GlobalShadows: true },
+    atmosphere: { Density: 0.6, Offset: 0, Color: [40, 120, 160], Decay: [20, 60, 90], Haze: 2 },
+    colorCorrection: { TintColor: [170, 220, 255], Saturation: -0.1 },
+    blur: 3,
+  },
+};
+
+export const TERRAIN_MODES = ['none', 'clear', 'flat', 'hills', 'island', 'water'] as const;
+
+/** Map features placed where a level plan says (positions are [x, z] studs at ground level). */
+export const FEATURE_TYPES = ['mountain', 'hill', 'lake', 'river', 'road', 'path', 'plateau', 'paint'] as const;
+
+export interface TerrainFeature {
+  type: (typeof FEATURE_TYPES)[number];
+  /** Center, [x, z] (a [x, y, z] also works, y is ignored). */
+  at?: number[];
+  radius?: number;
+  /** [width, depth] for plateau and paint. */
+  size?: number[];
+  height?: number;
+  depth?: number;
+  width?: number;
+  /** river, road, path: the route, [[x, z], ...]. */
+  points?: number[][];
+  material?: string;
+}
+
+export interface EnvironmentOptions {
+  preset?: string;
+  clockTime?: number;
+  terrain?: (typeof TERRAIN_MODES)[number];
+  terrainSize?: number;
+  terrainCenter?: [number, number, number];
+  hillHeight?: number;
+  water?: boolean;
+  seed?: number;
+  removeBaseplate?: boolean;
+  features?: TerrainFeature[];
+}
+
+const clamp = (v: unknown, lo: number, hi: number, fallback: number) => {
+  const n = Number(v);
+  return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : fallback;
+};
+const xz = (p: unknown): [number, number] | undefined => {
+  if (!Array.isArray(p) || p.length < 2 || !p.every((n) => Number.isFinite(Number(n)))) return undefined;
+  return p.length >= 3 ? [Number(p[0]), Number(p[2])] : [Number(p[0]), Number(p[1])];
+};
+
+/** Checks and clamps the features into the payload the Luau loop reads. */
+export function featurePayload(features: TerrainFeature[]) {
+  return features.map((f, i) => {
+    const type = String(f?.type ?? '').toLowerCase() as TerrainFeature['type'];
+    if (!FEATURE_TYPES.includes(type)) throw new Error(`features[${i}]: unknown type "${f?.type}". Types: ${FEATURE_TYPES.join(', ')}`);
+    const route = type === 'river' || type === 'road' || type === 'path';
+    const points = (f.points ?? []).map(xz).filter((p): p is [number, number] => !!p);
+    if (route && points.length < 2) throw new Error(`features[${i}] (${type}) needs points: [[x, z], [x, z], ...] (2 or more)`);
+    const at = xz(f.at);
+    if (!route && !at) throw new Error(`features[${i}] (${type}) needs at: [x, z]`);
+    const size = Array.isArray(f.size) ? f.size : [];
+    const defaults = { mountain: [90, 70], hill: [60, 18], lake: [40, 0], plateau: [0, 12] }[type as string] ?? [40, 0];
+    return {
+      type,
+      at: at ?? points[0],
+      points,
+      radius: clamp(f.radius, 8, 400, defaults[0]),
+      height: clamp(f.height, 0, 400, defaults[1]),
+      depth: clamp(f.depth, 2, 60, type === 'river' ? 6 : 10),
+      width: clamp(f.width, 2, 80, type === 'road' ? 12 : type === 'path' ? 6 : 14),
+      size: [clamp(size[0], 4, 2048, 60), clamp(size[1] ?? size[0], 4, 2048, 60)],
+      material: f.material ? String(f.material) : undefined,
+    };
+  });
+}
+
+// Luau run after the base terrain: one block per feature, ground level = GROUND (terrainCenter y).
+const FEATURES_LUAU = `
+	local function mat(name, fallback)
+		if not name then return fallback end
+		local ok, m = pcall(function() return Enum.Material[name] end)
+		if ok and m then return m end
+		table.insert(applied, "unknown material " .. tostring(name) .. ", used " .. fallback.Name)
+		return fallback
+	end
+	local rayParams = RaycastParams.new()
+	rayParams.FilterType = Enum.RaycastFilterType.Include
+	rayParams.FilterDescendantsInstances = { terrain }
+	rayParams.IgnoreWater = true
+	local function surfaceY(x, z)
+		local hit = workspace:Raycast(Vector3.new(x, GROUND + 600, z), Vector3.new(0, -1200, 0), rayParams)
+		return if hit then hit.Position.Y else GROUND
+	end
+	local PAINTABLE = { "Grass", "LeafyGrass", "Rock", "Ground", "Sand", "Mud", "Snow", "Slate", "Basalt", "Sandstone",
+		"Limestone", "Salt", "Ice", "Glacier", "Asphalt", "Cobblestone", "Concrete", "Pavement", "Brick", "CrackedLava", "Pebble" }
+	-- Calls fn(px, pz, t) every STEP studs along the route, t = segment direction.
+	local function alongRoute(points, step, fn)
+		for i = 1, #points - 1 do
+			local a = Vector3.new(points[i][1], 0, points[i][2])
+			local b = Vector3.new(points[i + 1][1], 0, points[i + 1][2])
+			local len = (b - a).Magnitude
+			if len > 0 then
+				local dir = (b - a) / len
+				for s = 0, len, step do
+					local p = a + dir * s
+					fn(p.X, p.Z, dir)
+				end
+				task.wait()
+			end
+		end
+	end
+	for _, f in FEATURES do
+		local fx, fz = f.at[1], f.at[2]
+		local okFeature, featureError = pcall(function()
+		if f.type == "mountain" or f.type == "hill" then
+			local R, H = f.radius, f.height
+			local top = if f.material then mat(f.material, Enum.Material.Rock) else nil
+			for dx = -R, R, 4 do
+				for dz = -R, R, 4 do
+					local d = math.sqrt(dx * dx + dz * dz) / R
+					if d <= 1 then
+						local n = math.noise((fx + dx) / 45 + SEED, (fz + dz) / 45 - SEED) * 0.35
+						local h = H * (0.5 + 0.5 * math.cos(math.pi * d)) * (1 + n)
+						if h > 1 then
+							local m = top or (if f.type == "hill" then Enum.Material.Grass
+								elseif h > H * 0.8 and H >= 60 then Enum.Material.Snow
+								elseif h > H * 0.35 then Enum.Material.Rock else Enum.Material.Grass)
+							local y0 = GROUND - 8
+							terrain:FillBlock(CFrame.new(fx + dx, (GROUND + h + y0) / 2, fz + dz), Vector3.new(4, GROUND + h - y0, 4), m)
+						end
+					end
+				end
+				task.wait()
+			end
+		elseif f.type == "lake" then
+			local R, D = f.radius, f.depth
+			local shore = mat(f.material, Enum.Material.Sand)
+			for dx = -R - 8, R + 8, 4 do
+				for dz = -R - 8, R + 8, 4 do
+					local d = math.sqrt(dx * dx + dz * dz) / R
+					local px, pz = fx + dx, fz + dz
+					if d <= 1 then
+						local floor = GROUND - 1 - D * (1 - d * d)
+						local above = math.max(GROUND, surfaceY(px, pz)) + 2
+						terrain:FillBlock(CFrame.new(px, (above + floor) / 2, pz), Vector3.new(4, above - floor, 4), Enum.Material.Air)
+						terrain:FillBlock(CFrame.new(px, floor - 2, pz), Vector3.new(4, 4, 4), shore)
+						if GROUND - 1 - floor > 0.5 then
+							terrain:FillBlock(CFrame.new(px, (GROUND - 1 + floor) / 2, pz), Vector3.new(4, GROUND - 1 - floor, 4), Enum.Material.Water)
+						end
+					elseif d * R <= R + 8 then
+						terrain:FillBlock(CFrame.new(px, GROUND - 1.5, pz), Vector3.new(4, 3, 4), shore)
+					end
+				end
+				task.wait()
+			end
+		elseif f.type == "river" then
+			local W, D = f.width, f.depth
+			local bed = mat(f.material, Enum.Material.Sand)
+			alongRoute(f.points, 4, function(px, pz, dir)
+				local look = CFrame.lookAt(Vector3.new(px, 0, pz), Vector3.new(px, 0, pz) + dir)
+				terrain:FillBlock(look + Vector3.new(0, GROUND + 10 - D / 2, 0), Vector3.new(W, 20 + D, 6), Enum.Material.Air)
+				terrain:FillBlock(look + Vector3.new(0, GROUND - D - 1, 0), Vector3.new(W + 6, 4, 6), bed)
+				terrain:FillBlock(look + Vector3.new(0, GROUND - 1 - (D - 1) / 2, 0), Vector3.new(W, D - 1, 6), Enum.Material.Water)
+			end)
+		elseif f.type == "road" or f.type == "path" then
+			local surface = mat(f.material, if f.type == "road" then Enum.Material.Asphalt else Enum.Material.Ground)
+			alongRoute(f.points, 3, function(px, pz, dir)
+				local y = surfaceY(px, pz)
+				local look = CFrame.lookAt(Vector3.new(px, y - 1, pz), Vector3.new(px, y - 1, pz) + dir)
+				terrain:FillBlock(look, Vector3.new(f.width, 2, 4), surface)
+			end)
+		elseif f.type == "plateau" then
+			local w, d, H = f.size[1], f.size[2], f.height
+			local top = GROUND + H
+			terrain:FillBlock(CFrame.new(fx, top + 60, fz), Vector3.new(w, 120, d), Enum.Material.Air)
+			terrain:FillBlock(CFrame.new(fx, (top + GROUND - 8) / 2, fz), Vector3.new(w, top - GROUND + 8, d), Enum.Material.Rock)
+			terrain:FillBlock(CFrame.new(fx, top - 1.5, fz), Vector3.new(w, 3, d), mat(f.material, Enum.Material.Grass))
+		elseif f.type == "paint" then
+			local target = mat(f.material, Enum.Material.Sand)
+			local w, d = f.size[1], f.size[2]
+			local region = Region3.new(Vector3.new(fx - w / 2, GROUND - 40, fz - d / 2), Vector3.new(fx + w / 2, GROUND + 400, fz + d / 2)):ExpandToGrid(4)
+			for _, name in PAINTABLE do
+				local src = Enum.Material[name]
+				if src ~= target then terrain:ReplaceMaterial(region, 4, src, target) end
+			end
+		end
+		end)
+		table.insert(applied, f.type .. " at " .. math.floor(fx) .. ", " .. math.floor(fz) .. (if okFeature then "" else " FAILED: " .. tostring(featureError)))
+	end`;
+
+const rgb = (c: RGB) => `Color3.fromRGB(${c.join(', ')})`;
+
+function value(v: number | RGB | boolean): string {
+  if (Array.isArray(v)) return rgb(v);
+  return String(v);
+}
+
+export function buildEnvironmentLuau(o: EnvironmentOptions): string {
+  const lines: string[] = [
+    'local Lighting = game:GetService("Lighting")',
+    'local HttpService = game:GetService("HttpService")',
+    'local ChangeHistoryService = game:GetService("ChangeHistoryService")',
+    'local terrain = workspace.Terrain',
+    'local applied = {}',
+    'local recording',
+    'pcall(function() recording = ChangeHistoryService:TryBeginRecording("GameKit environment") end)',
+    'local ok, err = pcall(function()',
+  ];
+  const preset = o.preset ? LIGHTING_PRESETS[o.preset] : undefined;
+  if (o.preset && !preset) throw new Error(`Unknown lighting preset "${o.preset}". Available: ${Object.keys(LIGHTING_PRESETS).join(', ')}`);
+  if (preset) {
+    lines.push(
+      '\tfor _, child in Lighting:GetChildren() do',
+      '\t\tif child:IsA("PostEffect") or child:IsA("Atmosphere") or child:IsA("Sky") then child:Destroy() end',
+      '\tend',
+    );
+    for (const [k, v] of Object.entries(preset.lighting)) lines.push(`\tpcall(function() Lighting.${k} = ${value(v)} end)`);
+    lines.push('\tpcall(function() Lighting.Technology = Enum.Technology.Future end)');
+    if (preset.atmosphere) {
+      const a = preset.atmosphere;
+      lines.push(
+        '\tlocal atmosphere = Instance.new("Atmosphere")',
+        `\tatmosphere.Density = ${a.Density}`,
+        `\tatmosphere.Offset = ${a.Offset ?? 0}`,
+        `\tatmosphere.Color = ${rgb(a.Color)}`,
+        `\tatmosphere.Decay = ${rgb(a.Decay)}`,
+        `\tatmosphere.Glare = ${a.Glare ?? 0}`,
+        `\tatmosphere.Haze = ${a.Haze ?? 0}`,
+        '\tatmosphere.Parent = Lighting',
+      );
+    }
+    const sky = ['\tlocal sky = Instance.new("Sky")', `\tsky.StarCount = ${preset.stars ?? 3000}`, '\tsky.CelestialBodiesShown = true', '\tsky.Parent = Lighting'];
+    lines.push(...sky);
+    if (preset.bloom) {
+      lines.push('\tlocal bloom = Instance.new("BloomEffect")', `\tbloom.Intensity = ${preset.bloom.Intensity}`, `\tbloom.Size = ${preset.bloom.Size}`, `\tbloom.Threshold = ${preset.bloom.Threshold}`, '\tbloom.Parent = Lighting');
+    }
+    if (preset.colorCorrection) {
+      const c = preset.colorCorrection;
+      lines.push('\tlocal cc = Instance.new("ColorCorrectionEffect")');
+      if (c.Brightness !== undefined) lines.push(`\tcc.Brightness = ${c.Brightness}`);
+      if (c.Contrast !== undefined) lines.push(`\tcc.Contrast = ${c.Contrast}`);
+      if (c.Saturation !== undefined) lines.push(`\tcc.Saturation = ${c.Saturation}`);
+      if (c.TintColor) lines.push(`\tcc.TintColor = ${rgb(c.TintColor)}`);
+      lines.push('\tcc.Parent = Lighting');
+    }
+    if (preset.sunRays) lines.push('\tlocal rays = Instance.new("SunRaysEffect")', `\trays.Intensity = ${preset.sunRays.Intensity}`, `\trays.Spread = ${preset.sunRays.Spread}`, '\trays.Parent = Lighting');
+    if (preset.blur) lines.push('\tlocal blur = Instance.new("BlurEffect")', `\tblur.Size = ${preset.blur}`, '\tblur.Parent = Lighting');
+    lines.push(`\ttable.insert(applied, "lighting:${o.preset}")`);
+  }
+  if (o.clockTime !== undefined) lines.push(`\tLighting.ClockTime = ${Number(o.clockTime)}`, '\ttable.insert(applied, "clockTime")');
+  if (o.removeBaseplate) {
+    lines.push(
+      '\tlocal baseplate = workspace:FindFirstChild("Baseplate")',
+      '\tif baseplate then baseplate:Destroy() table.insert(applied, "removed Baseplate") end',
+    );
+  }
+  const mode = o.terrain ?? 'none';
+  if (mode !== 'none') {
+    const size = Math.max(64, Math.min(2048, o.terrainSize ?? 512));
+    const [cx, cy, cz] = o.terrainCenter ?? [0, 0, 0];
+    const step = Math.max(8, Math.ceil(size / 64 / 4) * 4);
+    const amp = o.hillHeight ?? 24;
+    const seed = (o.seed ?? 7) * 17.13;
+    lines.push(
+      `\tlocal SIZE, STEP, CX, CY, CZ, AMP, SEED = ${size}, ${step}, ${cx}, ${cy}, ${cz}, ${amp}, ${seed}`,
+    );
+    if (mode === 'clear') {
+      lines.push('\tterrain:Clear()', '\ttable.insert(applied, "terrain cleared")');
+    } else if (mode === 'flat') {
+      lines.push(
+        '\tterrain:FillBlock(CFrame.new(CX, CY - 4, CZ), Vector3.new(SIZE, 8, SIZE), Enum.Material.Grass)',
+        '\ttable.insert(applied, "flat grass terrain")',
+      );
+    } else if (mode === 'water') {
+      lines.push(
+        '\tterrain:FillBlock(CFrame.new(CX, CY - 10, CZ), Vector3.new(SIZE, 20, SIZE), Enum.Material.Water)',
+        '\tterrain:FillBlock(CFrame.new(CX, CY - 24, CZ), Vector3.new(SIZE, 8, SIZE), Enum.Material.Sand)',
+        '\ttable.insert(applied, "water terrain")',
+      );
+    } else {
+      // Heightmap from layered noise. "island" fades to the sea toward the edges.
+      const island = mode === 'island';
+      lines.push(
+        '\tlocal half = SIZE / 2',
+        '\tfor x = -half, half - STEP, STEP do',
+        '\t\tfor z = -half, half - STEP, STEP do',
+        '\t\t\tlocal n = math.noise((x + SEED) / 90, (z - SEED) / 90) * 0.7 + math.noise((x - SEED) / 30, (z + SEED) / 30) * 0.3',
+        '\t\t\tlocal h = (n + 0.5) * AMP',
+        island
+          ? '\t\t\tlocal falloff = 1 - math.clamp((math.sqrt(x * x + z * z) / half - 0.45) / 0.5, 0, 1)\n\t\t\th = h * falloff + (falloff - 1) * 16'
+          : '\t\t\th = math.max(h, 1)',
+        '\t\t\tlocal top = CY + h',
+        '\t\t\tlocal bottom = CY - 20',
+        '\t\t\tlocal material = if top < CY + 2 then Enum.Material.Sand elseif h > AMP * 0.85 then Enum.Material.Rock else Enum.Material.Grass',
+        '\t\t\tif top > bottom then',
+        '\t\t\t\tterrain:FillBlock(CFrame.new(CX + x + STEP / 2, (top + bottom) / 2, CZ + z + STEP / 2), Vector3.new(STEP, top - bottom, STEP), material)',
+        '\t\t\tend',
+        '\t\tend',
+        '\t\ttask.wait()',
+        '\tend',
+      );
+      if (island || o.water) {
+        // Only empty (air) cells below sea level become water, so the land is kept.
+        lines.push(
+          '\tlocal sea = Region3.new(Vector3.new(CX - SIZE * 0.75, CY - 20, CZ - SIZE * 0.75), Vector3.new(CX + SIZE * 0.75, CY, CZ + SIZE * 0.75)):ExpandToGrid(4)',
+          '\tterrain:FillBlock(CFrame.new(CX, CY - 22, CZ), Vector3.new(SIZE * 1.5, 4, SIZE * 1.5), Enum.Material.Sand)',
+          '\tterrain:ReplaceMaterial(sea, 4, Enum.Material.Air, Enum.Material.Water)',
+        );
+      }
+      lines.push(`\ttable.insert(applied, "${mode} terrain")`);
+    }
+  }
+  if (o.features?.length) {
+    const [, gy] = o.terrainCenter ?? [0, 0, 0];
+    lines.push(
+      `	local FEATURES = HttpService:JSONDecode(${luauJson(featurePayload(o.features))})`,
+      `	local GROUND, SEED = ${Number(gy) || 0}, ${(o.seed ?? 7) * 17.13}`,
+      FEATURES_LUAU,
+    );
+  }
+  lines.push(
+    'end)',
+    'if recording then ChangeHistoryService:FinishRecording(recording, if ok then Enum.FinishRecordingOperation.Commit else Enum.FinishRecordingOperation.Cancel) end',
+    'return HttpService:JSONEncode({ ok = ok, error = if ok then nil else tostring(err), applied = applied })',
+  );
+  return lines.join('\n');
+}

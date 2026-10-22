@@ -1,10 +1,13 @@
 import { StudioHttpClient } from './studio-client.js';
+import { GameKit, type GameKitHost } from '../gamekit/tools.js';
+import { revealGroup } from '../gamekit/profiles.js';
+import { tagLuau } from '../gamekit/activity.js';
 import { findPluginOutDir, readPluginModules } from '../plugin-reload.js';
 import { BridgeService } from '../bridge-service.js';
 import { runBuildExecutor, computeBoundsFromParts } from './build-executor.js';
 import { OpenCloudClient } from '../opencloud-client.js';
 import { RobloxCookieClient } from '../roblox-cookie-client.js';
-import { rgbaToPng } from '../png-encoder.js';
+import { downscaleRgba, rgbaToPng } from '../png-encoder.js';
 import { listScripts, patchScriptSources, readPlace, type RbxlScript } from '../rbxl.js';
 import { buildCompileCheckLuau, findSuspiciousShrinks, lineCount, MAX_LINE_LOSS, parseCompileCheck } from '../publish-guards.js';
 import { DOC_CATEGORIES, getRobloxDoc, isDocCategory } from '../roblox-docs.js';
@@ -39,13 +42,14 @@ type RawImageCaptureResponse = {
   cameraPreset?: string;
 };
 
-function encodePngFromRgbaResponse(response: RawImageCaptureResponse): Buffer {
+function encodePngFromRgbaResponse(response: RawImageCaptureResponse, maxSide = 0): Buffer {
   if (!response.data || response.width === undefined || response.height === undefined) {
     throw new Error('Render response missing data, width, or height');
   }
 
   const rgbaBuffer = Buffer.from(response.data, 'base64');
-  return rgbaToPng(rgbaBuffer, response.width, response.height);
+  const image = downscaleRgba(rgbaBuffer, response.width, response.height, maxSide);
+  return rgbaToPng(image.data, image.width, image.height);
 }
 
 export class RobloxStudioTools {
@@ -54,11 +58,60 @@ export class RobloxStudioTools {
   private openCloudClient: OpenCloudClient;
   private cookieClient: RobloxCookieClient;
 
+  private gameKitInstance?: GameKit;
+
   constructor(bridge: BridgeService) {
     this.client = new StudioHttpClient(bridge);
     this.bridge = bridge;
     this.openCloudClient = new OpenCloudClient();
     this.cookieClient = new RobloxCookieClient();
+  }
+
+  /** The GameKit layer (create_game, add_system, test_game...), built on this bridge. */
+  gamekit(): GameKit {
+    if (!this.gameKitInstance) this.gameKitInstance = new GameKit(this.gameKitHost(), { onBlenderConnected: () => revealGroup('blender') });
+    return this.gameKitInstance;
+  }
+
+  /** Everything GameKit needs from Studio: run Luau in the edit peer and drive playtests. */
+  gameKitHost(): GameKitHost {
+    return {
+      // An edit peer that polled recently (instances go stale after 30s without a poll).
+      isStudioConnected: () => this.bridge.getInstances().some((i) => i.role === 'edit' && Date.now() - i.lastActivity < 10000),
+      runLuau: async (code: string) => {
+        const reply = await this.client.request('/api/execute-luau', { code: tagLuau(code) }, 'edit');
+        if (reply && typeof reply === 'object' && typeof reply.error === 'string' && reply.success === undefined) {
+          return { success: false, error: reply.error };
+        }
+        return reply;
+      },
+      startPlaytest: (mode: 'play' | 'run') => this.client.request('/api/start-playtest', { mode }, 'edit'),
+      stopPlaytest: async () => {
+        // EndTest only works from the play server peer; then the edit peer confirms.
+        let endRequested = false;
+        if (this.bridge.getInstances().some((i) => i.role === 'server')) {
+          try {
+            const ended = await this.client.request('/api/end-test', {}, 'server');
+            endRequested = ended?.success === true;
+          } catch {
+            // a paused/hung server cannot answer
+          }
+        }
+        return this.client.request('/api/stop-playtest', { endRequested }, 'edit');
+      },
+      getPlaytestOutput: () => this.client.request('/api/get-playtest-output', {}, 'edit'),
+      startMultiplayerTest: (numPlayers: number) => this.client.request('/api/multiplayer-test-start', { numPlayers, testArgs: { gameKitTest: true } }, 'edit'),
+      multiplayerTestState: () => this.client.request('/api/multiplayer-test-state', {}, 'edit'),
+      endMultiplayerTest: () => this.client.request('/api/multiplayer-test-end', { value: '{"endedByMcp":true}' }, 'server'),
+      hasOpenCloudKey: () => this.openCloudClient.hasApiKey(),
+      // Loaded lazily: http-server imports this module.
+      callTool: async (name: string, args: Record<string, any>) => {
+        const { TOOL_HANDLERS } = await import('../http-server.js');
+        const handler = TOOL_HANDLERS[name];
+        if (!handler) throw new Error(`Unknown tool "${name}"`);
+        return handler(this, args ?? {});
+      },
+    };
   }
 
 
@@ -2060,7 +2113,8 @@ export class RobloxStudioTools {
     };
   }
 
-  async captureScreenshot() {
+  /** maxSize: longest side in pixels (default 1024, 0 = full size); smaller images cost fewer tokens. */
+  async captureScreenshot(maxSize?: number) {
     const response = await this.client.request('/api/capture-screenshot', {}) as RawImageCaptureResponse;
 
     if (response.error) {
@@ -2072,7 +2126,7 @@ export class RobloxStudioTools {
       };
     }
 
-    const pngBuffer = encodePngFromRgbaResponse(response);
+    const pngBuffer = encodePngFromRgbaResponse(response, maxSize ?? 1024);
 
     return {
       content: [{

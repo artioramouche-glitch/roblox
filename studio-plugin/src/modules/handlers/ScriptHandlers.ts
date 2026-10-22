@@ -1,15 +1,26 @@
 import Utils from "../Utils";
+import Recording from "../Recording";
 
-const ChangeHistoryService = game.GetService("ChangeHistoryService");
 const ScriptEditorService = game.GetService("ScriptEditorService");
 
 const { getInstancePath, getInstanceByPath, readScriptSource, splitLines, joinLines } = Utils;
+const { beginRecording, finishRecording } = Recording;
+
+function normalizeEscapes(s: string): string {
+	let result = s;
+	result = result.gsub("\\\\", "\x01")[0];
+	result = result.gsub("\\n", "\n")[0];
+	result = result.gsub("\\t", "\t")[0];
+	result = result.gsub("\\r", "\r")[0];
+	result = result.gsub('\\"', '"')[0];
+	result = result.gsub("\x01", "\\")[0];
+	return result;
+}
 
 function getScriptSource(requestData: Record<string, unknown>) {
 	const instancePath = requestData.instancePath as string;
 	const startLine = requestData.startLine as number | undefined;
 	const endLine = requestData.endLine as number | undefined;
-	const fullSourceRequested = requestData.fullSource === true;
 
 	if (!instancePath) return { error: "Instance path is required" };
 
@@ -67,7 +78,7 @@ function getScriptSource(requestData: Record<string, unknown>) {
 			truncated: false,
 		};
 
-		if (!fullSourceRequested && startLine === undefined && endLine === undefined && fullSource.size() > 50000) {
+		if (startLine === undefined && endLine === undefined && fullSource.size() > 50000) {
 			const truncatedLines: string[] = [];
 			const truncatedNumberedLines: string[] = [];
 			const maxLines = math.min(1000, lines.size());
@@ -85,6 +96,13 @@ function getScriptSource(requestData: Record<string, unknown>) {
 		if (instance.IsA("BaseScript")) {
 			resp.enabled = instance.Enabled;
 		}
+
+		let topServiceInst: Instance = instance;
+		while (topServiceInst.Parent && topServiceInst.Parent !== game) {
+			topServiceInst = topServiceInst.Parent;
+		}
+		resp.topService = topServiceInst.Name;
+
 		return resp;
 	});
 
@@ -107,13 +125,13 @@ function setScriptSource(requestData: Record<string, unknown>) {
 		return { error: `Instance is not a script-like object: ${instance.ClassName}` };
 	}
 
-	const sourceToSet = newSource;
+	const sourceToSet = normalizeEscapes(newSource);
+	const recordingId = beginRecording(`Set script source: ${instance.Name}`);
 
 	const [updateSuccess, updateResult] = pcall(() => {
 		const oldSourceLength = readScriptSource(instance).size();
 
 		ScriptEditorService.UpdateSourceAsync(instance, () => sourceToSet);
-		ChangeHistoryService.SetWaypoint(`Set script source: ${instance.Name}`);
 
 		return {
 			success: true, instancePath,
@@ -123,12 +141,14 @@ function setScriptSource(requestData: Record<string, unknown>) {
 		};
 	});
 
-	if (updateSuccess) return updateResult;
+	if (updateSuccess) {
+		finishRecording(recordingId, true);
+		return updateResult;
+	}
 
 	const [directSuccess, directResult] = pcall(() => {
 		const oldSource = (instance as unknown as { Source: string }).Source;
 		(instance as unknown as { Source: string }).Source = sourceToSet;
-		ChangeHistoryService.SetWaypoint(`Set script source: ${instance.Name}`);
 
 		return {
 			success: true, instancePath,
@@ -138,7 +158,10 @@ function setScriptSource(requestData: Record<string, unknown>) {
 		};
 	});
 
-	if (directSuccess) return directResult;
+	if (directSuccess) {
+		finishRecording(recordingId, true);
+		return directResult;
+	}
 
 	const [replaceSuccess, replaceResult] = pcall(() => {
 		const parent = instance.Parent;
@@ -156,7 +179,6 @@ function setScriptSource(requestData: Record<string, unknown>) {
 
 		newScript.Parent = parent;
 		instance.Destroy();
-		ChangeHistoryService.SetWaypoint(`Replace script: ${name}`);
 
 		return {
 			success: true,
@@ -166,7 +188,12 @@ function setScriptSource(requestData: Record<string, unknown>) {
 		};
 	});
 
-	if (replaceSuccess) return replaceResult;
+	if (replaceSuccess) {
+		finishRecording(recordingId, true);
+		return replaceResult;
+	}
+
+	finishRecording(recordingId, false);
 	return {
 		error: `Failed to set script source. UpdateSourceAsync failed: ${updateResult}. Direct assignment failed: ${directResult}. Replace method failed: ${replaceResult}`,
 	};
@@ -174,13 +201,16 @@ function setScriptSource(requestData: Record<string, unknown>) {
 
 function editScriptLines(requestData: Record<string, unknown>) {
 	const instancePath = requestData.instancePath as string;
-	const startLine = requestData.startLine as number;
-	const endLine = requestData.endLine as number;
-	let newContent = requestData.newContent as string;
+	let oldString = requestData.old_string as string;
+	let newString = requestData.new_string as string;
+	const startLine = requestData.startLine as number | undefined;
 
-	if (!instancePath || !startLine || !endLine || !newContent) {
-		return { error: "Instance path, startLine, endLine, and newContent are required" };
+	if (!instancePath || oldString === undefined || newString === undefined) {
+		return { error: "Instance path, old_string, and new_string are required" };
 	}
+
+	oldString = normalizeEscapes(oldString);
+	newString = normalizeEscapes(newString);
 
 	const instance = getInstanceByPath(instancePath);
 	if (!instance) return { error: `Instance not found: ${instancePath}` };
@@ -188,36 +218,67 @@ function editScriptLines(requestData: Record<string, unknown>) {
 		return { error: `Instance is not a script-like object: ${instance.ClassName}` };
 	}
 
+	const recordingId = beginRecording(`Edit script: ${instance.Name}`);
+
 	const [success, result] = pcall(() => {
-		const [lines, hadTrailingNewline] = splitLines(readScriptSource(instance));
-		const totalLines = lines.size();
+		const source = readScriptSource(instance);
+		const searchLen = oldString.size();
+		let matchStart: number;
 
-		if (startLine < 1 || startLine > totalLines) error(`startLine out of range (1-${totalLines})`);
-		if (endLine < startLine || endLine > totalLines) error(`endLine out of range (${startLine}-${totalLines})`);
+		if (startLine !== undefined) {
+			if (startLine < 1) error(`startLine must be >= 1 (got ${startLine})`);
 
-		const [newLines] = splitLines(newContent);
-		const resultLines: string[] = [];
+			let lineStartByte = 1;
+			let currentLine = 1;
+			while (currentLine < startLine) {
+				const [nlPos] = string.find(source, "\n", lineStartByte, true);
+				if (nlPos === undefined) {
+					error(`startLine ${startLine} is past end of script (${currentLine} lines)`);
+				}
+				lineStartByte = (nlPos as number) + 1;
+				currentLine++;
+			}
 
-		for (let i = 0; i < startLine - 1; i++) resultLines.push(lines[i]);
-		for (const line of newLines) resultLines.push(line);
-		for (let i = endLine; i < totalLines; i++) resultLines.push(lines[i]);
+			const candidate = string.sub(source, lineStartByte, lineStartByte + searchLen - 1);
+			if (candidate !== oldString) {
+				error(`old_string does not match at line ${startLine}. Use get_script_source to verify the exact text at that line.`);
+			}
+			matchStart = lineStartByte;
+		} else {
+			let count = 0;
+			let searchPos = 1;
+			let firstMatch: number | undefined;
+			while (true) {
+				const [foundStart] = string.find(source, oldString, searchPos, true);
+				if (foundStart === undefined) break;
+				if (firstMatch === undefined) firstMatch = foundStart;
+				count++;
+				if (count > 1) break;
+				searchPos = foundStart + searchLen;
+			}
+			if (count === 0) error("old_string not found in script. If old_string contains repeated patterns (e.g. closing braces), pass startLine to anchor the edit.");
+			if (count > 1) error("old_string matches multiple locations. Provide more surrounding context, or pass startLine to anchor the edit to a specific line.");
+			matchStart = firstMatch as number;
+		}
 
-		const newSource = joinLines(resultLines, hadTrailingNewline);
+		// Byte-slice replacement avoids Lua pattern escaping (safe for multi-byte chars like em dashes).
+		const newSource = string.sub(source, 1, matchStart - 1) + newString + string.sub(source, matchStart + searchLen);
+
 		ScriptEditorService.UpdateSourceAsync(instance, () => newSource);
-		ChangeHistoryService.SetWaypoint(`Edit script lines ${startLine}-${endLine}: ${instance.Name}`);
 
 		return {
-			success: true, instancePath,
-			editedLines: { startLine, endLine },
-			linesRemoved: endLine - startLine + 1,
-			linesAdded: newLines.size(),
-			newLineCount: resultLines.size(),
-			message: "Script lines edited successfully",
+			success: true,
+			instancePath,
+			message: "Script edited successfully",
 		};
 	});
 
-	if (success) return result;
-	return { error: `Failed to edit script lines: ${result}` };
+	if (success) {
+		finishRecording(recordingId, true);
+		return result;
+	}
+	finishRecording(recordingId, false);
+	return { error: `Failed to edit script: ${result}` };
 }
 
 function insertScriptLines(requestData: Record<string, unknown>) {
@@ -227,11 +288,15 @@ function insertScriptLines(requestData: Record<string, unknown>) {
 
 	if (!instancePath || !newContent) return { error: "Instance path and newContent are required" };
 
+	newContent = normalizeEscapes(newContent);
+
 	const instance = getInstanceByPath(instancePath);
 	if (!instance) return { error: `Instance not found: ${instancePath}` };
 	if (!instance.IsA("LuaSourceContainer")) {
 		return { error: `Instance is not a script-like object: ${instance.ClassName}` };
 	}
+
+	const recordingId = beginRecording(`Insert script lines after line ${afterLine}: ${instance.Name}`);
 
 	const [success, result] = pcall(() => {
 		const [lines, hadTrailingNewline] = splitLines(readScriptSource(instance));
@@ -248,7 +313,6 @@ function insertScriptLines(requestData: Record<string, unknown>) {
 
 		const newSource = joinLines(resultLines, hadTrailingNewline);
 		ScriptEditorService.UpdateSourceAsync(instance, () => newSource);
-		ChangeHistoryService.SetWaypoint(`Insert script lines after line ${afterLine}: ${instance.Name}`);
 
 		return {
 			success: true, instancePath,
@@ -259,7 +323,11 @@ function insertScriptLines(requestData: Record<string, unknown>) {
 		};
 	});
 
-	if (success) return result;
+	if (success) {
+		finishRecording(recordingId, true);
+		return result;
+	}
+	finishRecording(recordingId, false);
 	return { error: `Failed to insert script lines: ${result}` };
 }
 
@@ -278,6 +346,8 @@ function deleteScriptLines(requestData: Record<string, unknown>) {
 		return { error: `Instance is not a script-like object: ${instance.ClassName}` };
 	}
 
+	const recordingId = beginRecording(`Delete script lines ${startLine}-${endLine}: ${instance.Name}`);
+
 	const [success, result] = pcall(() => {
 		const [lines, hadTrailingNewline] = splitLines(readScriptSource(instance));
 		const totalLines = lines.size();
@@ -291,7 +361,6 @@ function deleteScriptLines(requestData: Record<string, unknown>) {
 
 		const newSource = joinLines(resultLines, hadTrailingNewline);
 		ScriptEditorService.UpdateSourceAsync(instance, () => newSource);
-		ChangeHistoryService.SetWaypoint(`Delete script lines ${startLine}-${endLine}: ${instance.Name}`);
 
 		return {
 			success: true, instancePath,
@@ -302,8 +371,153 @@ function deleteScriptLines(requestData: Record<string, unknown>) {
 		};
 	});
 
-	if (success) return result;
+	if (success) {
+		finishRecording(recordingId, true);
+		return result;
+	}
+	finishRecording(recordingId, false);
 	return { error: `Failed to delete script lines: ${result}` };
+}
+
+function escapeLuaPattern(s: string): string {
+	return s.gsub("([%(%)%.%%%+%-%*%?%[%]%^%$])", "%%%1")[0];
+}
+
+function escapeLuaReplacement(s: string): string {
+	return s.gsub("%%", "%%%%")[0];
+}
+
+function caseInsensitiveLiteralReplace(src: string, searchStr: string, repl: string): [string, number] {
+	const lowerSrc = src.lower();
+	const lowerSearch = searchStr.lower();
+	const parts: string[] = [];
+	let lastEnd = 1;
+	const searchLen = lowerSearch.size();
+	let pos = 1;
+	let replCount = 0;
+
+	while (true) {
+		const [foundStart] = string.find(lowerSrc, lowerSearch, pos, true);
+		if (foundStart === undefined) break;
+		parts.push(string.sub(src, lastEnd, foundStart - 1));
+		parts.push(repl);
+		lastEnd = foundStart + searchLen;
+		pos = foundStart + searchLen;
+		replCount++;
+	}
+	parts.push(string.sub(src, lastEnd));
+	return [parts.join(""), replCount];
+}
+
+function findAndReplaceInScripts(requestData: Record<string, unknown>) {
+	const searchPattern = requestData.pattern as string;
+	const replacement = requestData.replacement as string;
+
+	if (!searchPattern) return { error: "pattern is required" };
+	if (replacement === undefined) return { error: "replacement is required" };
+
+	const caseSensitive = (requestData.caseSensitive as boolean) ?? false;
+	const usePattern = (requestData.usePattern as boolean) ?? false;
+	const searchPath = (requestData.path as string) ?? "";
+	const classFilter = requestData.classFilter as string | undefined;
+	const dryRun = (requestData.dryRun as boolean) ?? false;
+	const maxReplacements = (requestData.maxReplacements as number) ?? 1000;
+
+	if (!caseSensitive && usePattern) {
+		return { error: "Case-insensitive Lua pattern replacement is not supported. Use caseSensitive: true with usePattern: true, or use literal matching." };
+	}
+
+	const startInstance = searchPath !== "" ? getInstanceByPath(searchPath) : game;
+	if (!startInstance) return { error: `Path not found: ${searchPath}` };
+
+	interface ScriptChange {
+		instancePath: string;
+		name: string;
+		className: string;
+		replacements: number;
+	}
+
+	const changes: ScriptChange[] = [];
+	let totalReplacements = 0;
+	let scriptsSearched = 0;
+	let hitLimit = false;
+
+	const recordingId = dryRun ? undefined : beginRecording("Find and replace in scripts");
+
+	function processInstance(instance: Instance) {
+		if (hitLimit) return;
+
+		if (instance.IsA("LuaSourceContainer")) {
+			if (classFilter && !instance.ClassName.lower().find(classFilter.lower())[0]) return;
+
+			scriptsSearched++;
+			const source = readScriptSource(instance);
+
+			let newSource: string;
+			let replCount: number;
+
+			if (usePattern) {
+				const [result, count] = string.gsub(source, searchPattern, replacement);
+				newSource = result;
+				replCount = count;
+			} else if (caseSensitive) {
+				const escaped = escapeLuaPattern(searchPattern);
+				const escapedRepl = escapeLuaReplacement(replacement);
+				const [result, count] = string.gsub(source, escaped, escapedRepl);
+				newSource = result;
+				replCount = count;
+			} else {
+				[newSource, replCount] = caseInsensitiveLiteralReplace(source, searchPattern, replacement);
+			}
+
+			if (replCount > 0) {
+				if (totalReplacements + replCount > maxReplacements) {
+					hitLimit = true;
+					return;
+				}
+				totalReplacements += replCount;
+
+				if (!dryRun) {
+					const [ok] = pcall(() => {
+						ScriptEditorService.UpdateSourceAsync(instance, () => newSource);
+					});
+					if (!ok) {
+						(instance as unknown as { Source: string }).Source = newSource;
+					}
+				}
+
+				changes.push({
+					instancePath: getInstancePath(instance),
+					name: instance.Name,
+					className: instance.ClassName,
+					replacements: replCount,
+				});
+			}
+		}
+
+		for (const child of instance.GetChildren()) {
+			if (hitLimit) return;
+			processInstance(child);
+		}
+	}
+
+	processInstance(startInstance);
+
+	if (recordingId !== undefined) {
+		finishRecording(recordingId, changes.size() > 0);
+	}
+
+	return {
+		success: true,
+		dryRun,
+		pattern: searchPattern,
+		replacement,
+		totalReplacements,
+		scriptsSearched,
+		scriptsModified: changes.size(),
+		changes,
+		truncated: hitLimit,
+	};
 }
 
 export = {
@@ -312,4 +526,5 @@ export = {
 	editScriptLines,
 	insertScriptLines,
 	deleteScriptLines,
+	findAndReplaceInScripts,
 };

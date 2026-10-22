@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 
-import { readFileSync, readdirSync, writeFileSync, existsSync, statSync } from 'fs';
+import { readFileSync, readdirSync, writeFileSync, copyFileSync, existsSync, mkdirSync, statSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join, basename } from 'path';
+import { homedir } from 'os';
+import { execSync } from 'child_process';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const rootDir = join(__dirname, '..');
@@ -13,21 +15,69 @@ const serverDir = join(outDir, 'server');
 const modulesDir = join(outDir, 'modules');
 const includeDir = join(pluginDir, 'include');
 const nodeModulesRbxtsDir = join(pluginDir, 'node_modules', '@rbxts');
-const outputPath = join(pluginDir, 'MCPPlugin.rbxmx');
+
+const VARIANTS = {
+  main: {
+    scriptName: 'MCPPlugin',
+    outputName: 'MCPPlugin.rbxmx',
+    toolbarName: 'MCP Integration',
+    buttonTitle: 'MCP Server',
+    buttonTooltip: 'Connect to MCP Server for AI Integration',
+    buttonIconId: '10734944444',
+  },
+  inspector: {
+    scriptName: 'MCPInspectorPlugin',
+    outputName: 'MCPInspectorPlugin.rbxmx',
+    toolbarName: 'MCP Inspector',
+    buttonTitle: 'MCP Inspector',
+    buttonTooltip: 'Connect to MCP Inspector (read-only) for AI Integration',
+    buttonIconId: '125921838360800',
+  },
+};
+
+const variantArgIdx = process.argv.indexOf('--variant');
+const variantName = variantArgIdx !== -1 ? process.argv[variantArgIdx + 1] : 'main';
+const variant = VARIANTS[variantName];
+if (!variant) {
+  console.error(`Unknown variant "${variantName}". Available: ${Object.keys(VARIANTS).join(', ')}`);
+  process.exit(1);
+}
+
+const outputPath = join(pluginDir, variant.outputName);
 
 function escapeCdata(source) {
   return source.replace(/\]\]>/g, ']]]]><![CDATA[>');
 }
 
 function injectVersion(source) {
-  return source.replace(/__VERSION__/g, VERSION);
+  return source
+    .replace(/__VERSION__/g, VERSION)
+    .replace(/__TOOLBAR_NAME__/g, variant.toolbarName)
+    .replace(/__BUTTON_TITLE__/g, variant.buttonTitle)
+    .replace(/__BUTTON_TOOLTIP__/g, variant.buttonTooltip)
+    .replace(/__BUTTON_ICON_ID__/g, variant.buttonIconId);
 }
 
 const serverInitPath = join(serverDir, 'init.server.luau');
 if (!existsSync(serverInitPath)) {
-  console.error(`Server script not found at ${serverInitPath}`);
-  console.error('Run "cd studio-plugin && npm run build" first to compile TypeScript.');
-  process.exit(1);
+  // Auto-compile the plugin TypeScript (rbxtsc) instead of hard-failing, so `build:plugin`
+  // — and therefore `publish:all` — works in one shot without a manual pre-step.
+  console.log('Compiled plugin output missing — building studio-plugin (rbxtsc)...');
+  try {
+    if (!existsSync(join(pluginDir, 'node_modules'))) {
+      console.log('  installing studio-plugin dependencies...');
+      execSync('npm install', { cwd: pluginDir, stdio: 'inherit' });
+    }
+    execSync('npm run build', { cwd: pluginDir, stdio: 'inherit' });
+  } catch (err) {
+    console.error(`Failed to auto-build studio-plugin: ${err.message}`);
+    console.error('Compile it manually with "cd studio-plugin && npm run build", then re-run.');
+    process.exit(1);
+  }
+  if (!existsSync(serverInitPath)) {
+    console.error(`Server script still not found at ${serverInitPath} after building studio-plugin.`);
+    process.exit(1);
+  }
 }
 
 const mainSource = injectVersion(readFileSync(serverInitPath, 'utf8'));
@@ -135,7 +185,7 @@ const rbxmx = `<?xml version="1.0" encoding="utf-8"?>
 <roblox version="4">
   <Item class="Script" referent="0">
     <Properties>
-      <string name="Name">MCPPlugin</string>
+      <string name="Name">${variant.scriptName}</string>
       <token name="RunContext">0</token>
       <string name="Source"><![CDATA[${escapeCdata(mainSource)}]]></string>
     </Properties>
@@ -167,4 +217,25 @@ writeFileSync(outputPath, rbxmx, 'utf8');
 const moduleCount = countModules(modulesDir);
 const includeCount = countModules(includeDir);
 const rbxtsCount = countModules(nodeModulesRbxtsDir);
-console.log(`Built studio-plugin/MCPPlugin.rbxmx (${moduleCount} modules${includeCount > 0 ? `, ${includeCount} runtime includes` : ''}${rbxtsCount > 0 ? `, ${rbxtsCount} @rbxts packages` : ''})`);
+console.log(`Built studio-plugin/${variant.outputName} (${moduleCount} modules${includeCount > 0 ? `, ${includeCount} runtime includes` : ''}${rbxtsCount > 0 ? `, ${rbxtsCount} @rbxts packages` : ''})`);
+
+function resolvePluginsDir() {
+  switch (process.platform) {
+    case 'win32':
+      return join(process.env.LOCALAPPDATA || join(homedir(), 'AppData', 'Local'), 'Roblox', 'Plugins');
+    case 'darwin':
+      return join(homedir(), 'Documents', 'Roblox', 'Plugins');
+    default:
+      return null; // no Roblox Studio on this OS (e.g. Linux CI): build only
+  }
+}
+
+const pluginsDir = resolvePluginsDir();
+if (pluginsDir) {
+  mkdirSync(pluginsDir, { recursive: true });
+  const installPath = join(pluginsDir, variant.outputName);
+  copyFileSync(outputPath, installPath);
+  console.log(`Installed to ${installPath}`);
+} else {
+  console.log(`Roblox Studio is not available on ${process.platform}; plugin built but not installed.`);
+}

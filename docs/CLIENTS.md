@@ -1,130 +1,146 @@
-# MCP Client Configurations
+# Brancher n'importe quel client MCP
 
-Roblox Studio MCP uses **stdio transport** and is provider-agnostic — it works with any MCP host that can launch a local command.
+Le serveur utilise le transport **stdio** : tout client MCP capable de lancer une commande locale fonctionne.
 
----
-
-## Universal Command
-
-Use this in any client that accepts a command string:
+**Le plus simple** (une fois le paquet publié sur npm) : `npx roblox-ultimate-mcp setup` configure tout seul Claude
+Desktop, Cursor et Windsurf, et affiche la ligne pour les autres. La commande à donner à un client est alors :
 
 ```
-npx -y robloxstudio-mcp@latest
+npx -y roblox-ultimate-mcp@latest          (Windows : "command": "cmd", "args": ["/c", "npx", "-y", "roblox-ultimate-mcp@latest"])
 ```
 
-> **Windows note:** If `npx` fails to resolve, prefix with `cmd /c`:
-> ```
-> cmd /c npx -y robloxstudio-mcp@latest
-> ```
+**Depuis le dépôt** : remplace `CHEMIN` par le dossier où tu as cloné le dépôt (après `npm install`). Commande universelle :
+
+```
+node CHEMIN/packages/roblox-ultimate-mcp/dist/index.js
+```
+
+Variables d'environnement utiles :
+
+| Variable | Effet |
+|---|---|
+| `ROBLOX_MCP_PROFILE` | `starter` (défaut, 38 outils), `builder` (102), `full` (182) |
+| `ROBLOX_MCP_COMPACT` | `0` : descriptions d'outils complètes (par défaut, version courte pour économiser les tokens) |
+| `ROBLOX_MCP_PRETTY` | `1` : réponses JSON indentées (par défaut compactes) |
+| `ROBLOX_MCP_HISTORY` | `0` : ne pas noter les changements de l'IA dans l'historique de `game_notes` |
+| `ROBLOX_STUDIO_PORT` | Port HTTP pour le plugin (défaut `58741`, secours `3002`) |
+| `ROBLOX_OPEN_CLOUD_API_KEY` | Clé Open Cloud pour `search_assets` / `upload_asset` / `blender_to_roblox` (droits *asset:read*, *asset:write*) |
+| `ROBLOX_CREATOR_USER_ID` / `ROBLOX_CREATOR_GROUP_ID` | Propriétaire des modèles envoyés (`upload_asset`, `blender_to_roblox`) |
+| `ROBLOX_MCP_HOOK` | `0` coupe le lien optionnel vers le MCP officiel intégré à Studio |
+| `BLENDER_HOST` / `BLENDER_PORT` | Adresse de l'addon Blender (défaut `127.0.0.1:9876`) |
+| `ROBLOX_MCP_BLENDER` | `1` liste les outils `blender_*` dès le démarrage (sinon dès que Blender répond, ou en `builder`) |
+| `BLENDER_MCP_SAFE_MODE` | `1` : chaque script `blender_python` est validé par `safe_mode.py` de blender-mcp (Python requis, `BLENDER_MCP_PYTHON` pour choisir l'exécutable) |
 
 ---
 
 ## Claude Code
 
 ```bash
-claude mcp add robloxstudio -- npx robloxstudio-mcp
+claude mcp add roblox -- node CHEMIN/packages/roblox-ultimate-mcp/dist/index.js
+# profil complet :
+claude mcp add roblox -e ROBLOX_MCP_PROFILE=full -- node CHEMIN/packages/roblox-ultimate-mcp/dist/index.js
+```
+
+## Claude Desktop
+
+`claude_desktop_config.json` :
+
+```json
+{
+  "mcpServers": {
+    "roblox": {
+      "command": "node",
+      "args": ["CHEMIN/packages/roblox-ultimate-mcp/dist/index.js"]
+    }
+  }
+}
+```
+
+## Cursor / Windsurf / Cline / Roo Code / LM Studio / Jan
+
+Même bloc `mcpServers` que Claude Desktop (fichier `mcp.json` / réglages MCP du client).
+
+## VS Code (GitHub Copilot, mode Agent)
+
+`.vscode/mcp.json` :
+
+```json
+{
+  "servers": {
+    "roblox": { "type": "stdio", "command": "node", "args": ["CHEMIN/packages/roblox-ultimate-mcp/dist/index.js"] }
+  }
+}
 ```
 
 ## Gemini CLI
 
 ```bash
-gemini mcp add robloxstudio npx --trust -- -y robloxstudio-mcp
+gemini mcp add roblox node CHEMIN/packages/roblox-ultimate-mcp/dist/index.js
 ```
-
-## Claude Desktop
-
-Add to your `claude_desktop_config.json`:
-
-```json
-{
-  "mcpServers": {
-    "robloxstudio-mcp": {
-      "command": "npx",
-      "args": ["-y", "robloxstudio-mcp@latest"]
-    }
-  }
-}
-```
-
-<details>
-<summary>Windows fallback</summary>
-
-```json
-{
-  "mcpServers": {
-    "robloxstudio-mcp": {
-      "command": "cmd",
-      "args": ["/c", "npx", "-y", "robloxstudio-mcp@latest"]
-    }
-  }
-}
-```
-</details>
 
 ## Codex CLI
 
-Add to `~/.codex/config.toml`:
+`~/.codex/config.toml` :
 
 ```toml
-[mcp_servers.robloxstudio]
-command = "npx"
-args = ["-y", "robloxstudio-mcp@latest"]
+[mcp_servers.roblox]
+command = "node"
+args = ["CHEMIN/packages/roblox-ultimate-mcp/dist/index.js"]
 ```
-
-<details>
-<summary>Windows fallback</summary>
-
-```toml
-[mcp_servers.robloxstudio]
-command = "cmd"
-args = ["/c", "npx", "-y", "robloxstudio-mcp@latest"]
-```
-</details>
 
 ## OpenCode
 
-Add to `~/.config/opencode/opencode.json`:
+`npm run setup` (ou `npx roblox-ultimate-mcp setup`) le configure tout seul. À la main :
+`~/.config/opencode/opencode.json` (Windows : `C:\Users\<toi>\.config\opencode\opencode.json`) :
 
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
   "mcp": {
-    "robloxstudio": {
-      "type": "local",
-      "enabled": true,
-      "command": ["npx", "-y", "robloxstudio-mcp@latest"]
-    }
+    "roblox": { "type": "local", "enabled": true, "command": ["node", "CHEMIN/packages/roblox-ultimate-mcp/dist/index.js"] }
   }
 }
 ```
 
-<details>
-<summary>Windows fallback</summary>
+## Édition lecture seule
+
+Pour inspecter un jeu sans risque de modification :
 
 ```json
-{
-  "$schema": "https://opencode.ai/config.json",
-  "mcp": {
-    "robloxstudio": {
-      "type": "local",
-      "enabled": true,
-      "command": ["cmd", "/c", "npx", "-y", "robloxstudio-mcp@latest"]
-    }
-  }
-}
+{ "mcpServers": { "roblox-inspector": { "command": "node", "args": ["CHEMIN/packages/roblox-ultimate-mcp-inspector/dist/index.js"] } } }
 ```
-</details>
 
-## Other mcpServers JSON Clients
+## Clients HTTP (sans stdio)
 
-Any client that reads a `mcpServers` JSON block (Cursor, Windsurf, etc.):
+- MCP « streamable HTTP » : `http://localhost:58741/mcp` (mêmes outils, prompts et ressources).
+- Appel direct d'un outil : `POST http://localhost:58741/mcp/<outil>` avec les arguments en JSON
+  (ex. `/mcp/create_game` avec `{"template":"obby"}`), utile pour des scripts ou des agents maison.
+
+## Plusieurs IA en même temps
+
+Lance autant de clients que tu veux : la première instance possède le port, les suivantes passent en mode proxy et
+partagent le même Studio. Plusieurs Studio ouverts : `list_studios` puis `set_active_studio`.
+
+Pour qu'elles s'organisent : outil `team` (tâches + zones de carte, stockés dans le jeu) et prompt `team_build`.
+Les tâches de fond (`start_job` / `job_status`) restent propres à chaque client.
+
+## Blender
+
+Une seule entrée MCP suffit : ce serveur parle directement à l'addon « MCP for Blender »
+(`npx roblox-ultimate-mcp setup --blender` ou `npm run install-blender-addon`, puis **N → MCP for Blender → Connect
+to MCP server** dans Blender).
+Tu n'as **pas** besoin d'ajouter le serveur Python `blender-mcp` à ton IA (s'il tourne aussi, les deux se partagent
+l'addon, une commande à la fois).
+
+Exemple avec envoi automatique des modèles vers Roblox :
 
 ```json
 {
   "mcpServers": {
-    "robloxstudio-mcp": {
-      "command": "npx",
-      "args": ["-y", "robloxstudio-mcp@latest"]
+    "roblox": {
+      "command": "node",
+      "args": ["CHEMIN/packages/roblox-ultimate-mcp/dist/index.js"],
+      "env": { "ROBLOX_OPEN_CLOUD_API_KEY": "ta-cle", "ROBLOX_CREATOR_USER_ID": "123456" }
     }
   }
 }
@@ -132,19 +148,18 @@ Any client that reads a `mcpServers` JSON block (Cursor, Windsurf, etc.):
 
 ---
 
-## Validation Checklist
+## Vérifier la connexion
 
-After setup, verify everything is connected:
-
-1. ✅ Roblox Studio is open and the plugin is active (green indicator)
-2. ✅ **Game Settings → Security → Allow HTTP Requests** is enabled
-3. ✅ MCP client shows the server as connected
-4. ✅ Calling `get_place_info` returns a valid response
-
-### Quick health check
+1. ✅ Studio ouvert, plugin **MCP Server → Connect** actif (le bouton **AI Panel** montre ensuite ce que fait l'IA)
+2. ✅ **Paramètres du jeu → Sécurité → Autoriser les requêtes HTTP**
+3. ✅ Le client affiche le serveur `roblox` comme connecté
+4. ✅ L'outil `roblox_start_here` renvoie `"connected": true`
 
 ```bash
-curl http://localhost:3002/health
+curl http://localhost:58741/health
 ```
 
-Expected: `pluginConnected: true`, `mcpServerActive: true`
+Attendu : `pluginConnected: true`, `mcpServerActive: true`.
+
+> Windows : si `node` n'est pas trouvé par le client, mets le chemin complet
+> (ex. `"command": "C:/Program Files/nodejs/node.exe"`).
