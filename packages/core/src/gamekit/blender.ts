@@ -561,6 +561,8 @@ local ok, result = pcall(function()
 		local face = mesh:AddTriangle(vid[t[i] + 1], vid[t[i + 1] + 1], vid[t[i + 2] + 1])
 		mesh:SetFaceNormals(face, { nid[t[i + 3] + 1], nid[t[i + 4] + 1], nid[t[i + 5] + 1] })
 	end
+	-- Set at creation only. Default follows the shape; Hull or Box would wrap a merged map (merge) in one invisible block.
+	local options = { CollisionFidelity = Enum.CollisionFidelity.Default }
 	local assetId, uploadError, part = nil, nil, nil
 	if req.upload then
 		local called, status, idOrError = pcall(function()
@@ -576,7 +578,7 @@ local ok, result = pcall(function()
 		-- a fresh upload can take a few seconds before Studio can load it (and requests time out at 30 s)
 		for _ = 1, 5 do
 			local loaded, p = pcall(function()
-				return AssetService:CreateMeshPartAsync(Content.fromAssetId(assetId))
+				return AssetService:CreateMeshPartAsync(Content.fromAssetId(assetId), options)
 			end)
 			if loaded then part = p break end
 			task.wait(2)
@@ -584,7 +586,7 @@ local ok, result = pcall(function()
 		if not part then uploadError = "uploaded as " .. tostring(assetId) .. " but not loadable yet" end
 	end
 	if not part then
-		part = AssetService:CreateMeshPartAsync(Content.fromObject(mesh))
+		part = AssetService:CreateMeshPartAsync(Content.fromObject(mesh), options)
 	end
 	part.Name = req.name
 	part.Anchored = true
@@ -1017,6 +1019,8 @@ export const BLENDER_TOOL_NAMES = new Set(BLENDER_TOOLS.map((t) => t.name));
 export interface BlenderToolsOptions {
   /** Called once Blender answered, so the blender tools can be listed. */
   onConnected?: () => void;
+  /** How long blender_to_roblox waits for a Studio that stopped polling (default 60 s). */
+  studioWaitMs?: number;
 }
 
 export class BlenderTools {
@@ -1043,6 +1047,16 @@ export class BlenderTools {
     const value = await fn();
     this.options.onConnected?.();
     return value;
+  }
+
+  /** The plugin can go quiet for a minute and come back (poll backoff): wait for it before falling back to a file. */
+  private async studioReady(): Promise<boolean> {
+    const deadline = Date.now() + (this.options.studioWaitMs ?? 60_000);
+    while (!this.host.isStudioConnected()) {
+      if (Date.now() >= deadline) return false;
+      await sleep(500);
+    }
+    return true;
   }
 
   async status(): Promise<ToolResult> {
@@ -1187,7 +1201,7 @@ export class BlenderTools {
     // Bottom center of the model where Blender has it, in studs (keepLayout).
     let layoutBase: Vec3 | undefined;
 
-    if (!assetId && !existing && !this.host.hasOpenCloudKey?.() && this.host.isStudioConnected()) {
+    if (!assetId && !existing && !this.host.hasOpenCloudKey?.() && await this.studioReady()) {
       const built = await this.buildInStudio(name, args);
       if (built && !built.ok) return text({ ok: false, steps: { build: built.meshes }, problem: built.problem, fix: 'Check that Studio is signed in and in Edit mode, then call blender_to_roblox again.' });
       if (built) {
@@ -1229,7 +1243,7 @@ export class BlenderTools {
           steps,
           why: rigged
             ? 'Rigged models need the FBX import, and there is no Open Cloud API key to upload it.'
-            : 'No Open Cloud API key and Studio is not connected, so the model was only exported.',
+            : `No Open Cloud API key, and Studio did not answer for ${Math.round((this.options.studioWaitMs ?? 60_000) / 1000)} s, so the model was only exported. Check Studio (Plugins > MCP Server > Connect) and call blender_to_roblox again, or import the file by hand.`,
           manualImport: [
             'In Studio: Home (Accueil) tab > Import 3D > choose the file above > Import.',
             `Then call blender_to_roblox again with {"name": "${name}", "existing": "Workspace/<imported model name>"} to size and place it.`,
@@ -1248,7 +1262,7 @@ export class BlenderTools {
       }
     }
 
-    if (!this.host.isStudioConnected()) {
+    if (!(await this.studioReady())) {
       return text({ ok: false, assetId, steps, problem: 'Studio is not connected, the model was not inserted.', next: `Connect Studio, then call blender_to_roblox {"name": "${name}", "assetId": ${assetId}}.` });
     }
 

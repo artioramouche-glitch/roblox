@@ -181,13 +181,37 @@ describe('Blender bridge', () => {
       result: { executed: true, result: `log\n@@GAMEKIT@@${JSON.stringify({ path: '/nonexistent/x.fbx', bytes: 0, sizeMeters: [2, 3, 1], triangles: 1200, warnings: [], objects: [] })}\n` },
     }));
     let connected = 0;
-    const tools = new BlenderTools(recordingHost({ hasOpenCloudKey: () => false, isStudioConnected: () => false }), new BlenderClient('127.0.0.1', addon.port), { onConnected: () => connected++ });
+    const tools = new BlenderTools(recordingHost({ hasOpenCloudKey: () => false, isStudioConnected: () => false }), new BlenderClient('127.0.0.1', addon.port), { onConnected: () => connected++, studioWaitMs: 0 });
     const result = parse(await tools.call('blender_to_roblox', { name: 'Statue' }));
     expect(result.uploaded).toBe(false);
+    expect(result.why).toMatch(/did not answer/);
     expect(result.manualImport.join(' ')).toMatch(/Import 3D/);
     expect(result.steps.export.sizeMeters).toEqual([2, 3, 1]);
     expect(connected).toBeGreaterThan(0);
     addon.close();
+  });
+
+  test('blender_to_roblox waits for a Studio that reconnects instead of falling back to a file', async () => {
+    const meshData = { meshes: [{ name: 'Statue', center: [0, 1, 0], v: [0, 0, 0, 1, 0, 0, 0, 1, 0], n: [0, 0, -1], t: [0, 1, 2, 0, 0, 0], color: [255, 0, 0], alpha: 1, metal: 0 }], triangles: 1, baseStuds: [0, 0, 0], warnings: [] };
+    const addon = await fakeAddon(() => ({ status: 'success', result: { executed: true, result: `@@GAMEKIT@@${JSON.stringify(meshData)}\n` } }));
+    let checks = 0;
+    const host = recordingHost({
+      hasOpenCloudKey: () => false,
+      isStudioConnected: () => ++checks > 2, // quiet for two checks (~1 s), then back
+      runLuau: async (code: string) => {
+        host.calls.push(code);
+        if (code.includes('CreateEditableMesh')) return { success: true, returnValue: JSON.stringify({ ok: true, assetId: 123, live: false }) };
+        return { success: true, returnValue: JSON.stringify({ ok: true, path: 'Workspace.GameKit.Props.Statue', size: [1, 1, 0.1] }) };
+      },
+    });
+    try {
+      const tools = new BlenderTools(host, new BlenderClient('127.0.0.1', addon.port), { studioWaitMs: 5000 });
+      const result = parse(await tools.call('blender_to_roblox', { name: 'Statue' }));
+      expect(result).toMatchObject({ ok: true, steps: { build: { meshes: 1, savedAsAssets: 1 } } });
+      expect(result.manualImport).toBeUndefined();
+    } finally {
+      addon.close();
+    }
   });
 
   test('blender_assets generates from reference images, and only sends image files', async () => {
@@ -255,6 +279,9 @@ describe('Blender bridge', () => {
       samples: [{ t: 0, p: { Leg: [0, 0, 0, 0, 0, 0.38, 0.92] } }, { t: 0.5, p: {} }],
     });
     const meshPart = meshPartLuau({ model: 'GameKitImport_Statue_1', index: 0, name: 'Statue', center: [0, 1, 0], v: [0, 0, 0, 1, 0, 0, 0, 1, 0], n: [0, 0, -1], t: [0, 1, 2, 0, 0, 0], color: [255, 0, 0], alpha: 1, metal: 0, upload: true, description: ']]==] x' });
+    // both MeshPart paths (saved asset, live mesh) get the shape-following collision, never Hull/Box
+    expect(meshPart).toContain('CollisionFidelity = Enum.CollisionFidelity.Default');
+    expect(meshPart.match(/CreateMeshPartAsync\([^\n]*, options\)/g)).toHaveLength(2);
     for (const [label, code] of [['keyframes', kfs], ['animator', animatorLuau('Workspace/GameKit/Props/Knight')], ['meshPart', meshPart]] as const) {
       await expectCompiles(code, label);
       expect({ label, issues: checkRobloxApi(code) }).toEqual({ label, issues: [] });
