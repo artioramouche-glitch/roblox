@@ -21,6 +21,7 @@ import type { GameKitHost, ToolDef } from './tools.js';
 import { errorMessage, luauJson, resultJson, sleep, text, vec3, withImages, type ToolResult, type Vec3 } from './result.js';
 import { placeModelLuau } from './props.js';
 import { runLuauJson } from './installer.js';
+import { referenceImage, VIEWS } from './visual.js';
 import { PathFinder } from '../managers/path-finder.js';
 
 /** 1 stud = 0.28 m (Roblox avatar scale), so a 1.8 m human is ~6.4 studs. */
@@ -298,6 +299,72 @@ base = Vector(((lo.x + hi.x) / 2, (lo.y + hi.y) / 2, lo.z)) * scene.unit_setting
 out.update({"path": REQ["path"], "bytes": os.path.getsize(REQ["path"]), "meshes": len(meshes), "triangles": total, "rigged": rig,
             "sizeMeters": [round(size.x, 3), round(size.y, 3), round(size.z, 3)], "baseMeters": [round(base.x, 3), round(base.y, 3), round(base.z, 3)]})
 print("${MARKER}" + json.dumps(out))
+`;
+}
+
+export interface RenderRequest {
+  /** Object or collection to frame (default: every visible mesh). */
+  object?: string;
+  view: string;
+  size: number;
+  path: string;
+}
+
+/**
+ * A quick Workbench render from a temporary camera. The viewport screenshot stays frozen while
+ * Blender is in the background, a render does not. The user's render settings are put back.
+ */
+export function renderPython(req: RenderRequest): string {
+  return `
+import bpy, json, math, os
+from mathutils import Vector
+REQ = ${pyJson(req)}
+scene = bpy.context.scene
+if REQ.get("object"):
+    o = bpy.data.objects.get(REQ["object"])
+    c = bpy.data.collections.get(REQ["object"])
+    if o is None and c is None:
+        raise Exception("Object or collection not found in Blender: " + REQ["object"])
+    objs = list(c.all_objects) if o is None else [o] + list(o.children_recursive)
+else:
+    objs = list(scene.objects)
+meshes = [o for o in objs if o.type == 'MESH' and o.visible_get()]
+if not meshes:
+    raise Exception("Nothing to look at: no visible mesh.")
+lo = Vector((1e18, 1e18, 1e18))
+hi = Vector((-1e18, -1e18, -1e18))
+for o in meshes:
+    for corner in o.bound_box:
+        w = o.matrix_world @ Vector(corner)
+        lo = Vector((min(lo.x, w.x), min(lo.y, w.y), min(lo.z, w.z)))
+        hi = Vector((max(hi.x, w.x), max(hi.y, w.y), max(hi.z, w.z)))
+center, radius = (lo + hi) / 2, max(0.5, (hi - lo).length / 2)
+# Same angles as look_at_game; Roblox south (+Z) is Blender -Y.
+DIRS = {"iso": (1, -1, 0.8), "aerial": (0, -1, 1), "front": (0, -1, 0.35), "back": (0, 1, 0.35),
+        "left": (-1, 0, 0.35), "right": (1, 0, 0.35), "top": (0, -0.08, 1)}
+cam_data = bpy.data.cameras.new("GK_LookCam")
+cam_data.angle = math.radians(50)
+cam = bpy.data.objects.new("GK_LookCam", cam_data)
+scene.collection.objects.link(cam)
+distance = radius / math.tan(math.atan(math.tan(cam_data.angle / 2) * 0.625)) * 1.05  # frame by the vertical angle: the image is 16:10
+cam.location = center + Vector(DIRS.get(REQ["view"], DIRS["iso"])).normalized() * distance
+cam.rotation_euler = (center - cam.location).to_track_quat('-Z', 'Y').to_euler()
+cam_data.clip_end = distance * 4
+r, sh = scene.render, scene.display.shading
+saved = (r.engine, r.resolution_x, r.resolution_y, r.resolution_percentage, r.filepath, r.film_transparent, scene.camera, sh.color_type, sh.light)
+try:
+    r.engine = 'BLENDER_WORKBENCH'
+    sh.color_type, sh.light = 'MATERIAL', 'STUDIO'
+    r.resolution_x, r.resolution_y, r.resolution_percentage = REQ["size"], round(REQ["size"] * 0.625), 100
+    r.film_transparent = False
+    r.filepath = REQ["path"]
+    scene.camera = cam
+    bpy.ops.render.render(write_still=True)
+finally:
+    r.engine, r.resolution_x, r.resolution_y, r.resolution_percentage, r.filepath, r.film_transparent, scene.camera, sh.color_type, sh.light = saved
+    bpy.data.objects.remove(cam, do_unlink=True)
+    bpy.data.cameras.remove(cam_data)
+print("${MARKER}" + json.dumps({"path": REQ["path"], "bytes": os.path.getsize(REQ["path"]), "meshes": len(meshes)}))
 `;
 }
 
@@ -810,6 +877,7 @@ export function safeModeViolation(code: string): string | null {
 // --- Tools ---------------------------------------------------------------------------------------
 
 const ASSET_SOURCES = ['polyhaven', 'sketchfab', 'polypizza', 'hyper3d', 'hunyuan3d'] as const;
+const BLENDER_VIEWS: string[] = VIEWS.filter((v) => v !== 'player');
 const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp']);
 
 /**
@@ -858,6 +926,8 @@ export const BLENDER_TOOLS: ToolDef[] = [
         existing: { type: 'string', description: 'Only resize/place a model already in Studio' },
         rig: { type: 'boolean', description: 'Export the armature too (default: when the model has one)' },
         upload: { type: 'boolean', description: 'Without a key: false = live preview, nothing uploaded (lost when the place closes)' },
+        merge: { type: 'boolean', description: 'Without a key: one mesh per material over all the objects (a whole map in a few uploads)' },
+        keepLayout: { type: 'boolean', description: 'Place it where it is in Blender (1 m = 3.57 studs) instead of at position: for maps built in Blender' },
       },
       required: ['name'],
     },
@@ -892,10 +962,16 @@ export const BLENDER_TOOLS: ToolDef[] = [
     name: 'blender_scene',
     category: 'read',
     tier: 'blender',
-    description: 'Blender scene: objects (meters, triangles, materials), one object in detail, and/or a viewport screenshot.',
+    description: 'Blender scene: objects (meters, triangles, materials), one object in detail, and/or a rendered screenshot. reference: the picture to copy, shown next to the render to compare before exporting.',
     inputSchema: {
       type: 'object',
-      properties: { object: { type: 'string' }, screenshot: { type: 'boolean' }, maxSize: { type: 'number', description: 'default 640' } },
+      properties: {
+        object: { type: 'string', description: 'Object or collection (details, and what the screenshot frames)' },
+        screenshot: { type: 'boolean' },
+        view: { type: 'string', enum: BLENDER_VIEWS, description: 'default "iso"; with a reference "aerial"' },
+        reference: { type: 'string', description: 'Absolute path of the picture to copy (.png/.jpg/.jpeg/.webp)' },
+        maxSize: { type: 'number', description: 'default 640' },
+      },
     },
   },
   {
@@ -998,19 +1074,34 @@ export class BlenderTools {
   }
 
   async scene(args: Record<string, any>): Promise<ToolResult> {
+    const summary = () => this.connected(() => this.client.pythonJson(sceneSummaryPython(), 30_000));
+    // object may name a collection, which get_object_info does not know: show the scene then
     const info = args.object
-      ? await this.connected(() => this.client.command('get_object_info', { name: String(args.object) }))
-      : await this.connected(() => this.client.pythonJson(sceneSummaryPython(), 30_000));
+      ? await this.connected(() => this.client.command('get_object_info', { name: String(args.object) })).catch(summary)
+      : await summary();
     if (!args.screenshot) return text(info);
+    const reference = args.reference ? referenceImage(String(args.reference)) : undefined;
+    const view = BLENDER_VIEWS.includes(args.view) ? String(args.view) : reference ? 'aerial' : 'iso';
     const file = path.join(os.tmpdir(), `gamekit-blender-${process.pid}-${Date.now()}.png`);
+    let local: string | undefined;
     try {
-      await this.client.command('get_viewport_screenshot', { max_size: Number(args.maxSize ?? 640), filepath: file, format: 'png' });
-      const data = fs.readFileSync(file).toString('base64');
-      return withImages(info, [{ label: 'Blender viewport', data }]);
+      const shot = await this.client.pythonJson(renderPython({
+        object: args.object ? String(args.object) : undefined,
+        view,
+        size: Math.max(256, Math.min(1280, Number(args.maxSize) || 640)),
+        path: file,
+      }), 120_000);
+      local = await this.ensureLocal(shot.path, shot.bytes);
+      const image = { label: `Blender render: ${view}`, data: fs.readFileSync(local).toString('base64') };
+      const compare = reference
+        ? 'Compare with the reference image: list every difference (missing objects, wrong place, size, shape, color), fix the biggest in Blender, then look again. Export only once it matches.'
+        : undefined;
+      return withImages({ ...(typeof info === 'object' ? info : { info }), view, compare }, reference ? [reference, image] : [image]);
     } catch (error) {
       return text({ ...(typeof info === 'object' ? info : { info }), screenshotError: errorMessage(error) });
     } finally {
       fs.rmSync(file, { force: true });
+      if (local) fs.rmSync(local, { force: true });
     }
   }
 
@@ -1093,12 +1184,15 @@ export class BlenderTools {
     let rigged = false;
     let existing = args.existing ? String(args.existing) : undefined;
     let liveOnly: string[] = [];
+    // Bottom center of the model where Blender has it, in studs (keepLayout).
+    let layoutBase: Vec3 | undefined;
 
     if (!assetId && !existing && !this.host.hasOpenCloudKey?.() && this.host.isStudioConnected()) {
       const built = await this.buildInStudio(name, args);
       if (built && !built.ok) return text({ ok: false, steps: { build: built.meshes }, problem: built.problem, fix: 'Check that Studio is signed in and in Edit mode, then call blender_to_roblox again.' });
       if (built) {
         existing = `Workspace/${built.model}`;
+        layoutBase = built.baseStuds;
         liveOnly = built.meshes.filter((m) => m.live).map((m) => m.name);
         steps.build = { meshes: built.meshes.length, triangles: built.triangles, savedAsAssets: built.meshes.length - liveOnly.length, warnings: built.warnings, uploadError: built.meshes.find((m) => m.uploadError)?.uploadError };
       }
@@ -1119,6 +1213,10 @@ export class BlenderTools {
       })));
       rigged = exported.rigged === true;
       sizeMeters = exported.sizeMeters;
+      if (exported.baseMeters) {
+        const [x, y, z] = exported.baseMeters;
+        layoutBase = [x * STUDS_PER_METER, z * STUDS_PER_METER, -y * STUDS_PER_METER]; // Blender Z-up -> Roblox Y-up
+      }
       steps.export = exported;
       const localFile = await this.ensureLocal(exported.path, exported.bytes);
       steps.file = localFile;
@@ -1162,7 +1260,7 @@ export class BlenderTools {
       assetId,
       existing,
       parent: String(args.parent ?? 'Workspace/GameKit/Props'),
-      position: vec3(args.position, [0, 0, 0]),
+      position: args.keepLayout && layoutBase ? layoutBase : vec3(args.position, [0, 0, 0]),
       size: targetSize,
       yaw: Number(args.yaw ?? 0),
       anchored: args.anchored !== false,
@@ -1230,7 +1328,7 @@ export class BlenderTools {
     }
     await this.host.runLuau(`local m = workspace:FindFirstChild(${JSON.stringify(model)})
 if m then for k in m:GetAttributes() do if k:match("^GK_Mesh") then m:SetAttribute(k, nil) end end end`);
-    return { ok: true as const, model, meshes, triangles: data.triangles as number, warnings: data.warnings?.length ? data.warnings as string[] : undefined };
+    return { ok: true as const, model, meshes, triangles: data.triangles as number, baseStuds: data.baseStuds as Vec3 | undefined, warnings: data.warnings?.length ? data.warnings as string[] : undefined };
   }
 
   async animation(args: Record<string, any>): Promise<ToolResult> {

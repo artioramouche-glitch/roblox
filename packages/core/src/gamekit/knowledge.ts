@@ -98,42 +98,45 @@ then blender_to_roblox; skybox faces from the panorama. Ask before every generat
 `,
   },
   reference: {
-    title: 'Copy a picture (concept art, a game screenshot) into Roblox',
+    title: 'Copy a picture (concept art, a game screenshot) into Roblox: everything in Blender first',
     body: `
-The picture IS the target. Do not swap it for a template look: no create_game decor, no populate_world themes,
-nothing the picture does not show. (create_game is fine for the game logic, then rebuild the look from the picture.)
-## 1. Get the file
-look_at_game needs it on disk: ask for its absolute path, or ask the user to save it (e.g. <project>/png/ref.png).
-## 2. Read it like a level designer (write it in game_notes decisions)
-- Camera of the picture (aerial, eye level, side). Scale: a character is 5 studs tall, a road 20-30 studs wide,
-  a house about 20 x 25 x 20, a market stall 10 x 10.
-- Center of the picture = (0, 0, 0), top of the picture = -Z. For EVERY visible element write: name, [x, z],
-  size, color (RGB) + material, and its kind:
-  GROUND (floors, roads, plaza, roundabout, fences, walls, pens): plain parts, Cylinder parts for round shapes.
-  GAMEPLAY (eggs, shops, portals, gates, leaderboards): build_world pieces (egg_stand, shop_stand, teleporter,
-    zone_gate, leaderboard) or add_system, then resize and recolor them to match.
-  HERO (the landmark everyone notices, statues, characters, creatures, eggs, portals, trees; anything round,
-    organic or detailed): Blender or a ready-made model. NEVER stacked plain parts.
-  BACKDROP (houses, trees, props around the edge): ready-made models (insert_asset, list_library) or one Blender
-    model copied with populate_world { items: [{ from: "<path>", count }] }.
-- Mood: time of day and sky (set_environment), Material Neon for what glows, Glass + Transparency 0.5 for domes.
-## 3. Block out, then compare
-Build GROUND and GAMEPLAY at the noted sizes, with simple stand-ins for the heroes, then
-look_at_game { reference: "<path>" } (views "aerial" and "iso" by default; pick the one closest to the picture).
-List the differences (missing, wrong place, wrong size, wrong color) and fix the biggest first.
-## 4. Hero objects in Blender
-blender_status. Not connected: ask the user to open Blender and click Connect (N > MCP for Blender); do not fall
-back to plain parts. For each hero, best first:
-a. Give the user a Gemini prompt to paste WITH the picture attached: "Isolate the <object> from this image as a 3D
-   game asset sheet: front, side, back and 3/4 views, plain white background, even lighting, same colors and style."
-   Then blender_assets { action: "generate", source: "hyper3d", images: [the saved views] } (ask first: it uploads them).
-b. Ready-made: blender_assets { action: "search", source: "polypizza" | "sketchfab" }, or insert_asset.
-c. Model it with blender_python from primitives (cone, UV sphere, torus, bevelled cubes, smooth shading), and
-   check it with blender_scene { screenshot: true } against the picture.
-Then start_job { tool: "blender_to_roblox", arguments: { name, position } } at the place from your notes.
-## 5. Loop until it matches
-look_at_game { reference } after each batch of changes. Not finished while a landmark is missing, the layout differs
-or the colors are off. Then test_game.
+The picture IS the target: no template look, no populate_world themes, nothing the picture does not show.
+Order: picture -> plan -> the whole scene in Blender -> compare in Blender -> export -> gameplay in Roblox -> compare.
+## 1. The picture first
+The user sends it before anything else. Tools need it on disk: ask for its absolute path, or ask the user to
+save it (e.g. <project>/png/ref.png).
+## 2. Plan (game_notes decisions)
+- Camera of the picture (aerial, eye level, side). Picture center = origin, top of the picture = north.
+- EVERY visible element: name, position, size, color + material, and DECOR (only looks) or GAMEPLAY (players use
+  it: spawn, eggs to hatch, portals, shops, gates, leaderboards).
+- Sizes: studs x 0.28 = meters. Character 5 studs, road 20-30 studs (6-8 m), house ~20 x 25 x 20 studs.
+## 3. Build the WHOLE scene in Blender
+blender_status first. Not connected: ask the user to open Blender and click Connect (N > MCP for Blender); never
+fall back to plain Roblox parts.
+- blender_python in small steps, in meters: ground at Z = 0, picture center at the origin, north = +Y.
+- Two collections: "Decor" (ground, plaza, roads, buildings, trees, lamps, statues...) and "Gameplay" (one object per
+  thing players use, clearly named: Egg_Pink, Portal_Cyan, Shop_1, Spawn).
+- Real shapes, not boxes: bevels, cylinders, spheres, lathe profiles (bmesh.ops.spin), smooth shading. One material
+  per object, the colors of the picture.
+- Hero objects (statue, characters, eggs, portals): model them, or blender_assets search, or generate from a Gemini
+  4-view sheet of the object ("Isolate the <object> from this image as a 3D game asset sheet: front, side, back and
+  3/4 views, plain white background, even lighting, same colors and style"; ask before generating: it uploads).
+- Stays in Roblox: big natural relief and water (mountains, lakes, rivers: set_environment features, guide "map"),
+  sky and lighting (set_environment). Roblox water and huge ground work better as Terrain than as meshes.
+## 4. Compare in Blender, before any export
+blender_scene { screenshot: true, reference: "<picture path>", view: "aerial" } renders the scene next to the picture.
+List the differences (missing, wrong place, size, shape, color), fix the biggest, look again. Export only when it matches.
+## 5. Export to Roblox (ask the user first: it uploads meshes to their account)
+- start_job { tool: "blender_to_roblox", arguments: { name: "Map", objects: ["Decor"], merge: true, keepLayout: true } }:
+  one mesh per material, placed exactly where it is in Blender.
+- start_job { tool: "blender_to_roblox", arguments: { name: "GameplayModels", objects: ["Gameplay"], keepLayout: true } }:
+  one part per object, names kept.
+## 6. Gameplay in Roblox (what Blender cannot do)
+- For each Gameplay object, build_world the matching piece at the same place (spawn, egg_stand, teleporter,
+  shop_stand, zone_gate, leaderboard) and set its parts to Transparency 1, so the Blender model stays the look.
+- set_environment for sky, time of day and terrain features. test_game until PASS.
+## 7. Compare in Roblox
+look_at_game { reference: "<picture path>" }: fix what still differs (often lighting), then test_game.
 ## Teach it your own good builds
 export_build { instancePath } saves a model you like (yours, a Creator Store model, an uncopylocked place) to the
 build library; list_library and import_scene reuse it in later games (find_tools "build"). Never copy another
@@ -342,7 +345,7 @@ Reading errors: "ServerScriptService.Shop:42: attempt to index nil with 'Value'"
   "hyper3d.ai", URLs with "fal.ai"); hunyuan3d takes exactly one image and ignores query.
 - By code: blender_python with bpy, in small steps. Model in METERS (door 2 m, character 1.8 m), base at Z = 0,
   one material per mesh, < 20k triangles per mesh, textures <= 1024 px.
-- Check it: blender_scene { screenshot: true }.
+- Check it: blender_scene { screenshot: true, view: "front" } (a render; add reference: "<picture path>" to compare).
 ## Send it to the game
 - blender_to_roblox { name, objects: ["MyProp"], position: [x, y, z] }: exports (auto-reduces heavy meshes),
   uploads (needs ROBLOX_OPEN_CLOUD_API_KEY + ROBLOX_CREATOR_USER_ID), inserts at real size (1 m = 3.57 studs) on the ground.
@@ -385,7 +388,7 @@ Terrain only from the base: "island" is a whole map in the sea, "hills" is rando
 create_game / build_world pieces at the planned spots (y = ground level, + height of a plateau).
 ## 4. Decorate and check
 populate_world by theme around (not on) the routes, Blender/Creator Store models for landmarks.
-look_at_game { view: "aerial" } must match the plan; test_game { device: "phone" } for frame rate on big maps.
+look_at_game { views: ["aerial"] } must match the plan; test_game { device: "phone" } for frame rate on big maps.
 Zone ambience: make_sound { loop: true } + code_recipe area_music.
 `,
   },

@@ -3,7 +3,7 @@ import net from 'net';
 import os from 'os';
 import path from 'path';
 import { checkLuauSyntax } from '../luau-syntax.js';
-import { animationPython, animatorLuau, BlenderClient, BlenderTools, exportPython, keyframeLuau, meshDataPython, meshPartLuau, safeModeViolation, STUDS_PER_METER } from '../blender.js';
+import { animationPython, animatorLuau, BlenderClient, BlenderTools, exportPython, keyframeLuau, meshDataPython, meshPartLuau, renderPython, safeModeViolation, STUDS_PER_METER } from '../blender.js';
 import { spawnSync } from 'child_process';
 import { analyse, farmingReport, nicePrice, simulate, suggestPrices, towerDefenseReport } from '../economy.js';
 import { JobRegistry, handleJobTool } from '../jobs.js';
@@ -109,7 +109,7 @@ describe('Blender bridge', () => {
   });
 
   test('blender_to_roblox without a key rebuilds the meshes in Studio, saves them and places the model', async () => {
-    const meshData = { meshes: [{ name: 'Statue', center: [0, 1, 0], v: [0, 0, 0, 1, 0, 0, 0, 1, 0], n: [0, 0, -1], t: [0, 1, 2, 0, 0, 0], color: [255, 0, 0], alpha: 1, metal: 0 }], triangles: 1, sizeStuds: [1, 1, 0], warnings: [] };
+    const meshData = { meshes: [{ name: 'Statue', center: [0, 1, 0], v: [0, 0, 0, 1, 0, 0, 0, 1, 0], n: [0, 0, -1], t: [0, 1, 2, 0, 0, 0], color: [255, 0, 0], alpha: 1, metal: 0 }], triangles: 1, sizeStuds: [1, 1, 0], baseStuds: [10, 0, -5], warnings: [] };
     let rigged = false;
     const addon = await fakeAddon((cmd) => {
       const isMeshData = JSON.stringify(cmd).includes('def collect');
@@ -134,9 +134,13 @@ describe('Blender bridge', () => {
       expect(build).toContain('"upload":true');
       expect(host.calls[host.calls.length - 1]).toMatch(/GameKitImport_Statue_/); // placed from the rebuilt model
 
+      expect(host.calls[host.calls.length - 1]).toContain('"position":[0,0,5]');
+
       host.calls.length = 0;
-      await tools.call('blender_to_roblox', { name: 'Statue', upload: false });
+      await tools.call('blender_to_roblox', { name: 'Statue', upload: false, merge: true, keepLayout: true, position: [0, 0, 5] });
       expect(host.calls[0]).toContain('"upload":false');
+      expect(addon.seen[addon.seen.length - 1].params.code).toMatch(/merge\\":true/);
+      expect(host.calls[host.calls.length - 1]).toContain('"position":[10,0,-5]'); // where Blender has it
 
       rigged = true; // skinned meshes cannot be rebuilt: back to the FBX file and the manual import
       const riggedResult = parse(await tools.call('blender_to_roblox', { name: 'Knight' }));
@@ -144,6 +148,30 @@ describe('Blender bridge', () => {
       expect(riggedResult.why).toMatch(/Rigged/);
     } finally {
       addon.close();
+    }
+  });
+
+  test('blender_scene renders from a camera and puts the reference picture first', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gamekit-render-'));
+    const ref = path.join(dir, 'ref.png');
+    const render = path.join(dir, 'render.png');
+    fs.writeFileSync(ref, Buffer.from('reference'));
+    fs.writeFileSync(render, Buffer.from('render'));
+    const addon = await fakeAddon((cmd) => {
+      const out = JSON.stringify(cmd).includes('GK_LookCam') ? { path: render, bytes: 6, meshes: 3 } : { scene: 'Scene', objects: [] };
+      return { status: 'success', result: { executed: true, result: `@@GAMEKIT@@${JSON.stringify(out)}\n` } };
+    });
+    try {
+      const tools = new BlenderTools(recordingHost(), new BlenderClient('127.0.0.1', addon.port));
+      const look = await tools.call('blender_scene', { screenshot: true, reference: ref });
+      const images: any[] = look.content.filter((c: any) => c.type === 'image');
+      expect(images.map((i) => Buffer.from(i.data, 'base64').toString())).toEqual(['reference', 'render']);
+      expect(parse(look)).toMatchObject({ view: 'aerial', compare: expect.stringMatching(/reference/) });
+      expect(addon.seen[1].params.code).toContain('BLENDER_WORKBENCH');
+      await expect(tools.call('blender_scene', { screenshot: true, reference: 'ref.png' })).rejects.toThrow(/absolute/);
+    } finally {
+      addon.close();
+      fs.rmSync(dir, { recursive: true, force: true });
     }
   });
 
@@ -212,6 +240,7 @@ describe('Blender bridge', () => {
       export: exportPython({ format: 'fbx', path: '/tmp/a.fbx', maxTriangles: 20000, decimate: true, textureMax: 1024 }),
       animation: animationPython({ fps: 30, maxFrames: 400, scale: STUDS_PER_METER, fbxPath: '/tmp/anim.fbx', action: "Walk'\"" }),
       meshData: meshDataPython({ objects: ['Statue'], scale: STUDS_PER_METER, maxTriangles: 20000, chunk: 5000, merge: false }),
+      render: renderPython({ object: 'Decor', view: 'aerial', size: 640, path: '/tmp/r.png' }),
     };
     expect(scripts.export).toContain("'ARMATURE'");
     expect(scripts.export).toContain('add_leaf_bones=False');
