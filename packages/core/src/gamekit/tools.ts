@@ -348,7 +348,8 @@ export class GameKit {
       'Code: code_recipe first, then write_script / edit_script (they check the Luau). Read roblox_guide coding.',
       'Look at it with look_at_game, decorate with populate_world (themes), save with backup_game before big changes.',
       'Finish with check_game and polish (roblox_guide design). Before publishing: test_game {players: 2}, test_game {device: "phone"}, check_assets, optimize_game, publish_checklist.',
-      'Custom 3D models: blender_status then blender_to_roblox (rigged characters: then blender_animation). Several AIs at once: team {action: "plan"}, then each one claims tasks and zones.',
+      'A picture to copy: roblox_guide reference, then look_at_game {reference} until it matches.',
+      'Statues, characters, eggs, portals, trees: Blender (blender_status, then blender_to_roblox; rigged characters: then blender_animation), never stacked parts. Several AIs at once: team {action: "plan"}, then each one claims tasks and zones.',
     ];
     const base = { profile: getProfile(), plan, guides: 'roblox_guide workflow | design | luau | client-server | ui | errors | publishing' };
     if (!this.host.isStudioConnected()) return text({ ...base, studio: NOT_CONNECTED });

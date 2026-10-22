@@ -596,7 +596,7 @@ export const BLENDER_TOOLS: ToolDef[] = [
   {
     name: 'blender_status',
     category: 'read',
-    description: 'Blender link for custom 3D models: checks the connection, lists the scene, explains the addon setup. When connected, more blender_* tools appear.',
+    description: 'Blender link for custom 3D models (statues, characters, creatures, eggs, portals, trees: anything plain parts cannot shape): checks the connection, lists the scene, explains the addon setup. When connected, more blender_* tools appear.',
     inputSchema: { type: 'object', properties: {} },
   },
   {

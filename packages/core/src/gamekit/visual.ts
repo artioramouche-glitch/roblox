@@ -4,24 +4,29 @@
  * Weak models skip visual checks; one call makes it easy.
  */
 
+import fs from 'fs';
+import path from 'path';
 import type { GameKitHost, ToolDef } from './tools.js';
 import { runLuauJson, splitPath } from './installer.js';
 import { errorMessage, luauJson, resultImages, resultJson, sleep, withImages, type ToolResult } from './result.js';
 
-export const VIEWS = ['iso', 'front', 'back', 'left', 'right', 'top', 'player'] as const;
+export const VIEWS = ['iso', 'aerial', 'front', 'back', 'left', 'right', 'top', 'player'] as const;
 type View = (typeof VIEWS)[number];
+
+const IMAGE_TYPES: Record<string, string> = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp' };
 
 export const VISUAL_TOOLS: ToolDef[] = [
   {
     name: 'look_at_game',
     category: 'read',
     tier: 'starter',
-    description: 'SEE the game: small screenshots of the map or one model from several angles. Use after building. Needs Game Settings > Security > Allow Mesh / Image APIs.',
+    description: 'SEE the game: small screenshots of the map or one model from several angles. Use after building. reference: the picture to copy, shown next to the screenshots to compare. Needs Game Settings > Security > Allow Mesh / Image APIs.',
     inputSchema: {
       type: 'object',
       properties: {
         target: { type: 'string', description: 'e.g. "Workspace/GameKit/Lobby" (default the whole map)' },
-        views: { type: 'array', items: { type: 'string', enum: [...VIEWS] }, description: 'default ["iso", "top", "player"]' },
+        reference: { type: 'string', description: 'Absolute path of the picture to copy (.png/.jpg/.jpeg/.webp)' },
+        views: { type: 'array', items: { type: 'string', enum: [...VIEWS] }, description: 'default ["iso", "top", "player"]; with a reference ["aerial", "iso"]' },
         zoom: { type: 'number', description: '<1 closer, >1 farther' },
         size: { type: 'number', description: 'Image size in pixels (default 640, max 1280)' },
       },
@@ -110,6 +115,7 @@ export function viewEye(view: View, center: number[], size: number[], distance: 
   const [cx, cy, cz] = center;
   const dir: Record<Exclude<View, 'player'>, number[]> = {
     iso: [1, 0.8, 1],
+    aerial: [0, 1, 1], // 45 degrees down from the south: the usual angle of concept art and map renders
     front: [0, 0.35, 1],
     back: [0, 0.35, -1],
     left: [-1, 0.35, 0],
@@ -128,9 +134,21 @@ export function viewEye(view: View, center: number[], size: number[], distance: 
   return { eye: [cx + (d[0] / len) * distance, cy + (d[1] / len) * distance, cz + (d[2] / len) * distance], at: [cx, cy, cz] };
 }
 
+/** The picture the user wants copied, read from disk so it sits next to the screenshots. */
+export function referenceImage(file: string): { label: string; data: string; mimeType: string } {
+  const mimeType = IMAGE_TYPES[path.extname(file).toLowerCase()];
+  if (!path.isAbsolute(file)) throw new Error(`reference must be an absolute path: ${file}`);
+  if (!mimeType) throw new Error(`reference is not an image (png, jpg, jpeg, webp): ${file}`);
+  if (!fs.existsSync(file)) throw new Error(`reference not found: ${file}`);
+  const data = fs.readFileSync(file);
+  if (data.length > 5_000_000) throw new Error('reference is over 5 MB: save a smaller copy (1920 px is plenty)');
+  return { label: 'Reference (the target to copy)', data: data.toString('base64'), mimeType };
+}
+
 export async function lookAtGame(host: GameKitHost, args: Record<string, any>): Promise<ToolResult> {
   if (!host.callTool) throw new Error('Screenshots are not available in this server.');
-  const views = (Array.isArray(args.views) && args.views.length ? args.views : ['iso', 'top', 'player'])
+  const reference = args.reference ? referenceImage(String(args.reference)) : undefined;
+  const views = (Array.isArray(args.views) && args.views.length ? args.views : reference ? ['aerial', 'iso'] : ['iso', 'top', 'player'])
     .filter((v: string): v is View => (VIEWS as readonly string[]).includes(v))
     .slice(0, 6) as View[];
   const frame = await runLuauJson<any>(host, FRAME_LUAU.replace('__REQ__', () => luauJson({ target: args.target ? splitPath(String(args.target)) : null })), 'Frame camera');
@@ -173,5 +191,8 @@ export async function lookAtGame(host: GameKitHost, args: Record<string, any>): 
     problems: problems.length ? problems : undefined,
     fix: problems.length && !images.length ? 'Screenshots need Studio in Edit mode with the viewport visible, and Game Settings > Security > "Allow Mesh / Image APIs" = ON.' : undefined,
     checklist: 'Look for: floating or clipping parts, empty/flat areas (populate_world), unreadable text, too dark/bright lighting (set_environment), paths blocked by decor.',
-  }, images);
+    compare: reference
+      ? 'Compare with the reference image: list every difference (missing objects, wrong place, size, shape, color, lighting), fix the biggest first, then look again. Not finished while a landmark is missing or the layout differs.'
+      : undefined,
+  }, reference ? [reference, ...images] : images);
 }

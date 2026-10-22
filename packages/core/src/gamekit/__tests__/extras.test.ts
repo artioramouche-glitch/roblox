@@ -348,6 +348,23 @@ describe('Props, team, visuals, backups', () => {
     }
   });
 
+  test('look_at_game shows the reference picture first and asks to compare', async () => {
+    const ref = path.join(os.tmpdir(), `gamekit-ref-${process.pid}.png`);
+    fs.writeFileSync(ref, Buffer.from('fake png'));
+    try {
+      const kit = new GameKit(recordingHost({ callTool: async () => ({ content: [{ type: 'image', data: 'AAAA', mimeType: 'image/png' }] }) }));
+      const look = await kit.call('look_at_game', { reference: ref });
+      const images: any[] = look.content.filter((c: any) => c.type === 'image');
+      expect(images).toHaveLength(3); // reference + default aerial and iso views
+      expect(images[0].data).toBe(Buffer.from('fake png').toString('base64'));
+      expect(look.content[0].text).toMatch(/Compare with the reference/);
+      await expect(kit.call('look_at_game', { reference: 'ref.png' })).rejects.toThrow(/absolute/);
+      await expect(kit.call('look_at_game', { reference: ref.replace('.png', '.txt') })).rejects.toThrow(/not an image/);
+    } finally {
+      fs.rmSync(ref, { force: true });
+    }
+  });
+
   test('every generated Luau snippet compiles', async () => {
     const host = recordingHost({ callTool: async () => ({ content: [{ type: 'image', data: 'AAAA', mimeType: 'image/png' }] }) });
     const kit = new GameKit(host);

@@ -201,7 +201,8 @@ L'IA suit d'elle-même la méthode (elle lui est envoyée à la connexion) :
 `check_assets`, `optimize_game`, `publish_checklist`. Elle note son avancement dans `game_notes`.
 
 Les clients qui gèrent les **prompts MCP** proposent aussi `make_game`, `fix_my_game`, `add_feature`, `polish_game`,
-`team_build` (plusieurs IA) et `blender_prop` (objet 3D sur mesure).
+`team_build` (plusieurs IA), `blender_prop` (objet 3D sur mesure) et `copy_image` (recopier une image : plan au sol,
+objets « héros » dans Blender, comparaison côte à côte avec `look_at_game {reference}`).
 
 ---
 

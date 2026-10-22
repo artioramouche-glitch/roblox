@@ -114,9 +114,9 @@ breakpoints, export_rbxm / import_rbxm, source_pull / source_push, get_roblox_do
 
 ## 5. Guides available through the server
 
-`roblox_guide` topics: workflow, coding, design, luau, client-server, data, ui, building, testing, errors, blender, team,
+`roblox_guide` topics: workflow, coding, design, reference, luau, client-server, data, ui, building, testing, errors, blender, team,
 localization, publishing, performance, gamekit-api, catalog, and every system/template id. Also exposed as MCP
 resources `gamekit://...` and prompts `make_game`, `fix_my_game`, `add_feature`, `polish_game`, `team_build`,
-`blender_prop`.
+`blender_prop`, `copy_image`.
 
 Full reference: [docs/GAMEKIT.md](docs/GAMEKIT.md).

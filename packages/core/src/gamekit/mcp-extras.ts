@@ -32,8 +32,10 @@ ALWAYS follow this path:
 6. Look at the result with look_at_game, decorate with populate_world, and run check_game before finishing. Keep the project memory in game_notes.
 Before publishing: test_game {players: 2}, test_game {device: "phone"}, check_assets, optimize_game, publish_checklist.
 Save with backup_game before risky changes. Slow tools (blender_to_roblox, long test_game) can run through start_job while you keep working.
-Custom 3D models: blender_status, then model in Blender and send with blender_to_roblox. Several AIs on one game: team (plan, claim tasks, claim zones).
-Read roblox_guide (topics: workflow, coding, design, luau, client-server, ui, errors) when unsure. Understand existing code with code_outline and read_script { path, find }. Never invent Roblox APIs; never trust values sent by the client.
+The user gives a picture to copy: it IS the target, not a template look. Follow roblox_guide reference and compare with look_at_game { reference: "<image path>" } until it matches.
+No picture yet for something visual (UI, map, sky, buildings, props, eggs, characters): BEFORE building, give the user one ready-to-paste Claude Design prompt and one Gemini prompt (4-view sheet on white for an object, 2:1 panorama for a sky), then build from the images they bring back. See roblox_guide design.
+Statues, characters, creatures, eggs, portals, trees and anything round or organic: model them in Blender (blender_status, blender_python or blender_assets, then blender_to_roblox) or use a ready-made model, never stacked plain parts. If Blender is not connected, ask the user to open it and click Connect. Several AIs on one game: team (plan, claim tasks, claim zones).
+Read roblox_guide (topics: workflow, coding, design, reference, blender, luau, client-server, ui, errors) when unsure. Understand existing code with code_outline and read_script { path, find }. Never invent Roblox APIs; never trust values sent by the client.
 For anything else (terrain, lighting, animations, particles, sounds, assets, profiling, multiplayer tests, screenshots...) many more tools exist: find_tools then call_tool.`;
 
 export interface PromptDef {
@@ -115,6 +117,14 @@ Then test_game until PASS.`,
 3. Check it with blender_scene { "screenshot": true }.
 4. start_job { "tool": "blender_to_roblox", "arguments": { "name": "<Name>", "position": [x, y, z] } }, keep working, then job_status { "id", "wait": 60 }.
 5. look_at_game { "target": "Workspace/GameKit/Props/<Name>" } to check size and placement, then test_game.`,
+  },
+  {
+    name: 'copy_image',
+    description: 'Rebuild a picture (concept art, a game screenshot) in Studio, with Blender for the hero objects and side-by-side checks.',
+    arguments: [{ name: 'image', description: 'Absolute path of the picture, e.g. "C:/MyGame/png/lobby.png"', required: true }],
+    build: (a) => `Rebuild this picture in Roblox Studio as closely as possible: ${a.image}
+Use it as reference everywhere below: look_at_game { "reference": "${a.image}" }.
+${GUIDES.reference.body}`,
   },
 ];
 

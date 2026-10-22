@@ -86,6 +86,58 @@ Action -> reward -> upgrade -> bigger action. Examples:
 - The first 2 minutes must be easy. Difficulty ramps slowly (obby_course does this).
 ## Mobile first (60%+ of players)
 - Big buttons, no tiny text; GameKit UI is responsive. Test in Studio's device emulator.
+## Visual design: prompts first, then build from the images
+The user already gave a picture? It is the target: follow guide "reference".
+Plain parts look cheap. For anything visual (UI screen, map, backdrop/sky, building, prop, egg, character, icon, thumbnail),
+BEFORE building, give the user two ready-to-paste prompts:
+- Claude Design (claude.ai/design): a board or mockup -- views or screen states, colors, sizes, Roblox limits (touch targets, low-poly).
+- Gemini: the reference image -- a 4-view sheet (front, side, back, 3/4) on a plain white background for a 3D object,
+  a seamless 2:1 panorama with the horizon in the middle for a sky, an aerial or eye-level view for a map.
+Say where to save the images, then build from them: blender_assets generate (image to 3D) or Blender modelling,
+then blender_to_roblox; skybox faces from the panorama. Ask before every generation or upload.
+`,
+  },
+  reference: {
+    title: 'Copy a picture (concept art, a game screenshot) into Roblox',
+    body: `
+The picture IS the target. Do not swap it for a template look: no create_game decor, no populate_world themes,
+nothing the picture does not show. (create_game is fine for the game logic, then rebuild the look from the picture.)
+## 1. Get the file
+look_at_game needs it on disk: ask for its absolute path, or ask the user to save it (e.g. <project>/png/ref.png).
+## 2. Read it like a level designer (write it in game_notes decisions)
+- Camera of the picture (aerial, eye level, side). Scale: a character is 5 studs tall, a road 20-30 studs wide,
+  a house about 20 x 25 x 20, a market stall 10 x 10.
+- Center of the picture = (0, 0, 0), top of the picture = -Z. For EVERY visible element write: name, [x, z],
+  size, color (RGB) + material, and its kind:
+  GROUND (floors, roads, plaza, roundabout, fences, walls, pens): plain parts, Cylinder parts for round shapes.
+  GAMEPLAY (eggs, shops, portals, gates, leaderboards): build_world pieces (egg_stand, shop_stand, teleporter,
+    zone_gate, leaderboard) or add_system, then resize and recolor them to match.
+  HERO (the landmark everyone notices, statues, characters, creatures, eggs, portals, trees; anything round,
+    organic or detailed): Blender or a ready-made model. NEVER stacked plain parts.
+  BACKDROP (houses, trees, props around the edge): ready-made models (insert_asset, list_library) or one Blender
+    model copied with populate_world { items: [{ from: "<path>", count }] }.
+- Mood: time of day and sky (set_environment), Material Neon for what glows, Glass + Transparency 0.5 for domes.
+## 3. Block out, then compare
+Build GROUND and GAMEPLAY at the noted sizes, with simple stand-ins for the heroes, then
+look_at_game { reference: "<path>" } (views "aerial" and "iso" by default; pick the one closest to the picture).
+List the differences (missing, wrong place, wrong size, wrong color) and fix the biggest first.
+## 4. Hero objects in Blender
+blender_status. Not connected: ask the user to open Blender and click Connect (N > MCP for Blender); do not fall
+back to plain parts. For each hero, best first:
+a. Give the user a Gemini prompt to paste WITH the picture attached: "Isolate the <object> from this image as a 3D
+   game asset sheet: front, side, back and 3/4 views, plain white background, even lighting, same colors and style."
+   Then blender_assets { action: "generate", source: "hyper3d", images: [the saved views] } (ask first: it uploads them).
+b. Ready-made: blender_assets { action: "search", source: "polypizza" | "sketchfab" }, or insert_asset.
+c. Model it with blender_python from primitives (cone, UV sphere, torus, bevelled cubes, smooth shading), and
+   check it with blender_scene { screenshot: true } against the picture.
+Then start_job { tool: "blender_to_roblox", arguments: { name, position } } at the place from your notes.
+## 5. Loop until it matches
+look_at_game { reference } after each batch of changes. Not finished while a landmark is missing, the layout differs
+or the colors are off. Then test_game.
+## Teach it your own good builds
+export_build { instancePath } saves a model you like (yours, a Creator Store model, an uncopylocked place) to the
+build library; list_library and import_scene reuse it in later games (find_tools "build"). Never copy another
+creator's game.
 `,
   },
   luau: {
