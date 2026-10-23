@@ -187,6 +187,7 @@ local ok, result = pcall(function()
 		local wrapper, err = loadAsset(req.assetId)
 		if not wrapper then error("Could not load asset " .. tostring(req.assetId) .. " (still processing, not owned by you, or not a model): " .. tostring(err)) end
 		model = asModel(wrapper:GetChildren(), req.name)
+		model.Parent = nil -- a single loaded Model is still inside the wrapper: detach it before Destroy() locks it
 		wrapper:Destroy()
 	end
 	if req.replace then
@@ -389,6 +390,7 @@ local ok, err = pcall(function()
 			local wrapper, e = loadAsset(item.assetId)
 			if wrapper then
 				template = asModel(wrapper:GetChildren(), item.name)
+				template.Parent = nil
 				wrapper:Destroy()
 				owned = true
 			else
