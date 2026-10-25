@@ -22,6 +22,9 @@ if (command === 'setup') {
 } else if (process.argv.includes('--install-blender-addon')) {
   const { installBlenderAddon } = await import('./setup.js');
   console.log(installBlenderAddon().join('\n'));
+} else if (process.argv.includes('--install-figma-plugin')) {
+  const { installFigmaPlugin } = await import('./setup.js');
+  console.log(installFigmaPlugin().join('\n'));
 } else if (process.stdin.isTTY && process.argv.length <= 2) {
   // A person typed the command in a terminal: AI apps start the server with pipes, not a TTY.
   const { HELP } = await import('./setup.js');

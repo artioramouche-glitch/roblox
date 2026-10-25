@@ -185,6 +185,9 @@ Gemini) en plus de `query`. Code dans `packages/core/src/gamekit/blender.ts` (`r
 - **`make_vfx`** (`gamekit/vfx.ts`) + **`Util.vfx(name, cible, secondes)`** : 11 effets prêts (textures livrées avec
   Roblox, aucun upload), modèles dans `ReplicatedStorage/GameKit/Effects`. Mode `plugin` + `collect` pour les effets
   faits avec le plugin gratuit **VFX Studio** (attributs `EmitCount`/`EmitDelay`).
+- **Plugin Figma ajouté automatiquement** : `npm run install-figma-plugin` (et `npm run setup`) l'inscrit dans
+  `%APPDATA%\Figma\settings.json` (`localFileExtensions`, même format que l'import manuel, lu dans le code de Figma
+  bureau 126.10). Figma doit être fermé, sinon il réécrit le fichier : la commande le détecte et demande de le fermer.
 - **`build_ui`** : nouveau champ `textAlign` (left/right).
 - **Setup** : configure aussi Qoder (`~/.qoder/settings.json`, vérifié dans le code de l'appli), Gemini CLI,
   Antigravity (`~/.gemini/config/mcp_config.json`), VS Code (`servers`), Cline, Roo Code, Kiro, LM Studio, Codex (TOML).

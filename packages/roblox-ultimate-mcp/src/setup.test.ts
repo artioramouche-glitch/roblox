@@ -1,7 +1,21 @@
 // node --import tsx --test packages/roblox-ultimate-mcp/src/setup.test.ts (npm test runs it)
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { clientConfigs, mergeCodexConfig, mergeServerConfig } from './setup.js';
+import { addFigmaPlugin, clientConfigs, figmaSettingsFile, mergeCodexConfig, mergeServerConfig } from './setup.js';
+
+test('the Figma plugin is added to Figma settings once, with the smallest free id', () => {
+  const manifest = 'C:\\mcp\\figma-plugin\\manifest.json';
+  const before = JSON.stringify({ windows: [{ id: 1 }], localFileExtensions: [{ id: 1, manifestPath: 'C:\\other\\manifest.json' }, { id: 3, manifestPath: 'C:\\other\\code.js' }] });
+  const added = addFigmaPlugin(before, manifest);
+  assert.equal(added.status, 'added');
+  const settings = JSON.parse(added.text!);
+  assert.deepEqual(settings.windows, [{ id: 1 }]);
+  assert.deepEqual(settings.localFileExtensions[2], { id: 2, manifestPath: manifest, lastKnownName: 'Roblox MCP Bridge', lastKnownPluginId: 'roblox-ultimate-mcp-bridge' });
+  assert.deepEqual(addFigmaPlugin(added.text!, 'c:/mcp/figma-plugin/manifest.json'), { text: null, status: 'present' });
+  assert.equal(JSON.parse(addFigmaPlugin('{}', manifest).text!).localFileExtensions[0].id, 1);
+  assert.match(figmaSettingsFile('C:\\Users\\me', 'win32', { APPDATA: 'C:\\Users\\me\\AppData\\Roaming' })!, /Roaming[\\/]Figma[\\/]settings\.json$/);
+  assert.equal(figmaSettingsFile('/home/me', 'linux', {}), undefined);
+});
 
 test('knows Qoder, VS Code, Codex, Gemini CLI and Antigravity', () => {
   const names = clientConfigs('/home/me', 'linux', {}).map((c) => c.name);

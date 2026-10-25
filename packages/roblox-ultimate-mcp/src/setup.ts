@@ -216,6 +216,59 @@ export function installBlenderAddon(): string[] {
   return lines;
 }
 
+/** Figma desktop keeps its imported development plugins in settings.json ("localFileExtensions"). */
+export function figmaSettingsFile(home: string = homedir(), platform: string = process.platform, env: NodeJS.ProcessEnv = process.env): string | undefined {
+  if (platform === 'darwin') return join(home, 'Library', 'Application Support', 'Figma', 'settings.json');
+  if (platform === 'win32') return join(env.APPDATA || join(home, 'AppData', 'Roaming'), 'Figma', 'settings.json');
+  return undefined; // no official Figma desktop app on Linux
+}
+
+/**
+ * Adds our plugin to Figma's settings, like Plugins > Development > Import plugin from manifest.
+ * Figma fills in the code and UI file entries itself when it loads a manifest entry without them,
+ * and gives new imports the smallest unused id (so do we).
+ */
+export function addFigmaPlugin(existing: string, manifest: string): { text: string | null; status: 'added' | 'present' } {
+  const settings = JSON.parse(existing);
+  if (!settings || typeof settings !== 'object' || Array.isArray(settings)) throw new Error('not a JSON object');
+  const list: any[] = Array.isArray(settings.localFileExtensions) ? settings.localFileExtensions : [];
+  const same = (p: unknown) => typeof p === 'string' && p.replace(/\\/g, '/').toLowerCase() === manifest.replace(/\\/g, '/').toLowerCase();
+  if (list.some((e) => same(e?.manifestPath))) return { text: null, status: 'present' };
+  const used = new Set(list.map((e) => e?.id));
+  let id = 1;
+  while (used.has(id)) id++;
+  settings.localFileExtensions = [...list, { id, manifestPath: manifest, lastKnownName: 'Roblox MCP Bridge', lastKnownPluginId: 'roblox-ultimate-mcp-bridge' }];
+  return { text: JSON.stringify(settings), status: 'added' };
+}
+
+function figmaRunning(): boolean {
+  const check = process.platform === 'win32'
+    ? spawnSync('tasklist', ['/FI', 'IMAGENAME eq Figma.exe', '/NH'], { encoding: 'utf8' })
+    : spawnSync('pgrep', ['-x', 'Figma'], { encoding: 'utf8' });
+  return !check.error && /figma/i.test(check.stdout ?? '');
+}
+
+export function installFigmaPlugin(): string[] {
+  const manifest = bundled('figma-plugin', 'manifest.json');
+  const settings = figmaSettingsFile();
+  const manual = `Figma (bureau) > Plugins > Development > Import plugin from manifest > ${manifest ?? 'figma-plugin/manifest.json'}`;
+  if (!manifest) return ['  ✖ Plugin Figma introuvable dans ce paquet.'];
+  if (!settings || !existsSync(settings)) return ['  • Figma bureau introuvable : installez-le et lancez-le une fois, puis relancez cette commande.', `    (ou à la main : ${manual})`];
+  const before = readFileSync(settings, 'utf8');
+  let merged: ReturnType<typeof addFigmaPlugin>;
+  try {
+    merged = addFigmaPlugin(before, manifest);
+  } catch (error) {
+    return [`  ✖ ${settings} illisible (${error instanceof Error ? error.message : String(error)}). À la main : ${manual}`];
+  }
+  if (!merged.text) return ['  ✔ Plugin "Roblox MCP Bridge" déjà dans Figma.'];
+  // Figma rewrites settings.json from memory while it runs: our line would be lost.
+  if (figmaRunning()) return [`  • Fermez Figma (complètement), puis relancez : ${localEntry() ? 'npm run install-figma-plugin' : 'npx roblox-ultimate-mcp --install-figma-plugin'}`];
+  writeFileSync(`${settings}.bak`, before);
+  writeFileSync(settings, merged.text);
+  return ['  ✔ Plugin "Roblox MCP Bridge" ajouté à Figma (rien à importer à la main).'];
+}
+
 export async function runSetup(argv: string[] = process.argv): Promise<void> {
   const force = argv.includes('--force');
   const out: string[] = ['', 'Roblox Ultimate MCP : installation', ''];
@@ -261,10 +314,9 @@ export async function runSetup(argv: string[] = process.argv): Promise<void> {
   }
 
   // Figma's own MCP server refuses most apps (OpenCode, Qoder...): the plugin works in all of them.
-  const manifest = bundled('figma-plugin', 'manifest.json');
   out.push('', '4. Figma (interfaces de jeu, facultatif)');
-  out.push(`  • Application Figma (bureau) > Plugins > Development > Import plugin from manifest > ${manifest ?? 'figma-plugin/manifest.json'}`);
-  out.push('  • Puis lancez "Roblox MCP Bridge" dans votre fichier : toutes vos IA peuvent dessiner et importer des écrans.');
+  out.push(...installFigmaPlugin());
+  out.push('  • Dans un fichier Figma : Plugins > Development > "Roblox MCP Bridge" (ensuite Ctrl+Alt+P relance le dernier plugin).');
   out.push('  • En plus, pour Claude Code (MCP officiel de Figma) : claude mcp add --transport http figma https://mcp.figma.com/mcp');
 
   out.push('', 'C\'est prêt. Demandez à votre IA : "Appelle roblox_start_here puis crée-moi un obby."', '');
@@ -278,6 +330,7 @@ Utilisation :
   npx roblox-ultimate-mcp setup --blender   ... et l'addon Blender (modèles 3D, personnages, animations)
   npx roblox-ultimate-mcp doctor            vérifie tout (Node, serveur, Studio, Blender) et dit quoi corriger
   npx roblox-ultimate-mcp --install-plugin  installe seulement le plugin Studio
+  npx roblox-ultimate-mcp --install-figma-plugin  ajoute seulement le plugin "Roblox MCP Bridge" à Figma (Figma fermé)
   npx roblox-ultimate-mcp                   démarre le serveur MCP (c'est ce que lance votre application d'IA)
 
 Options du serveur : --port <n>, --open-cloud-key <clé>, --creator-id <id>, --creator-group-id <id>

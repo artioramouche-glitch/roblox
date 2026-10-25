@@ -16,6 +16,7 @@
     "doctor": "node packages/roblox-ultimate-mcp/dist/index.js doctor",
     "install-plugin": "node packages/roblox-ultimate-mcp/dist/index.js --install-plugin",
     "install-blender-addon": "node scripts/install-blender-addon.mjs",
+    "install-figma-plugin": "node packages/roblox-ultimate-mcp/dist/index.js --install-figma-plugin",
     "build:plugin": "node scripts/build-plugin.mjs",
     "build:plugin:inspector": "node scripts/build-plugin.mjs --variant inspector",
     "build:all": "npm run build && npm run build:plugin",

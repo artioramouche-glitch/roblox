@@ -129,8 +129,9 @@ pour les modèles plus faibles :
 ## Figma (pour toutes les applis)
 
 Le serveur parle directement au plugin Figma « Roblox MCP Bridge » (dossier `figma-plugin/`) : rien à ajouter dans
-l'appli d'IA. Application Figma (bureau) → *Plugins → Development → Import plugin from manifest…* →
-`figma-plugin/manifest.json`, puis lance le plugin dans ton fichier. Outil : `figma` (`status`, `draw`, `read`, `import`).
+l'appli d'IA. Une fois, Figma fermé : `npm run install-figma-plugin` (ou `npm run setup`) l'ajoute à Figma bureau
+(`%APPDATA%\Figma\settings.json`, copie `.bak`). À la main : *Plugins → Development → Import plugin from manifest…* →
+`figma-plugin/manifest.json`. Puis lance le plugin dans ton fichier (Ctrl + Alt + P relance le dernier plugin). Outil : `figma` (`status`, `draw`, `read`, `import`).
 
 Le MCP officiel de Figma (`https://mcp.figma.com/mcp`) n'accepte que certaines applis (Claude Code, Claude Desktop,
 Cursor, VS Code, Codex) : OpenCode et Qoder sont refusés (erreur 403 à la connexion). En plan gratuit, sa lecture est

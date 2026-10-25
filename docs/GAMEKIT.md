@@ -1743,8 +1743,9 @@ then blender_to_roblox; skybox faces from the panorama. Ask before every generat
 ### Game UI designed in Figma (any AI, free Figma plan) (`figma`)
 
 #### Setup (once)
-Figma DESKTOP app > open a design file > Plugins > Development > Import plugin from manifest... >
-<MCP folder>/figma-plugin/manifest.json. Then Plugins > Development > "Roblox MCP Bridge" (keep its small window open).
+Close Figma, then in the MCP folder: npm run install-figma-plugin (adds the plugin to the Figma DESKTOP app; npm run
+setup does it too). Then in a design file: Plugins > Development > "Roblox MCP Bridge" (keep its small window open;
+Ctrl+Alt+P runs it again later).
 figma { action: "status" } must say connected: true. No Figma key, no Figma MCP server needed.
 #### Design a screen
 1. design_refs { query: "<game style> hud" } and agree on a style with the user.

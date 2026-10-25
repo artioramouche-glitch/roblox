@@ -265,9 +265,11 @@ La référence complète (réglages, tags, attributs) est dans **[docs/GAMEKIT.m
 
 ### 🎨 Dessiner l'écran dans Figma (toutes les IA, plan gratuit)
 
-1. Une fois : application **Figma (bureau)** → *Plugins → Development → Import plugin from manifest…* →
-   `figma-plugin/manifest.json` de ce dossier.
+1. Une fois : **ferme Figma**, puis `npm run install-figma-plugin` (fait aussi par `npm run setup`) : le plugin est
+   ajouté à Figma bureau, rien à importer. À la main sinon : *Plugins → Development → Import plugin from manifest…* →
+   `figma-plugin/manifest.json`.
 2. Dans ton fichier Figma : *Plugins → Development → **Roblox MCP Bridge*** (laisse sa petite fenêtre ouverte).
+   Les fois suivantes, **Ctrl + Alt + P** relance le dernier plugin.
 3. L'IA cherche un style (`design_refs { query: "simulator shop" }`), dessine l'écran (`figma { action: "draw", spec }`),
    tu l'ajustes dans Figma, tu sélectionnes le cadre, et `figma { action: "import" }` le construit dans Studio.
 

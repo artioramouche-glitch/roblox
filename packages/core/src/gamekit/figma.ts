@@ -452,8 +452,8 @@ export const figmaBridge = new FigmaBridge();
 const NOT_RUNNING = 'The Figma plugin "Roblox MCP Bridge" is not running.';
 const PLUGIN_STEPS = [
   'Open the Figma DESKTOP app and a design file (the free plan works).',
-  `First time only: Plugins > Development > Import plugin from manifest... > ${'<MCP folder>'}/figma-plugin/manifest.json.`,
-  'Plugins > Development > Roblox MCP Bridge: keep its small window open while the AI works.',
+  `First time only: close Figma and run "npm run install-figma-plugin" in the MCP folder (npm run setup does it too), or Plugins > Development > Import plugin from manifest... > ${'<MCP folder>'}/figma-plugin/manifest.json.`,
+  'Plugins > Development > Roblox MCP Bridge (later Ctrl+Alt+P runs the last plugin): keep its small window open while the AI works.',
 ];
 
 /** The manifest to import: next to dist/ in the npm package, at the root of a clone. */

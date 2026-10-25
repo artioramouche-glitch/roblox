@@ -99,7 +99,7 @@ as a fallback (Animation Editor > Import > From FBX Animation).
   thumbnails by genre; `ROBLOX_REFS_DIR` if it is not in Downloads). `show: true` attaches the first pictures.
 - UI screens: `figma { action: "draw", spec }` (a build_ui spec) puts a mockup in Figma, the human adjusts it, then
   `figma { action: "import" }` builds the selected frame in StarterGui. Needs the "Roblox MCP Bridge" development
-  plugin running in the Figma desktop app (import `figma-plugin/manifest.json` once). Works from any MCP client and on
+  plugin running in the Figma desktop app (added once with `npm run install-figma-plugin` while Figma is closed). Works from any MCP client and on
   the free Figma plan. Read `roblox_guide figma`.
 - Effects: `make_vfx { preset }` (hit_spark, sparkle, explosion, fire, smoke_puff, heal_aura, level_up, magic, portal,
   dust, celebration) saves a template in `ReplicatedStorage/GameKit/Effects`; scripts play it with
