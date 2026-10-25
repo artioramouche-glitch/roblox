@@ -399,28 +399,49 @@ interface Pending {
   timer: NodeJS.Timeout;
 }
 
+type Command = { id: string; command: Record<string, unknown> };
+
 /** Commands waiting for the Figma plugin, and what it last told us. */
 export class FigmaBridge {
-  private queue: Array<{ id: string; command: Record<string, unknown> }> = [];
+  private queue: Command[] = [];
   private pending = new Map<string, Pending>();
+  /** Long polls of the plugin held open until a command comes. */
+  private waiting: Array<(next?: Command) => void> = [];
   lastSeen = 0;
   file?: string;
   page?: string;
   selection?: number;
 
   connected(now = Date.now()) {
-    return now - this.lastSeen < 6000;
+    return this.waiting.length > 0 || now - this.lastSeen < 6000;
   }
 
   status() {
     return { connected: this.connected(), file: this.file, page: this.page, selected: this.selection };
   }
 
-  /** The plugin polls about once a second; returns the next command, if any. */
-  poll(info: { file?: string; page?: string; selection?: number }) {
+  /**
+   * The plugin's long poll: answered at once when a command waits, else when one is sent or
+   * after holdMs. Chromium slows timers in a hidden Figma window to one a minute, but not a
+   * request that is already open, so commands still arrive at once. cancel() if it hangs up.
+   */
+  poll(info: { file?: string; page?: string; selection?: number }, holdMs = 0): { next: Promise<Command | undefined>; cancel: () => void } {
     this.lastSeen = Date.now();
     Object.assign(this, info);
-    return this.queue.shift();
+    const ready = this.queue.shift();
+    if (ready || holdMs <= 0) return { next: Promise.resolve(ready), cancel: () => {} };
+    let finish: (next?: Command) => void = () => {};
+    const next = new Promise<Command | undefined>((resolve) => {
+      const timer = setTimeout(() => finish(), holdMs);
+      finish = (command) => {
+        clearTimeout(timer);
+        this.waiting = this.waiting.filter((w) => w !== finish);
+        this.lastSeen = Date.now();
+        resolve(command);
+      };
+      this.waiting.push(finish);
+    });
+    return { next, cancel: () => finish() };
   }
 
   answer(id: string, ok: boolean, result: unknown, error?: string) {
@@ -444,6 +465,7 @@ export class FigmaBridge {
       }, timeoutMs);
       this.pending.set(id, { resolve, reject, timer });
       this.queue.push({ id, command });
+      this.waiting[0]?.(this.queue.shift());
     });
   }
 }
@@ -482,10 +504,13 @@ export function mountFigmaPluginRoutes(app: Express, bridge: FigmaBridge = figma
     next();
   };
   app.options(['/figma/poll', '/figma/result'], cors, (_req, res) => { res.status(204).end(); });
-  app.get('/figma/poll', cors, (req, res) => {
+  app.get('/figma/poll', cors, async (req, res) => {
     const q = req.query as Record<string, string | undefined>;
-    const next = bridge.poll({ file: q.file, page: q.page, selection: q.selection !== undefined ? Number(q.selection) : undefined });
-    res.json(next ?? {});
+    const hold = Math.min(25000, Math.max(0, Number(q.wait) || 0));
+    const { next, cancel } = bridge.poll({ file: q.file, page: q.page, selection: q.selection !== undefined ? Number(q.selection) : undefined }, hold);
+    // shortcut: a command handed to a poll whose plugin closed at that instant is lost (the tool times out).
+    res.on('close', () => { if (!res.writableEnded) cancel(); });
+    res.json((await next) ?? {});
   });
   app.post('/figma/result', cors, (req, res) => {
     const { id, ok, result, error } = req.body ?? {};

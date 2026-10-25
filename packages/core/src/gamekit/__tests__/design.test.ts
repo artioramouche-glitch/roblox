@@ -107,13 +107,23 @@ describe('Figma bridge', () => {
   test('commands wait for the plugin, which answers them', async () => {
     const bridge = new FigmaBridge();
     await expect(bridge.send({ action: 'read' })).rejects.toThrow(/not running/);
-    bridge.poll({ file: 'Game UI', selection: 1 });
+    // A long poll held open counts as connected and gets the command as soon as it is sent.
+    const poll = bridge.poll({ file: 'Game UI', selection: 1 }, 60000);
+    bridge.lastSeen = 0;
+    expect(bridge.connected()).toBe(true);
     const pending = bridge.send({ action: 'read' });
-    const next = bridge.poll({});
+    const next = await poll.next;
     expect(next?.command).toEqual({ action: 'read' });
     expect(bridge.answer(next!.id, true, { root: null })).toBe(true);
     await expect(pending).resolves.toEqual({ root: null });
     expect(bridge.status()).toMatchObject({ connected: true, file: 'Game UI', selected: 1 });
+    // A short poll answers at once; a cancelled long poll stops counting.
+    await expect(bridge.poll({}).next).resolves.toBeUndefined();
+    const held = bridge.poll({}, 60000);
+    held.cancel();
+    await expect(held.next).resolves.toBeUndefined();
+    bridge.lastSeen = 0;
+    expect(bridge.connected()).toBe(false);
   });
 
   test('import reads the selection, saves pictures and builds the UI', async () => {

@@ -193,6 +193,10 @@ Gemini) en plus de `query`. Code dans `packages/core/src/gamekit/blender.ts` (`r
   PowerShell qui, tant que le pont n'est pas connecté, trouve ce bouton dans l'arbre d'accessibilité de Figma (UI
   Automation) et le clique. Testé à froid : connecté 33 s après le lancement de Figma. Le clavier a été essayé
   d'abord et échoue en AZERTY (`Ctrl+/`, `Ctrl+Alt+P`). Coupure : `ROBLOX_MCP_FIGMA_AUTOSTART=0`.
+- **Pont Figma qui reste connecté quand Figma est caché** : Chromium ralentit les minuteries d'une fenêtre cachée
+  (jusqu'à une fois par minute après 5 min), donc l'ancien plugin (une requête par seconde) passait « déconnecté ».
+  Le plugin fait maintenant une requête longue que le serveur garde ouverte jusqu'à 20 s (`/figma/poll?wait=`) et la
+  relance aussitôt : une requête ouverte n'est pas ralentie.
 - **`build_ui`** : nouveau champ `textAlign` (left/right).
 - **Setup** : configure aussi Qoder (`~/.qoder/settings.json`, vérifié dans le code de l'appli), Gemini CLI,
   Antigravity (`~/.gemini/config/mcp_config.json`), VS Code (`servers`), Cline, Roo Code, Kiro, LM Studio, Codex (TOML).
