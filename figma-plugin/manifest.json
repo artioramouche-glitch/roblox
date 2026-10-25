@@ -6,6 +6,7 @@
   "ui": "ui.html",
   "editorType": ["figma"],
   "documentAccess": "dynamic-page",
+  "relaunchButtons": [{ "command": "open", "name": "Roblox MCP Bridge" }],
   "networkAccess": {
     "allowedDomains": ["none"],
     "devAllowedDomains": [

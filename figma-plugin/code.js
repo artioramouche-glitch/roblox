@@ -6,6 +6,14 @@
 
 figma.showUI(__html__, { width: 280, height: 110, title: 'Roblox MCP Bridge' });
 
+// Figma never starts a plugin by itself: this puts a one-click "Roblox MCP Bridge" button in the
+// right panel of this file (shown when nothing is selected) for the next sessions.
+try {
+  figma.root.setRelaunchData({ open: 'Connect this file to your Roblox AI' });
+} catch (e) {
+  // view-only file: no button, the menu still works
+}
+
 // Shapes Roblox UI cannot draw: exported as pictures (ImageLabels).
 const PICTURE_TYPES = ['VECTOR', 'BOOLEAN_OPERATION', 'STAR', 'POLYGON', 'LINE'];
 

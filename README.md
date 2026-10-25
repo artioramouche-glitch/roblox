@@ -269,7 +269,8 @@ La référence complète (réglages, tags, attributs) est dans **[docs/GAMEKIT.m
    ajouté à Figma bureau, rien à importer. À la main sinon : *Plugins → Development → Import plugin from manifest…* →
    `figma-plugin/manifest.json`.
 2. Dans ton fichier Figma : *Plugins → Development → **Roblox MCP Bridge*** (laisse sa petite fenêtre ouverte).
-   Les fois suivantes, **Ctrl + Alt + P** relance le dernier plugin.
+   Les fois suivantes : bouton **Roblox MCP Bridge** dans le panneau de droite du fichier (rien de sélectionné), ou
+   **Ctrl + Alt + P** (dernier plugin). Figma ne laisse aucun plugin démarrer tout seul.
 3. L'IA cherche un style (`design_refs { query: "simulator shop" }`), dessine l'écran (`figma { action: "draw", spec }`),
    tu l'ajustes dans Figma, tu sélectionnes le cadre, et `figma { action: "import" }` le construit dans Studio.
 
