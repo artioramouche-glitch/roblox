@@ -21,6 +21,7 @@ Variables d'environnement utiles :
 | Variable | Effet |
 |---|---|
 | `ROBLOX_MCP_PROFILE` | `starter` (défaut, 46 outils), `builder` (106), `full` (186) |
+| `ROBLOX_MCP_FIGMA_AUTOSTART` | `0` : ne pas relancer tout seul le plugin Figma « Roblox MCP Bridge » (Windows) |
 | `ROBLOX_REFS_DIR` | Dossier de la bibliothèque d'images « roblox-ai » pour `design_refs` (défaut : cherchée dans Téléchargements) |
 | `ROBLOX_MCP_COMPACT` | `0` : descriptions d'outils complètes (par défaut, version courte pour économiser les tokens) |
 | `ROBLOX_MCP_PRETTY` | `1` : réponses JSON indentées (par défaut compactes) |
@@ -131,7 +132,9 @@ pour les modèles plus faibles :
 Le serveur parle directement au plugin Figma « Roblox MCP Bridge » (dossier `figma-plugin/`) : rien à ajouter dans
 l'appli d'IA. Une fois, Figma fermé : `npm run install-figma-plugin` (ou `npm run setup`) l'ajoute à Figma bureau
 (`%APPDATA%\Figma\settings.json`, copie `.bak`). À la main : *Plugins → Development → Import plugin from manifest…* →
-`figma-plugin/manifest.json`. Puis lance le plugin dans ton fichier (Ctrl + Alt + P relance le dernier plugin). Outil : `figma` (`status`, `draw`, `read`, `import`).
+`figma-plugin/manifest.json`. Lance le plugin une fois à la main dans chaque fichier ; ensuite, sous Windows, le serveur
+le relance tout seul dès que le fichier est ouvert (il clique son bouton de relance par l'accessibilité de Windows ;
+`ROBLOX_MCP_FIGMA_AUTOSTART=0` pour couper). Outil : `figma` (`status`, `draw`, `read`, `import`).
 
 Le MCP officiel de Figma (`https://mcp.figma.com/mcp`) n'accepte que certaines applis (Claude Code, Claude Desktop,
 Cursor, VS Code, Codex) : OpenCode et Qoder sont refusés (erreur 403 à la connexion). En plan gratuit, sa lecture est

@@ -13,6 +13,7 @@
  * tested in TypeScript; the plugin only serializes and draws.
  */
 
+import { spawn, type ChildProcess } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -453,7 +454,7 @@ const NOT_RUNNING = 'The Figma plugin "Roblox MCP Bridge" is not running.';
 const PLUGIN_STEPS = [
   'Open the Figma DESKTOP app and a design file (the free plan works).',
   `First time only: close Figma and run "npm run install-figma-plugin" in the MCP folder (npm run setup does it too), or Plugins > Development > Import plugin from manifest... > ${'<MCP folder>'}/figma-plugin/manifest.json.`,
-  'Plugins > Development > Roblox MCP Bridge (later: its button in the right panel with nothing selected, or Ctrl+Alt+P): keep its small window open while the AI works.',
+  'First time in each file: Plugins > Development > Roblox MCP Bridge. Afterwards, on Windows, the MCP clicks its relaunch button by itself as soon as the file is open (elsewhere: the button in the right panel, nothing selected). Keep its small window open while the AI works.',
 ];
 
 /** The manifest to import: next to dist/ in the npm package, at the root of a clone. */
@@ -502,6 +503,54 @@ export function mountFigmaToolRoutes(app: Express, bridge: FigmaBridge = figmaBr
       res.json({ ok: false, error: error instanceof Error ? error.message : String(error), status: bridge.status() });
     }
   });
+}
+
+// ---------------------------------------------------------------- auto-launch (Windows)
+
+/**
+ * Figma never starts a plugin by itself. Once the bridge has run in a file, that file shows a
+ * "Run Roblox MCP Bridge" relaunch button (setRelaunchData in code.js). While the bridge is not
+ * connected, the watcher finds that button in Figma's accessibility tree (UI Automation; Chromium
+ * turns its tree on when a client asks) and invokes it: no keystrokes, no focus change, any
+ * keyboard layout. Keystrokes were tried first and fail on AZERTY (Ctrl+/ and Ctrl+Alt+P).
+ * At most three clicks per file per Figma run; it exits with the server.
+ */
+export const FIGMA_AUTOLAUNCH_PS = `
+$ErrorActionPreference = 'SilentlyContinue'
+Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
+$A = [System.Windows.Automation.AutomationElement]
+$isButton = New-Object System.Windows.Automation.PropertyCondition ($A::ControlTypeProperty), ([System.Windows.Automation.ControlType]::Button)
+$tries = @{}
+while (Get-Process -Id __PARENT__) {
+  Start-Sleep -Seconds 2
+  $status = Invoke-RestMethod -Uri 'http://127.0.0.1:__PORT__/figma/status' -TimeoutSec 2
+  if ($null -eq $status -or $status.connected) { continue }
+  $fig = Get-Process Figma | Where-Object { $_.MainWindowTitle -match ' - Figma$' } | Select-Object -First 1
+  if (-not $fig) { continue }
+  $key = "$($fig.Id)|$($fig.MainWindowTitle)"
+  if ($tries[$key] -ge 3) { continue }
+  # The relaunch button is named in Figma's language ("Run ..." / "Exécuter ..."), right before "Remove ...".
+  $run = $A::FromHandle($fig.MainWindowHandle).FindAll([System.Windows.Automation.TreeScope]::Descendants, $isButton) |
+    Where-Object { $_.Current.Name -match 'Roblox MCP Bridge$' -and $_.Current.Name -notmatch '^(Supprimer|Remove|Eliminar|Entfernen|Remover|Rimuovi)\\b' } |
+    Select-Object -First 1
+  if (-not $run) { continue }
+  $invoke = $null
+  if (-not $run.TryGetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern, [ref]$invoke)) { continue }
+  $tries[$key] = 1 + [int]$tries[$key]
+  $invoke.Invoke()
+  Start-Sleep -Seconds 5
+}
+`;
+
+/** Started by the server that owns the port. ROBLOX_MCP_FIGMA_AUTOSTART=0 turns it off. */
+export function startFigmaAutoLaunch(port: number, platform: string = process.platform, env: NodeJS.ProcessEnv = process.env): ChildProcess | undefined {
+  // shortcut: Windows only (UI Automation); macOS would need the same loop with the AX API.
+  if (platform !== 'win32' || /^(0|false|no|off)$/i.test(env.ROBLOX_MCP_FIGMA_AUTOSTART ?? '')) return undefined;
+  const script = FIGMA_AUTOLAUNCH_PS.replace('__PORT__', String(port)).replace('__PARENT__', String(process.pid));
+  const child = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')], { windowsHide: true, stdio: 'ignore' });
+  child.on('error', () => { /* no PowerShell: the plugin is started by hand */ });
+  child.unref();
+  return child;
 }
 
 // ---------------------------------------------------------------- tool

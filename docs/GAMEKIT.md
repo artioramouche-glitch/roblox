@@ -1745,8 +1745,8 @@ then blender_to_roblox; skybox faces from the panorama. Ask before every generat
 #### Setup (once)
 Close Figma, then in the MCP folder: npm run install-figma-plugin (adds the plugin to the Figma DESKTOP app; npm run
 setup does it too). Then in a design file: Plugins > Development > "Roblox MCP Bridge" (keep its small window open).
-Later: the "Roblox MCP Bridge" button in the file's right panel (nothing selected) or Ctrl+Alt+P. Figma never starts
-a plugin by itself: ask the user to click it.
+Run it by hand once per file. After that, on Windows, this server clicks its relaunch button by itself as soon as the
+file is open (about 30 s after Figma starts). Elsewhere: the "Roblox MCP Bridge" button in the file's right panel.
 figma { action: "status" } must say connected: true. No Figma key, no Figma MCP server needed.
 #### Design a screen
 1. design_refs { query: "<game style> hud" } and agree on a style with the user.

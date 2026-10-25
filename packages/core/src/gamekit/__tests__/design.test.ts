@@ -2,7 +2,8 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { checkLuauSyntax } from '../luau-syntax.js';
-import { figmaToSpec, FigmaBridge, FigmaTools, parseLayerName, robloxFont, specToFigma, type DrawOp, type FigmaNode } from '../figma.js';
+import { execFileSync } from 'child_process';
+import { FIGMA_AUTOLAUNCH_PS, figmaToSpec, FigmaBridge, FigmaTools, parseLayerName, robloxFont, specToFigma, startFigmaAutoLaunch, type DrawOp, type FigmaNode } from '../figma.js';
 import { buildScreenGui, UI_EXAMPLE, type UiNode } from '../ui.js';
 import { designRefs, findLibrary, indexLibrary, searchLibrary } from '../refs.js';
 import { collectLuau, handleVfx, LIST_LUAU, presetLuau, VFX_PRESETS } from '../vfx.js';
@@ -131,6 +132,18 @@ describe('Figma bridge', () => {
     expect(built[0].name).toBe('Shop');
     expect(report.pictures[0].instance).toBe('StarterGui/Shop/Shop/Gem');
     expect(fs.readFileSync(report.pictures[0].file, 'utf8')).toBe('png');
+  });
+
+  test('the auto-launch watcher only starts on Windows, unless turned off, and its script parses', () => {
+    expect(startFigmaAutoLaunch(58741, 'linux', {})).toBeUndefined();
+    expect(startFigmaAutoLaunch(58741, 'win32', { ROBLOX_MCP_FIGMA_AUTOSTART: '0' })).toBeUndefined();
+    expect(FIGMA_AUTOLAUNCH_PS).toContain('__PORT__');
+    expect(FIGMA_AUTOLAUNCH_PS).toContain('__PARENT__');
+    if (process.platform !== 'win32') return;
+    const b64 = Buffer.from(FIGMA_AUTOLAUNCH_PS.replace('__PORT__', '1').replace('__PARENT__', '1'), 'utf16le').toString('base64');
+    const errors = execFileSync('powershell.exe', ['-NoProfile', '-Command',
+      `$e=$null; [void][System.Management.Automation.Language.Parser]::ParseInput([Text.Encoding]::Unicode.GetString([Convert]::FromBase64String("${b64}")), [ref]$null, [ref]$e); $e.Count`], { encoding: 'utf8' }).trim();
+    expect(errors).toBe('0');
   });
 
   test('a missing plugin gives the setup steps', async () => {

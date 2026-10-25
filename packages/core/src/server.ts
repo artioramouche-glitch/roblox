@@ -25,6 +25,7 @@ import {
 } from './gamekit/mcp-extras.js';
 import { getProfile, onProfileChange, revealGroup } from './gamekit/profiles.js';
 import { probeBlender } from './gamekit/blender.js';
+import { startFigmaAutoLaunch } from './gamekit/figma.js';
 
 export interface ServerConfig {
   name: string;
@@ -300,6 +301,7 @@ export class RobloxStudioMCPServer {
       httpHandle = result.server;
       boundPort = result.port;
       console.error(`HTTP server listening on ${host}:${boundPort} for Studio plugin (primary mode)`);
+      startFigmaAutoLaunch(boundPort);
       console.error(`Streamable HTTP MCP endpoint: http://localhost:${boundPort}/mcp`);
     } catch (err) {
       // A sibling owns the port (the normal multi-client case), or every port is taken.
@@ -341,6 +343,7 @@ export class RobloxStudioMCPServer {
           bridgeMode = 'primary';
           (primaryApp as any).setMCPServerActive(true);
           console.error(`Promoted from proxy to primary on port ${boundPort}`);
+          startFigmaAutoLaunch(boundPort);
           if (promotionInterval) clearInterval(promotionInterval);
         } catch {
           // Still can't bind — the existing proxy bridge stays in place, untouched.

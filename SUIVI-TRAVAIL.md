@@ -188,6 +188,11 @@ Gemini) en plus de `query`. Code dans `packages/core/src/gamekit/blender.ts` (`r
 - **Plugin Figma ajouté automatiquement** : `npm run install-figma-plugin` (et `npm run setup`) l'inscrit dans
   `%APPDATA%\Figma\settings.json` (`localFileExtensions`, même format que l'import manuel, lu dans le code de Figma
   bureau 126.10). Figma doit être fermé, sinon il réécrit le fichier : la commande le détecte et demande de le fermer.
+- **Lancement automatique du plugin Figma (Windows)** : Figma ne démarre jamais un plugin tout seul. Le plugin laisse
+  un bouton de relance dans le fichier (`setRelaunchData`) ; le serveur qui tient le port lance un petit script
+  PowerShell qui, tant que le pont n'est pas connecté, trouve ce bouton dans l'arbre d'accessibilité de Figma (UI
+  Automation) et le clique. Testé à froid : connecté 33 s après le lancement de Figma. Le clavier a été essayé
+  d'abord et échoue en AZERTY (`Ctrl+/`, `Ctrl+Alt+P`). Coupure : `ROBLOX_MCP_FIGMA_AUTOSTART=0`.
 - **`build_ui`** : nouveau champ `textAlign` (left/right).
 - **Setup** : configure aussi Qoder (`~/.qoder/settings.json`, vérifié dans le code de l'appli), Gemini CLI,
   Antigravity (`~/.gemini/config/mcp_config.json`), VS Code (`servers`), Cline, Roo Code, Kiro, LM Studio, Codex (TOML).

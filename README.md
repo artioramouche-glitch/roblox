@@ -268,9 +268,11 @@ La référence complète (réglages, tags, attributs) est dans **[docs/GAMEKIT.m
 1. Une fois : **ferme Figma**, puis `npm run install-figma-plugin` (fait aussi par `npm run setup`) : le plugin est
    ajouté à Figma bureau, rien à importer. À la main sinon : *Plugins → Development → Import plugin from manifest…* →
    `figma-plugin/manifest.json`.
-2. Dans ton fichier Figma : *Plugins → Development → **Roblox MCP Bridge*** (laisse sa petite fenêtre ouverte).
-   Les fois suivantes : bouton **Roblox MCP Bridge** dans le panneau de droite du fichier (rien de sélectionné), ou
-   **Ctrl + Alt + P** (dernier plugin). Figma ne laisse aucun plugin démarrer tout seul.
+2. **Une fois par fichier** : *Plugins → Development → **Roblox MCP Bridge*** (laisse sa petite fenêtre ouverte).
+   Ensuite, sous Windows, **il se relance tout seul** dès que tu ouvres ce fichier (~30 s après le démarrage de
+   Figma) : le serveur clique son bouton de relance par l'accessibilité de Windows, sans clavier ni souris.
+   `ROBLOX_MCP_FIGMA_AUTOSTART=0` coupe ce comportement. Ailleurs : bouton **Roblox MCP Bridge** dans le panneau de
+   droite du fichier (rien de sélectionné). Figma lui-même ne laisse aucun plugin démarrer tout seul.
 3. L'IA cherche un style (`design_refs { query: "simulator shop" }`), dessine l'écran (`figma { action: "draw", spec }`),
    tu l'ajustes dans Figma, tu sélectionnes le cadre, et `figma { action: "import" }` le construit dans Studio.
 

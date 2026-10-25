@@ -316,7 +316,7 @@ export async function runSetup(argv: string[] = process.argv): Promise<void> {
   // Figma's own MCP server refuses most apps (OpenCode, Qoder...): the plugin works in all of them.
   out.push('', '4. Figma (interfaces de jeu, facultatif)');
   out.push(...installFigmaPlugin());
-  out.push('  • Dans un fichier Figma : Plugins > Development > "Roblox MCP Bridge" (ensuite Ctrl+Alt+P relance le dernier plugin).');
+  out.push('  • Une fois par fichier Figma : Plugins > Development > "Roblox MCP Bridge". Ensuite (Windows) il se relance tout seul à l\'ouverture du fichier.');
   out.push('  • En plus, pour Claude Code (MCP officiel de Figma) : claude mcp add --transport http figma https://mcp.figma.com/mcp');
 
   out.push('', 'C\'est prêt. Demandez à votre IA : "Appelle roblox_start_here puis crée-moi un obby."', '');
