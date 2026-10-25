@@ -25,6 +25,7 @@ export interface UiNode {
   cell?: number[];
   align?: 'start' | 'center' | 'end';
   font?: string;
+  textAlign?: 'left' | 'center' | 'right';
   maxTextSize?: number;
   image?: string;
   visible?: boolean;
@@ -124,6 +125,7 @@ function build(node: UiNode, inLayout: boolean): InstanceNode {
     props.Font = node.font ?? 'FredokaOne';
     props.TextColor3 = color(node.textColor ?? (type === 'button' && !node.color ? THEME.buttonText : THEME.text));
     props.TextWrapped = true;
+    if (node.textAlign === 'left' || node.textAlign === 'right') props.TextXAlignment = node.textAlign === 'left' ? 'Left' : 'Right';
     children.push({ name: 'TextLimit', className: 'UITextSizeConstraint', props: { MaxTextSize: node.maxTextSize ?? (type === 'button' ? 28 : 32), MinTextSize: 8 } });
     if (type === 'textbox') {
       props.PlaceholderText = node.placeholder ?? '';

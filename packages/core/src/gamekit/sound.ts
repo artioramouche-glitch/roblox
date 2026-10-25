@@ -120,7 +120,7 @@ export async function generateMirelo(
 }
 
 /** Luau: resolves a path (service first, then children); nil when a segment is missing. */
-const FIND_PATH = `
+export const FIND_PATH = `
 local function findPath(segs)
 	local node = game
 	for _, seg in segs do

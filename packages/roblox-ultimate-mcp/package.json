@@ -11,6 +11,7 @@
     "dist/**/*",
     "studio-plugin/*.rbxmx",
     "blender/**/*",
+    "figma-plugin/*",
     "README.md",
     "LICENSE"
   ],

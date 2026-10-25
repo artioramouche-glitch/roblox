@@ -171,6 +171,30 @@ Gemini) en plus de `query`. Code dans `packages/core/src/gamekit/blender.ts` (`r
 - **À tester en vrai** : une génération Mirelo avec une clé, le mode plugin avec le vrai plugin Mirelo (vérifier que
   le son arrive bien dans SoundService), une carte avec montagne + lac + rivière + route.
 
+## ✅ Figma, références visuelles, VFX, toutes les IA (2026-10-25)
+
+- **`design_refs`** (`gamekit/refs.ts`) : cherche dans la bibliothèque d'images « roblox-ai » (dépôt GitHub de
+  ~6 000 images : styles d'UI, VFX, animations, miniatures par genre, docs Studio). Trouvée dans
+  Téléchargements/roblox-ai-main ou via `ROBLOX_REFS_DIR`. Renvoie les chemins ; `show: true` joint les 3 premières images.
+- **`figma`** (`gamekit/figma.ts` + dossier `figma-plugin/`) : pont avec un plugin Figma de développement
+  « Roblox MCP Bridge » qui interroge le serveur sur localhost (comme le plugin Studio). `draw` dessine une spec
+  build_ui dans Figma, `read`/`import` transforme le cadre sélectionné en spec build_ui (positions en fractions d'écran,
+  boutons, textes liés `{stat:Coins}`, actions dans les noms `[toggle:X]`, images exportées en PNG). Marche dans
+  toutes les applis et en plan Figma gratuit. Le MCP officiel de Figma refuse OpenCode/Qoder (liste blanche) et limite
+  la lecture en gratuit : c'est pour ça qu'on passe par un plugin.
+- **`make_vfx`** (`gamekit/vfx.ts`) + **`Util.vfx(name, cible, secondes)`** : 11 effets prêts (textures livrées avec
+  Roblox, aucun upload), modèles dans `ReplicatedStorage/GameKit/Effects`. Mode `plugin` + `collect` pour les effets
+  faits avec le plugin gratuit **VFX Studio** (attributs `EmitCount`/`EmitDelay`).
+- **`build_ui`** : nouveau champ `textAlign` (left/right).
+- **Setup** : configure aussi Qoder (`~/.qoder/settings.json`, vérifié dans le code de l'appli), Gemini CLI,
+  Antigravity (`~/.gemini/config/mcp_config.json`), VS Code (`servers`), Cline, Roo Code, Kiro, LM Studio, Codex (TOML).
+- Guides `roblox_guide figma` et `vfx`, instructions serveur et `design` mis à jour.
+- Vérification : typecheck OK, build OK, 111 tests serveur, 111 tests Game Kit (12 nouveaux), 3 tests setup ; test de
+  bout en bout (serveur réel + faux plugin Figma en HTTP) OK.
+- **À tester en vrai** : importer `figma-plugin/manifest.json` dans Figma bureau, `figma draw` puis `figma import` ;
+  `make_vfx` de chaque effet dans Studio (le rendu des textures `explosion01_*` et `forcefield_*`) ; un effet fait avec
+  VFX Studio puis `collect`.
+
 ## ⚠️ À tester par toi dans le vrai Studio et le vrai Blender
 
 Ces points ne peuvent pas être vérifiés ici :

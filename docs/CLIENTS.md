@@ -2,8 +2,9 @@
 
 Le serveur utilise le transport **stdio** : tout client MCP capable de lancer une commande locale fonctionne.
 
-**Le plus simple** (une fois le paquet publié sur npm) : `npx roblox-ultimate-mcp setup` configure tout seul Claude
-Desktop, Cursor et Windsurf, et affiche la ligne pour les autres. La commande à donner à un client est alors :
+**Le plus simple** : `npm run setup` (depuis le dossier) ou `npx roblox-ultimate-mcp setup` (une fois publié) configure
+tout seul Claude Desktop, Cursor, Windsurf, OpenCode, Qoder, Gemini CLI, Antigravity, VS Code, Cline, Roo Code, Kiro,
+LM Studio et Codex, et affiche la ligne pour les autres. La commande à donner à un client est alors :
 
 ```
 npx -y roblox-ultimate-mcp@latest          (Windows : "command": "cmd", "args": ["/c", "npx", "-y", "roblox-ultimate-mcp@latest"])
@@ -19,7 +20,8 @@ Variables d'environnement utiles :
 
 | Variable | Effet |
 |---|---|
-| `ROBLOX_MCP_PROFILE` | `starter` (défaut, 38 outils), `builder` (102), `full` (182) |
+| `ROBLOX_MCP_PROFILE` | `starter` (défaut, 46 outils), `builder` (106), `full` (186) |
+| `ROBLOX_REFS_DIR` | Dossier de la bibliothèque d'images « roblox-ai » pour `design_refs` (défaut : cherchée dans Téléchargements) |
 | `ROBLOX_MCP_COMPACT` | `0` : descriptions d'outils complètes (par défaut, version courte pour économiser les tokens) |
 | `ROBLOX_MCP_PRETTY` | `1` : réponses JSON indentées (par défaut compactes) |
 | `ROBLOX_MCP_HISTORY` | `0` : ne pas noter les changements de l'IA dans l'historique de `game_notes` |
@@ -101,6 +103,39 @@ args = ["CHEMIN/packages/roblox-ultimate-mcp/dist/index.js"]
   }
 }
 ```
+
+## Qoder (application et `qodercli`)
+
+`npm run setup` l'écrit dans `~/.qoder/settings.json` (Windows : `C:\Users\<toi>\.qoder\settings.json`), le fichier
+utilisateur lu par l'application Qoder et par `qodercli`. À la main : Qoder → Settings → MCP → My Servers → **+ Add** :
+
+```json
+{ "mcpServers": { "roblox-ultimate": { "command": "node", "args": ["CHEMIN/packages/roblox-ultimate-mcp/dist/index.js"] } } }
+```
+
+## Antigravity
+
+`~/.gemini/config/mcp_config.json` (même bloc `mcpServers`), écrit par `npm run setup`.
+
+## N'importe quel modèle (DeepSeek, Qwen, Kimi, GLM, local…)
+
+Le modèle ne change rien au branchement : c'est l'application (OpenCode, Qoder, Cline…) qui parle au serveur. Conseils
+pour les modèles plus faibles :
+- garde le profil `starter` (46 outils) : moins de choix, moins d'erreurs ;
+- commence chaque conversation par « Appelle roblox_start_here » (certaines applis ne transmettent pas les
+  instructions du serveur au modèle) ;
+- demande-lui de suivre `roblox_guide workflow` et de relancer `test_game` jusqu'à PASS.
+
+## Figma (pour toutes les applis)
+
+Le serveur parle directement au plugin Figma « Roblox MCP Bridge » (dossier `figma-plugin/`) : rien à ajouter dans
+l'appli d'IA. Application Figma (bureau) → *Plugins → Development → Import plugin from manifest…* →
+`figma-plugin/manifest.json`, puis lance le plugin dans ton fichier. Outil : `figma` (`status`, `draw`, `read`, `import`).
+
+Le MCP officiel de Figma (`https://mcp.figma.com/mcp`) n'accepte que certaines applis (Claude Code, Claude Desktop,
+Cursor, VS Code, Codex) : OpenCode et Qoder sont refusés (erreur 403 à la connexion). En plan gratuit, sa lecture est
+limitée à quelques appels par mois. Pour Claude Code :
+`claude mcp add --transport http figma https://mcp.figma.com/mcp`.
 
 ## Édition lecture seule
 

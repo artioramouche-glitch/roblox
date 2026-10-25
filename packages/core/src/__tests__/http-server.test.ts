@@ -44,6 +44,14 @@ describe('HTTP Server', () => {
       await request(app).get('/health').expect(200);
     });
 
+    test('the Figma plugin window (origin null) reaches only its two routes', async () => {
+      const preflight = await request(app).options('/figma/result').set('Origin', 'null').expect(204);
+      expect(preflight.headers['access-control-allow-origin']).toBe('*');
+      await request(app).get('/figma/poll?file=Game').set('Origin', 'null').set('Sec-Fetch-Site', 'cross-site').expect(200);
+      await request(app).post('/figma/command').set('Origin', 'null').send({ action: 'read' }).expect(403);
+      await request(app).get('/figma/status').set('Sec-Fetch-Site', 'cross-site').expect(403);
+    });
+
     test('an unknown poller registers with the role it reports', async () => {
       await request(app).get('/poll?instanceId=srv-1&role=server');
       expect(bridge.getInstances().find((i) => i.instanceId === 'srv-1')?.role).toBe('server');

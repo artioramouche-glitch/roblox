@@ -6,8 +6,8 @@
 ## 1. Install for the user (once)
 
 Fastest (once the package is published on npm): `npx roblox-ultimate-mcp setup` installs the Studio plugin and
-registers the server in Claude Desktop / Cursor / Windsurf / OpenCode (`--blender` also installs the Blender addon). It prints
-the line for other clients. Otherwise, from the repository:
+registers the server in Claude Desktop, Cursor, Windsurf, OpenCode, Qoder, Gemini CLI, Antigravity, VS Code, Cline,
+Roo Code, Kiro, LM Studio and Codex (`--blender` also installs the Blender addon). It prints the line for other clients. Otherwise, from the repository:
 
 ```bash
 git clone https://github.com/artioramouche-glitch/roblox.git
@@ -93,6 +93,19 @@ adds an Animator. Then `blender_animation { rig: "<model path>", action: "Walk",
 Blender action: KeyframeSequence in `ServerStorage/GameKit/Animations`, temporary id to test in Studio, animated FBX
 as a fallback (Animation Editor > Import > From FBX Animation).
 
+## 2b'. Design: references, Figma UI, effects
+
+- Before any visual design: `design_refs { query }` searches the local "roblox-ai" picture library (UI styles, VFX,
+  thumbnails by genre; `ROBLOX_REFS_DIR` if it is not in Downloads). `show: true` attaches the first pictures.
+- UI screens: `figma { action: "draw", spec }` (a build_ui spec) puts a mockup in Figma, the human adjusts it, then
+  `figma { action: "import" }` builds the selected frame in StarterGui. Needs the "Roblox MCP Bridge" development
+  plugin running in the Figma desktop app (import `figma-plugin/manifest.json` once). Works from any MCP client and on
+  the free Figma plan. Read `roblox_guide figma`.
+- Effects: `make_vfx { preset }` (hit_spark, sparkle, explosion, fire, smoke_puff, heal_aura, level_up, magic, portal,
+  dust, celebration) saves a template in `ReplicatedStorage/GameKit/Effects`; scripts play it with
+  `Util.vfx("Name", part)`. Polished effects: `make_vfx { action: "plugin" }` (free VFX Studio plugin), then
+  `{ action: "collect", name }`. Read `roblox_guide vfx`.
+
 ## 2c. Several AIs on one game
 
 Read `roblox_guide team`. Lead: `team { action: "plan", goal }`. Everyone: pick a unique `agent` name, then
@@ -110,7 +123,7 @@ Read `roblox_guide team`. Lead: `team { action: "plan", goal }`. Everyone: pick 
 
 ## 4. Tool profiles and the 140+ Studio tools
 
-Default profile `starter` lists 38 of the 182 tools (`builder` 102). Everything else is still callable:
+Default profile `starter` lists 46 of the 186 tools (`builder` 106). Everything else is still callable:
 `find_tools { query }` then `call_tool { name, arguments }`, or `set_tool_profile { profile: "builder" | "full" }`.
 Useful families: terrain_*, lighting_*, animation_*, particle_*, sound_*, material_*, insert_asset / search_assets
 (needs an Open Cloud key), capture_screenshot, simulate_*_input, character_navigation, eval_server_runtime /
@@ -119,7 +132,7 @@ breakpoints, export_rbxm / import_rbxm, source_pull / source_push, get_roblox_do
 
 ## 5. Guides available through the server
 
-`roblox_guide` topics: workflow, coding, design, reference, luau, client-server, data, ui, building, testing, errors, blender, team,
+`roblox_guide` topics: workflow, coding, design, figma, vfx, reference, luau, client-server, data, ui, building, testing, errors, blender, team,
 localization, publishing, performance, gamekit-api, catalog, and every system/template id. Also exposed as MCP
 resources `gamekit://...` and prompts `make_game`, `fix_my_game`, `add_feature`, `polish_game`, `team_build`,
 `blender_prop`, `copy_image`.

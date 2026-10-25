@@ -39,6 +39,14 @@ if (existsSync(addon)) {
   console.log('Copied the Blender addon to blender/addon.py');
 }
 
+const figma = join(rootDir, 'figma-plugin');
+if (existsSync(figma) && !packageDir.includes('inspector')) {
+  if (!existsSync(join(packageDir, 'figma-plugin'))) copied.push('figma-plugin');
+  mkdirSync(join(packageDir, 'figma-plugin'), { recursive: true });
+  for (const file of readdirSync(figma)) copyFileSync(join(figma, file), join(packageDir, 'figma-plugin', file));
+  console.log('Copied the Figma plugin to figma-plugin/');
+}
+
 for (const file of ['README.md', 'LICENSE']) {
   const source = join(rootDir, file);
   if (existsSync(source) && !existsSync(join(packageDir, file))) {

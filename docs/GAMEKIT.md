@@ -6,7 +6,7 @@
 ## GameKit tools
 
 - **roblox_start_here** — START HERE: checks the Studio connection, shows what the game contains and the step-by-step plan.
-- **roblox_guide** — Short guides. Topics: workflow, design, reference, luau, client-server, data, ui, building, testing, errors, coding, blender, map, sound, team, localization, publishing, performance, gamekit-api, catalog, or a system/template id. Read "workflow" first, "errors" when stuck.
+- **roblox_guide** — Short guides. Topics: workflow, design, figma, vfx, reference, luau, client-server, data, ui, building, testing, errors, coding, blender, map, sound, team, localization, publishing, performance, gamekit-api, catalog, or a system/template id. Read "workflow" first, "errors" when stuck.
 - **gamekit_catalog** — Everything installable without code: templates, systems, world pieces, lighting presets, code recipes.
 - **create_game** — Build a COMPLETE playable game in one call (scripts, config, world, UI, lighting; backs up the old place). Then test_game.
 - **add_system** — Install a tested game system (+ what it needs). Its settings: roblox_guide <system>.
@@ -38,6 +38,9 @@
 - **blender_assets** — Ready-made 3D content into Blender: search/download (polyhaven, sketchfab, polypizza) or AI generation from text and/or reference images (hyper3d, hunyuan3d: generate, poll, import). Enable sources in the addon panel.
 - **blender_command** — Advanced: raw command to the Blender addon ({type, params}).
 - **make_sound** — Custom sound effects (Mirelo AI) from a text prompt. "generate" (MIRELO_API_KEY): prompt -> audio -> uploaded to Roblox (Open Cloud key) -> Sound on a part or in SoundService. "plugin" (no key, free Mirelo Studio plugin): selects the objects the plugin reads and gives the steps; then "collect" moves the new Sounds where they belong. Uploads go to the user's Roblox account: ask first. See roblox_guide sound.
+- **design_refs** — Find reference pictures BEFORE designing UI, VFX, thumbnails, logos, animations or a game look: searches the local roblox-ai library (UI styles, VFX, game thumbnails by genre...). Returns image paths for Figma, Gemini prompts, look_at_game {reference} or blender_assets {images}. No query = what the library holds.
+- **figma** — Design game UI in Figma (any AI, free plan, through the "Roblox MCP Bridge" Figma plugin). "draw" { spec }: puts a build_ui spec in Figma as a mockup the user can adjust. "read": the selected Figma frame as a build_ui spec. "import": read + build it in Studio in one call. "status": is the plugin running. See roblox_guide figma.
+- **make_vfx** — Visual effects saved as templates (ReplicatedStorage/GameKit/Effects/<name>), played in scripts with Util.vfx("<name>", part). "preset" (default): hit_spark, sparkle, explosion, fire, smoke_puff, heal_aura, level_up, magic, portal, dust, celebration. "plugin": steps for the free VFX Studio plugin (polished effects), then "collect" saves the effect the user selected. "list": saved effects. See roblox_guide vfx.
 - **balance_economy** — Simulate player progression and check prices (first purchase, walls, total time) with suggested prices. fromGame reads the installed economy; or pass items and income.
 - **publish_checklist** — Before publishing: verifies what Studio can check and lists the manual steps (icon, description, questionnaire, visibility).
 
@@ -1666,7 +1669,9 @@ build_world survival_camp makes a camp + forest of resources + enemy spawners. C
 4. **Customise without code**:
    - numbers & texts: add_system { system, config } or edit ReplicatedStorage.GameKit.Config.<X>
    - level design: build_world (whole courses/maps or single pieces like jump_pad, coin, spinner)
-   - screens: build_ui (JSON -> real UI, live stat text, buttons that open windows)
+   - screens: build_ui (JSON -> real UI, live stat text, buttons that open windows), designed in Figma (guide "figma")
+   - references before any design: design_refs { query } (UI styles, VFX, thumbnails by genre)
+   - effects on hits, pickups, level ups: make_vfx (guide "vfx")
    - mood: set_environment (lighting preset + terrain)
    - scenery: populate_world { theme: "forest" | "desert" | "snow" | "beach" | "fantasy" | "city" | "farm" | "spooky" | "garden" }
    - retention: add_system inventory | levels | quests | pets (eggs) | codes | social -- quests teach the game
@@ -1722,15 +1727,63 @@ Action -> reward -> upgrade -> bigger action. Examples:
 - The first 2 minutes must be easy. Difficulty ramps slowly (obby_course does this).
 #### Mobile first (60%+ of players)
 - Big buttons, no tiny text; GameKit UI is responsive. Test in Studio's device emulator.
-#### Visual design: prompts first, then build from the images
+#### Visual design: references and prompts first, then build from the images
 The user already gave a picture? It is the target: follow guide "reference".
-Plain parts look cheap. For anything visual (UI screen, map, backdrop/sky, building, prop, egg, character, icon, thumbnail),
+Start from real references: design_refs { query: "<genre> <thing>" } (UI styles, VFX, thumbnails by genre) and pick 1-3 with the user.
+- UI screens (HUD, shop, menus): design them in Figma (guide "figma"): figma draw -> the user adjusts -> figma import.
+- Effects (hits, pickups, level up, portals): make_vfx (guide "vfx"), VFX Studio for polished ones.
+Plain parts look cheap. For anything else visual (map, backdrop/sky, building, prop, egg, character, icon, thumbnail),
 BEFORE building, give the user two ready-to-paste prompts:
 - Claude Design (claude.ai/design): a board or mockup -- views or screen states, colors, sizes, Roblox limits (touch targets, low-poly).
 - Gemini: the reference image -- a 4-view sheet (front, side, back, 3/4) on a plain white background for a 3D object,
   a seamless 2:1 panorama with the horizon in the middle for a sky, an aerial or eye-level view for a map.
 Say where to save the images, then build from them: blender_assets generate (image to 3D) or Blender modelling,
 then blender_to_roblox; skybox faces from the panorama. Ask before every generation or upload.
+
+### Game UI designed in Figma (any AI, free Figma plan) (`figma`)
+
+#### Setup (once)
+Figma DESKTOP app > open a design file > Plugins > Development > Import plugin from manifest... >
+<MCP folder>/figma-plugin/manifest.json. Then Plugins > Development > "Roblox MCP Bridge" (keep its small window open).
+figma { action: "status" } must say connected: true. No Figma key, no Figma MCP server needed.
+#### Design a screen
+1. design_refs { query: "<game style> hud" } and agree on a style with the user.
+2. Write the screen as a build_ui spec (guide "ui"), then figma { action: "draw", spec } (phone: canvas: [844, 390]).
+3. The user adjusts it in Figma: colors, sizes, texts, icons, pictures. They can also design from scratch.
+4. They select the frame -> figma { action: "import" } builds it in StarterGui. Then test_game { device: "phone" }.
+   figma { action: "read" } returns the spec without building (to add bind/action first).
+#### How layers become Roblox UI
+- The selected frame is the whole screen (>= 800x450: positions in screen fractions) or one panel (smaller: centered).
+- Frames/rectangles -> Frame (fill, opacity, corner radius, stroke, linear gradient). Ellipses -> round frames.
+- Texts -> TextLabel (color, max size, closest Roblox font: Gotham, BuilderSans, FredokaOne, LuckiestGuy, Bangers, Roboto...).
+- A layer named "... Button" (or with an action) -> TextButton; its one text layer becomes the button text.
+- Pictures, icons and vectors -> ImageLabel + a PNG file. Ask the user, then in Studio: select it > Properties > Image > Add Image...
+- Auto layout -> UIListLayout (gap, padding). Hidden layers start hidden (windows opened by buttons).
+- Behaviour in layer names: "Shop [toggle:ShopWindow]", [open:X], [close:X], [remote:EventName], [showIf:state:RoundActive],
+  [bar:stat:XP/stat:XPNextLevel]. Live text: write "💰 {stat:Coins}" in the text layer.
+#### The official Figma MCP
+Claude Code, Claude Desktop, Cursor, VS Code and Codex can also add Figma's own server (https://mcp.figma.com/mcp):
+it can create designs in Figma. Figma refuses other apps (OpenCode, Qoder...), and on the free plan its read tools
+are limited to a few calls a month: the plugin above works everywhere, without limit.
+
+### Visual effects (make_vfx, VFX Studio, Util.vfx) (`vfx`)
+
+Every hit, pickup, purchase, level up and teleport deserves an effect (and a sound: make_sound).
+#### 1. Ready-made, no upload: make_vfx { preset, name, color }
+Presets: hit_spark (Short bright sparks on a hit (combat, breaking blocks)); sparkle (Pickup / reward twinkle (coins, gems, items)); explosion (Fireball blast with smoke and flying sparks); fire (Looping flames (torches, campfires, burning objects)); smoke_puff (Soft puff of smoke (landing, poof, disappearing)); heal_aura (Looping rising green sparkles around a player or a zone); level_up (Big golden burst with a glow (level up, rebirth, unlock)); magic (Looping swirling magic (spell charge, enchanted item, magic circle)); portal (Looping vortex for teleporters and portals); dust (Dust kicked up by a dash, a landing or a stomp); celebration (Colorful burst for wins, purchases and rewards).
+Looping ones can run on a part straight away: make_vfx { preset: "fire", name: "TorchFire", parent: "Workspace/GameKit/Torch" }.
+#### 2. Polished custom effect: VFX Studio (free Studio plugin: texture and mesh library, emitter tools)
+design_refs { query: "fireball" } -> show the references -> make_vfx { action: "plugin", parent: "<part>" } -> the user
+builds and inserts the effect, then selects it -> make_vfx { action: "collect", name: "Fireball" }.
+#### 3. Play it from any script
+```lua
+local Util = require(game:GetService("ReplicatedStorage").GameKit.Util)
+Util.vfx("SwordHit", hitPart)        -- a part, a model, an attachment or a Vector3
+Util.vfx("Shield", character, 5)     -- a looping effect for 5 seconds
+```
+Personal feedback (UI click, own pickup): call it in a LocalScript. Everyone must see it: call it on the server.
+Burst emitters use the attributes EmitCount (particles) and EmitDelay (seconds): tune them in the Properties panel.
+Fine tuning: find_tools "particle" (particle_tune). Hits under 1 s; few looping effects on phones (optimize_game checks).
 
 ### Copy a picture (concept art, a game screenshot) into Roblox: everything in Blender first (`reference`)
 
@@ -1938,6 +1991,7 @@ Example:
 }
 ```
 Tips: keep buttons >= 48 px tall (mobile), use at most 2-3 colors, put important info top-center.
+textAlign: "left" | "right" for labels. Designing a real screen? Draw this spec in Figma and import it back (guide "figma").
 
 ### Building worlds (build_world) and Roblox space (`building`)
 

@@ -30,6 +30,9 @@ import { handleRecipe, RECIPE_TOOLS } from './recipes.js';
 import { activityContext, activityLabel } from './activity.js';
 import { checkAssets, optimizeGame, QUALITY_TOOLS } from './quality.js';
 import { formatNotes, handleNotes, NOTES_TOOLS, readNotes, recordHistory } from './notes.js';
+import { designRefs, REFS_TOOLS } from './refs.js';
+import { FIGMA_TOOLS, FigmaTools } from './figma.js';
+import { handleVfx, VFX_TOOLS } from './vfx.js';
 
 export interface GameKitHost extends PlaytestBridge {
   /** True when the Studio plugin polled recently. */
@@ -203,6 +206,9 @@ export const GAMEKIT_TOOLS: ToolDef[] = [
   ...JOB_TOOLS,
   ...BLENDER_TOOLS,
   ...SOUND_TOOLS,
+  ...REFS_TOOLS,
+  ...FIGMA_TOOLS,
+  ...VFX_TOOLS,
   ...ECONOMY_TOOLS,
   ...PUBLISH_TOOLS,
 ];
@@ -260,11 +266,13 @@ export class GameKit {
   readonly jobs = new JobRegistry();
   readonly blender: BlenderTools;
   readonly sound: SoundTools;
+  readonly figma: FigmaTools;
   private tests: TestRecord[] = [];
 
   constructor(private host: GameKitHost, options: GameKitOptions = {}) {
     this.blender = new BlenderTools(host, undefined, { onConnected: options.onBlenderConnected });
     this.sound = new SoundTools(host);
+    this.figma = new FigmaTools((spec) => this.buildUi({ spec }));
   }
 
   private requireStudio() {
@@ -296,7 +304,11 @@ export class GameKit {
       blender_to_roblox: () => `blender_to_roblox ${args.name}`,
       build_ui: () => `build_ui ${args.spec?.name ?? ''}`,
       make_sound: () => `make_sound ${args.action ?? 'generate'} "${String(args.prompt ?? args.name ?? '').slice(0, 60)}"`,
+      make_vfx: () => `make_vfx ${args.action ?? 'preset'} ${args.preset ?? ''} ${args.name ?? ''}`.trim(),
+      figma: () => `figma ${args.action} ${args.spec?.name ?? args.name ?? ''}`.trim(),
     };
+    if (name === 'figma' && args.action !== 'import') return;
+    if (name === 'make_vfx' && args.action === 'list') return;
     if (!describe[name] || args.preview || (name === 'code_recipe' && !args.recipe)) return;
     if (!this.host.isStudioConnected()) return;
     let body: any;
@@ -347,6 +359,9 @@ export class GameKit {
         if (args.fromGame) this.requireStudio();
         return handleEconomy(this.host, args);
       case 'make_sound': return this.sound.call(args);
+      case 'design_refs': return designRefs(args);
+      case 'figma': return this.figma.call(args);
+      case 'make_vfx': return handleVfx(this.host, args);
       case 'publish_checklist': this.requireStudio(); return publishChecklist(this.host, this.tests);
       default:
         if (BLENDER_NAMES.has(name)) return this.blender.call(name, args);
@@ -372,6 +387,7 @@ export class GameKit {
       'Customise with add_system {config}, build_world, build_ui, set_environment (no code).',
       'Code: code_recipe first, then write_script / edit_script (they check the Luau). Read roblox_guide coding.',
       'Look at it with look_at_game, decorate with populate_world (themes), save with backup_game before big changes.',
+      'Design: design_refs { query } for references; UI screens in Figma (figma draw, then import); effects with make_vfx.',
       'Finish with check_game and polish (roblox_guide design). Before publishing: test_game {players: 2}, test_game {device: "phone"}, check_assets, optimize_game, publish_checklist.',
       'A picture to copy: roblox_guide reference (whole scene in Blender, compare there, export, gameplay in Roblox).',
       'Statues, characters, eggs, portals, trees: Blender (blender_status, then blender_to_roblox; rigged characters: then blender_animation), never stacked parts. Several AIs at once: team {action: "plan"}, then each one claims tasks and zones.',

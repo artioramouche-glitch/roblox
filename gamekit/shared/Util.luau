@@ -2,7 +2,9 @@
 -- Small helpers shared by every GameKit system, on both server and client.
 
 local CollectionService = game:GetService("CollectionService")
+local Debris = game:GetService("Debris")
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 
 local Util = {}
 
@@ -174,6 +176,76 @@ end
 -- Where GameKit publishes shared state (Status text, timers, round state) as attributes.
 function Util.state(): Instance
 	return script.Parent :: Instance
+end
+
+-- Plays an effect saved in ReplicatedStorage.GameKit.Effects (make_vfx) on a part, a model,
+-- an attachment or a position. Burst emitters (EmitCount attribute) emit once, after their
+-- EmitDelay; looping ones run for `seconds` (default 2). Cleans itself up.
+function Util.vfx(name: string, target: any, seconds: number?): Instance?
+	local folder = (script.Parent :: Instance):FindFirstChild("Effects")
+	local template = folder and folder:FindFirstChild(name)
+	if not template then
+		warn(`[GameKit] Effect '{name}' not found in ReplicatedStorage.GameKit.Effects (make_vfx)`)
+		return nil
+	end
+	if typeof(target) == "Instance" and target:IsA("Attachment") then
+		target = target.WorldPosition
+	elseif typeof(target) == "Instance" and target:IsA("Model") then
+		target = target.PrimaryPart or target:GetPivot().Position
+	end
+	local holder = target
+	if typeof(target) == "Vector3" then
+		local anchor = Instance.new("Part")
+		anchor.Name = name .. "VFX"
+		anchor.Anchored = true
+		anchor.CanCollide = false
+		anchor.CanQuery = false
+		anchor.CanTouch = false
+		anchor.Transparency = 1
+		anchor.Size = Vector3.one
+		anchor.Position = target
+		anchor.Parent = workspace
+		holder = anchor
+	end
+	if typeof(holder) ~= "Instance" or not holder:IsA("BasePart") then
+		warn(`[GameKit] Util.vfx needs a part, a model, an attachment or a Vector3 for '{name}'`)
+		return nil
+	end
+	local effect = template:Clone()
+	if effect:IsA("BasePart") or effect:IsA("Model") then
+		effect:PivotTo(holder.CFrame)
+		effect.Parent = workspace
+	else
+		effect.Parent = holder
+	end
+	local life = seconds or 2
+	-- shortcut: on the server, bursts wait 0.1 s so clients have the effect before it emits;
+	-- a laggy client can still miss it (play personal feedback from a LocalScript instead).
+	local lead = if RunService:IsServer() then 0.1 else 0
+	local all = effect:GetDescendants()
+	table.insert(all, effect)
+	for _, d in all do
+		if d:IsA("ParticleEmitter") then
+			local count = d:GetAttribute("EmitCount")
+			if count then
+				d.Enabled = false
+				task.delay((d:GetAttribute("EmitDelay") or 0) + lead, function()
+					d:Emit(count)
+				end)
+			else
+				d.Enabled = true
+				task.delay(seconds or 2, function()
+					d.Enabled = false
+				end)
+			end
+			life = math.max(life, (seconds or 0) + d.Lifetime.Max + (d:GetAttribute("EmitDelay") or 0))
+		end
+	end
+	Debris:AddItem(effect, life + 0.5)
+	if holder ~= target then
+		Debris:AddItem(holder, life + 0.5)
+	end
+	return effect
 end
 
 return Util

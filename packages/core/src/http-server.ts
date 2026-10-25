@@ -15,6 +15,7 @@ import { RobloxOfficialMCPClient } from './roblox-mcp-client.js';
 import { GAMEKIT_TOOLS } from './gamekit/tools.js';
 import { SERVER_INSTRUCTIONS, handleMetaTool, listingView, metaToolDefinitions, registerPromptsAndResources, toolVisible } from './gamekit/mcp-extras.js';
 import { getProfile } from './gamekit/profiles.js';
+import { mountFigmaPluginRoutes, mountFigmaToolRoutes } from './gamekit/figma.js';
 
 interface StreamableHttpConfig {
   name: string;
@@ -245,6 +246,10 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
     return bridge.getInstances().length > 0;
   };
 
+  // The Figma plugin window is a cross-origin page: its two routes come before the check below.
+  app.use(['/figma/poll', '/figma/result'], express.json({ limit: '50mb' }));
+  mountFigmaPluginRoutes(app);
+
   // No CORS: only Studio and local MCP processes talk to this port. A web page open in the
   // user's browser must not be able to run Luau in Studio, so browser cross-site calls are refused.
   app.use((req, res, next) => {
@@ -259,7 +264,7 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
   });
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ limit: '50mb', extended: true }));
-
+  mountFigmaToolRoutes(app);
 
   app.get('/health', (req, res) => {
     const instances = bridge.getInstances();

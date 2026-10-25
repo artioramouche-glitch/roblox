@@ -56,6 +56,9 @@ déjà testées** au lieu d'écrire 2000 lignes de Luau fragile.
 | 💾 | **`backup_game`** | Instantanés restaurables en un appel (monde, scripts, UI, éclairage, terrain) |
 | 📈 | **`balance_economy`** · **`publish_checklist`** | Simulation de progression (prix trop bas, murs de 20 min…) avec prix suggérés ; checklist de publication vérifiée |
 | 🖼️ | **`build_ui`** — UI en JSON | Écrans responsive + comportements **sans code** (`bind: "stat:Coins"`, `action: "toggle:Boutique"`) |
+| 🎨 | **`figma`** — UI dessinée dans Figma | L'IA dessine l'écran dans Figma, tu l'ajustes, elle l'importe dans Studio. **Toutes les IA** (OpenCode, Qoder…), **plan Figma gratuit**, via le plugin « Roblox MCP Bridge » |
+| 🖌️ | **`design_refs`** — références visuelles | Cherche dans la bibliothèque « roblox-ai » (~6 000 images : styles d'UI, VFX, miniatures par genre) **avant** de dessiner |
+| ✨ | **`make_vfx`** — effets visuels | 11 effets prêts (étincelles, explosion, feu, aura, level up, portail…), effets de **VFX Studio** récupérés, joués en une ligne : `Util.vfx("Nom", part)` |
 | 🌅 | **`set_environment`** | 10 ambiances (jour, coucher de soleil, nuit, horreur, néon…) + terrain (collines, île, eau) |
 | 🛡️ | **`write_script`** / **`check_luau`** | Le vrai compilateur Luau (WASM) + linter : refuse le code cassé **avant** Studio, explique la correction |
 | 🔍 | **`check_game`** | Audit complet : syntaxe de tous les scripts, scripts mal placés (qui ne tournent jamais), spawn manquant, pièces non ancrées… |
@@ -68,7 +71,7 @@ déjà testées** au lieu d'écrire 2000 lignes de Luau fragile.
 | 🧠 | Guides, prompts, instructions | La méthode est injectée automatiquement dans l'IA ; `roblox_guide` explique Luau, client/serveur, game design, erreurs… |
 | 🧑‍💻 | **Aide au code** | Correction auto des réflexes JavaScript/Python, détection des API Roblox inventées (avec la bonne suggestion), `edit_script` vérifié, 12 recettes de code prêtes à l'emploi |
 | 🪙 | **Économe en tokens** | Liste d'outils allégée (−36 %), réponses JSON compactes, lecture de scripts ciblée, captures réduites |
-| 🎚️ | Profils d'outils | 38 outils par défaut (au lieu de 182) pour ne pas perdre une petite IA ; tout reste accessible via `find_tools`/`call_tool` |
+| 🎚️ | Profils d'outils | 46 outils par défaut (au lieu de 186) pour ne pas perdre une petite IA ; tout reste accessible via `find_tools`/`call_tool` |
 
 ---
 
@@ -79,12 +82,15 @@ Il faut [Node.js](https://nodejs.org) 18 ou plus.
 ### ⚡ En une commande (sans cloner le dépôt)
 
 ```bash
-npx roblox-ultimate-mcp setup             # plugin Studio + Claude Desktop / Cursor / Windsurf / OpenCode configurés
+npx roblox-ultimate-mcp setup             # plugin Studio + toutes tes applis d'IA configurées (liste ci-dessous)
 npx roblox-ultimate-mcp setup --blender   # ... et l'addon Blender
 ```
 
 La commande installe le plugin Studio, ajoute le serveur dans les applis d'IA trouvées sur l'ordinateur (sans toucher
 aux autres serveurs, avec une copie `.bak`), et affiche la ligne à coller pour Claude Code ou une autre appli.
+Applis configurées automatiquement : Claude Desktop, Cursor, Windsurf, OpenCode, **Qoder**, Gemini CLI, Antigravity,
+VS Code (Copilot), Cline, Roo Code, Kiro, LM Studio et Codex. N'importe quel modèle marche derrière (DeepSeek, Qwen,
+Kimi, GLM, modèles locaux…) : la méthode, les modèles de jeu et les vérifications sont dans le serveur, pas dans l'IA.
 Il reste à redémarrer Studio et l'appli d'IA, puis à faire l'étape « Autoriser les requêtes HTTP » ci-dessous.
 
 > Cette commande marche dès que le paquet est publié sur npm (workflow `.github/workflows/publish.yml`, voir
@@ -97,7 +103,7 @@ Il reste à redémarrer Studio et l'appli d'IA, puis à faire l'étape « Autori
 2. Dans ce dossier, ouvre un terminal (Windows : clic droit → *Ouvrir dans le terminal*) :
    ```bash
    npm install        # dépendances + compilation (le zip ne contient pas les fichiers compilés)
-   npm run setup      # plugin Studio + Claude Desktop / Cursor / Windsurf / OpenCode configurés vers CE dossier
+   npm run setup      # plugin Studio + toutes tes applis d'IA configurées vers CE dossier
    ```
    `npm run setup -- --blender` installe aussi l'addon Blender.
 3. Redémarre Studio et l'appli d'IA, puis active **Autoriser les requêtes HTTP** (étape 2 ci-dessous).
@@ -257,6 +263,36 @@ La référence complète (réglages, tags, attributs) est dans **[docs/GAMEKIT.m
 `bind` suit une stat en direct, `bar` fait une barre de progression, `showIf` affiche selon l'état,
 `action` ouvre/ferme/déclenche un RemoteEvent. Tailles ≤ 1 = fraction d'écran, > 1 = pixels.
 
+### 🎨 Dessiner l'écran dans Figma (toutes les IA, plan gratuit)
+
+1. Une fois : application **Figma (bureau)** → *Plugins → Development → Import plugin from manifest…* →
+   `figma-plugin/manifest.json` de ce dossier.
+2. Dans ton fichier Figma : *Plugins → Development → **Roblox MCP Bridge*** (laisse sa petite fenêtre ouverte).
+3. L'IA cherche un style (`design_refs { query: "simulator shop" }`), dessine l'écran (`figma { action: "draw", spec }`),
+   tu l'ajustes dans Figma, tu sélectionnes le cadre, et `figma { action: "import" }` le construit dans Studio.
+
+Comportement dans les noms de calques : `Boutique [toggle:FenetreBoutique]`, `[open:X]`, `[close:X]`, `[remote:Achat]`,
+`[showIf:state:RoundActive]`. Texte en direct : écris `💰 {stat:Coins}` dans le calque texte. Calque caché = fenêtre
+fermée au départ. Les images et icônes sont exportées en PNG (tu les ajoutes dans Studio : *Image → Add Image…*).
+
+Pourquoi un plugin plutôt que le MCP officiel de Figma ? Figma refuse les applis qui ne sont pas dans sa liste
+(OpenCode, Qoder…) et limite la lecture à quelques appels par mois en plan gratuit. Le plugin marche partout, sans clé,
+sans limite. Avec Claude Code tu peux en plus ajouter le MCP officiel :
+`claude mcp add --transport http figma https://mcp.figma.com/mcp`.
+
+### ✨ Effets visuels et VFX Studio
+
+`make_vfx { preset: "hit_spark" }` (ou `sparkle`, `explosion`, `fire`, `smoke_puff`, `heal_aura`, `level_up`, `magic`,
+`portal`, `dust`, `celebration`) enregistre l'effet dans `ReplicatedStorage/GameKit/Effects`. Dans un script :
+`Util.vfx("HitSpark", part)`. Pour un effet plus travaillé : `make_vfx { action: "plugin" }` donne les étapes du plugin
+gratuit **VFX Studio**, puis `make_vfx { action: "collect", name }` récupère l'effet que tu as sélectionné.
+
+### 🖌️ Bibliothèque de références (`design_refs`)
+
+Télécharge la bibliothèque « roblox-ai » (zip GitHub) et dézippe-la dans `Téléchargements/roblox-ai-main` (trouvée
+toute seule) ou ailleurs avec `ROBLOX_REFS_DIR=<dossier>` dans la config du serveur. L'IA y cherche des styles d'UI,
+des VFX et des miniatures par genre avant de dessiner (`show: true` lui montre les images).
+
 ---
 
 ## 🧑‍💻 Une IA moyenne en code devient fiable
@@ -376,7 +412,7 @@ Le tableau est stocké **dans le jeu** (`ServerStorage/GameKitTeam`) : il est pa
 **Game Kit (toujours visibles)** : `roblox_start_here`, `roblox_guide`, `gamekit_catalog`, `create_game`, `add_system`,
 `build_world`, `build_ui`, `set_environment`, `game_notes`, `write_script`, `edit_script`, `read_script`, `code_outline`,
 `code_recipe`, `check_luau`, `check_game`, `test_game`, `populate_world`, `look_at_game`, `backup_game`, `team`,
-`start_job`, `job_status`, `blender_status`, `blender_to_roblox`.
+`start_job`, `job_status`, `blender_status`, `blender_to_roblox`, `make_sound`, `design_refs`, `figma`, `make_vfx`.
 
 **En plus dès le profil `builder`** : `check_assets`, `optimize_game`, `balance_economy`, `publish_checklist`,
 `blender_python`, `blender_scene`, `blender_assets`, `blender_animation`, `blender_command` (les outils Blender
@@ -386,9 +422,9 @@ apparaissent aussi dès que Blender est connecté).
 
 | Profil | Outils listés | Contenu |
 |---|---|---|
-| `starter` *(défaut)* | 38 | Game Kit + essentiels (propriétés, objets, `execute_luau`, annuler, capture d'écran, doc Roblox) |
-| `builder` | 102 | + qualité (assets, performances), économie, publication, Blender, scripts bas niveau, tags, attributs, opérations de masse, terrain, éclairage, assets, playtest manuel, logs par pair, runtime eval, navigation du personnage, multi-Studio |
-| `full` | 182 | Tout : animations, sons, particules, matériaux, profileurs, points d'arrêt, simulateur d'appareils/réseau, tests multijoueurs, `.rbxm`, synchro de fichiers, publication… |
+| `starter` *(défaut)* | 46 | Game Kit + essentiels (propriétés, objets, `execute_luau`, annuler, capture d'écran, doc Roblox) |
+| `builder` | 106 | + qualité (assets, performances), économie, publication, Blender, scripts bas niveau, tags, attributs, opérations de masse, terrain, éclairage, assets, playtest manuel, logs par pair, runtime eval, navigation du personnage, multi-Studio |
+| `full` | 186 | Tout : animations, sons, particules, matériaux, profileurs, points d'arrêt, simulateur d'appareils/réseau, tests multijoueurs, `.rbxm`, synchro de fichiers, publication… |
 
 Même en `starter`, **tous** les outils restent utilisables : `find_tools` (recherche + schéma) puis `call_tool`.
 
@@ -404,7 +440,7 @@ Luau ; aucune écriture) — pratique pour faire relire un jeu sans risque.
 ## 🧠 Pourquoi ça marche même avec une petite IA
 
 1. **Moins de code à écrire** : un jeu complet = 1 appel ; une fonctionnalité = 1 système + un peu de config.
-2. **Moins de choix** : 38 outils au lieu de 182, avec des descriptions courtes qui disent *quand* les utiliser.
+2. **Moins de choix** : 46 outils au lieu de 186, avec des descriptions courtes qui disent *quand* les utiliser.
 3. **Instructions automatiques** : la méthode est envoyée à l'IA dès la connexion (champ `instructions` MCP).
 4. **Garde-fous** : `write_script` / `edit_script` corrigent automatiquement les réflexes d'autres langages, compilent
    le Luau (vrai compilateur), vérifient les noms d'API Roblox et bloquent les erreurs de débutant

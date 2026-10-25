@@ -22,7 +22,7 @@
     "dev": "npm run build && tsx packages/roblox-ultimate-mcp/src/index.ts",
     "lint": "eslint packages/*/src/**/*.ts",
     "typecheck": "tsc --noEmit -p packages/core/tsconfig.json",
-    "test": "npm test -w packages/core",
+    "test": "npm test -w packages/core && node --import tsx --test packages/roblox-ultimate-mcp/src/setup.test.ts",
     "gamekit:embed": "node scripts/embed-gamekit.mjs && node scripts/embed-roblox-api.mjs",
     "gamekit:verify": "node scripts/verify-gamekit-luau.mjs",
     "gamekit:docs": "node scripts/gen-gamekit-docs.mjs",
