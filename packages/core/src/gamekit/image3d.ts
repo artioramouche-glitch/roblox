@@ -17,7 +17,10 @@ import type { BlenderClient } from './blender.js';
 import { text, withImages, type ToolResult } from './result.js';
 import { PathFinder } from '../managers/path-finder.js';
 
-export const SKILL_SCRIPTS = ['init_master', 'review_render', 'compose_review', 'world_gate', 'validate', 'bake_maps', 'export_delivery', 'roundtrip'] as const;
+export const SKILL_SCRIPTS = ['make_matte', 'init_master', 'review_render', 'compose_review', 'fit_camera', 'world_gate', 'validate', 'bake_maps', 'export_delivery', 'roundtrip'] as const;
+
+/** Our scripts (LOCAL-CHANGES.md): compose_review.py needs a system Python with Pillow, the others are missing from the skill. */
+const OWN_SCRIPTS: Record<string, string> = { compose_review: 'compose_review_bpy.py', make_matte: 'make_matte_bpy.py', fit_camera: 'fit_camera_bpy.py' };
 
 const GUIDE_FILES: Record<string, string> = {
   skill: 'SKILL.md',
@@ -29,6 +32,8 @@ const GUIDE_FILES: Record<string, string> = {
 
 /** What to do with a script's output, for models that need the next step spelled out. */
 const NEXT: Record<string, string> = {
+  make_matte: 'Look at the matte: only the subject must be opaque. Use it as --ref in compose_review and --matte in world_gate and fit_camera.',
+  fit_camera: 'Use json fit_camera.json ref_cam as --ref-cam AZ EL LENS in review_render. A low best iou means the model is off, not the camera.',
   init_master: 'Write the blockout: blender_image_to_3d { action: "build", master, phase: "02_blockout", code }.',
   build: 'Gate it: run review_render on the master (--mode clay, --ref-cam AZ EL LENS), then compose_review against the matching reference view.',
   review_render: 'Compare each render with its reference view: run compose_review { args: ["--ref", <ref>, "--render", <render png>, "--out", <sheet png>, "--measure", "--gameplay-px", "128"] }.',
@@ -66,19 +71,39 @@ export function outputDir(argv: string[]): string | undefined {
   return path.extname(out) ? path.dirname(out) : out;
 }
 
-/** Fills the skill's build template: our phase name, the AI's build(scene, args). */
-export function buildScript(template: string, phase: string, code: string): string {
+/** Fills the skill's build template: our phase name, the detail kit (assets/detail_kit.py), the AI's build(scene, args). */
+export function buildScript(template: string, phase: string, code: string, kit = ''): string {
   const start = template.indexOf('\ndef build(scene, args):');
   const end = template.indexOf('\nif __name__ == "__main__":');
   if (start < 0 || end < start || !/^PHASE = ".*"/m.test(template)) throw new Error('assets/build_template.py changed: its build() or PHASE line was not found.');
-  return `${template.slice(0, start).replace(/^PHASE = ".*"/m, `PHASE = ${JSON.stringify(phase)}`)}\n${code.trim()}\n\n${template.slice(end)}`;
+  return `${template.slice(0, start).replace(/^PHASE = ".*"/m, `PHASE = ${JSON.stringify(phase)}`)}\n${kit.trim()}\n\n\n${code.trim()}\n\n${template.slice(end)}`;
+}
+
+/** Signatures and first docstring line of a helpers file, not the whole file. */
+function helperList(file: string): string[] {
+  const lines = fs.readFileSync(file, 'utf8').split(/\r?\n/);
+  return lines.flatMap((line, i) => {
+    if (!/^def [a-z]\w*\(/.test(line)) return [];
+    let end = i;
+    while (!/\):$/.test(lines[end]) && end < i + 5) end++; // signatures that wrap
+    const signature = lines.slice(i, end + 1).map((l) => l.trim()).join(' ').replace(/:$/, '');
+    const doc = /^\s+"""/.test(lines[end + 1] ?? '') ? `  # ${lines[end + 1].trim().replace(/"""/g, '')}` : '';
+    return [`${signature}${doc}`];
+  });
 }
 
 /** Appends collections of a .blend into the open Blender, in one collection named after the asset. */
 export function loadPython(req: { path: string; name: string; collections: string[] }): string {
   return `
 import bpy, json, re
+from mathutils import Vector
 REQ = json.loads(${JSON.stringify(JSON.stringify(req))})
+def base(objs):
+    pts = [o.matrix_world @ Vector(c) for o in objs if o.type == 'MESH' for c in o.bound_box]
+    if not pts:
+        return None
+    return Vector(((min(p.x for p in pts) + max(p.x for p in pts)) / 2, (min(p.y for p in pts) + max(p.y for p in pts)) / 2, min(p.z for p in pts)))
+
 def drop(o):
     data = o.data
     bpy.data.objects.remove(o, do_unlink=True)
@@ -95,6 +120,8 @@ if target is None:
     target = bpy.data.collections.new(REQ["name"])
     bpy.context.scene.collection.children.link(target)
 # a reload replaces the previous copy (materials and textures too), so names stay free of .001
+bpy.context.view_layer.update()  # matrix_world is stale right after a move made by a script
+old_base = base(list(target.all_objects))
 old_mats = set()
 for o in list(target.all_objects):
     old_mats.update(s.material for s in o.material_slots if s.material)
@@ -123,6 +150,17 @@ for n in skipped:
     o = bpy.data.objects.get(n)
     if o is not None and not o.users_collection:
         drop(o)
+# the new copy goes where the previous one was moved to (a map piece stays in place after a rebuild)
+# shortcut: keeps a move only, not a rotation or scale; rotate pieces after their last reload
+moved = None
+bpy.context.view_layer.update()  # appended objects have no matrix_world yet
+new_base = base(loaded)
+if old_base is not None and new_base is not None and (old_base - new_base).length > 1e-4:
+    delta = old_base - new_base
+    for o in loaded:
+        if o.parent is None:
+            o.location += delta
+    moved = [round(v, 3) for v in delta]
 # the skill sets only the shader; blender_scene (Workbench) shows the viewport display colour
 for m in {s.material for o in loaded for s in o.material_slots if s.material and s.material.node_tree}:
     bsdf = next((n for n in m.node_tree.nodes if n.type == 'BSDF_PRINCIPLED'), None)
@@ -133,7 +171,7 @@ for m in {s.material for o in loaded for s in o.material_slots if s.material and
 tris = sum(sum(max(0, len(p.vertices) - 2) for p in o.data.polygons) for o in loaded if o.type == 'MESH')
 # the marker BlenderClient.pythonJson reads (not imported: blender.ts imports this module)
 print("@@GAMEKIT@@" + json.dumps({"collection": target.name, "objects": [o.name for o in loaded], "triangles": tris,
-                                  "skippedLods": skipped, "missingCollections": missing}))
+                                  "skippedLods": skipped, "missingCollections": missing, "keptPlacement": moved}))
 `;
 }
 
@@ -152,8 +190,7 @@ export class ImageTo3d {
       case 'run': {
         const script = String(args.script ?? '');
         if (!(SKILL_SCRIPTS as readonly string[]).includes(script)) throw new Error(`script must be one of: ${SKILL_SCRIPTS.join(', ')}`);
-        // compose_review.py needs a system Python with Pillow; this port runs in Blender's own Python
-        const file = script === 'compose_review' ? 'compose_review_bpy.py' : `${script}.py`;
+        const file = OWN_SCRIPTS[script] ?? `${script}.py`;
         return this.headless(path.join(dir, 'scripts', file), Array.isArray(args.args) ? args.args.map(String) : [], timeoutMs, script);
       }
       case 'build': return this.build(dir, args, timeoutMs);
@@ -164,17 +201,13 @@ export class ImageTo3d {
 
   private guide(dir: string, topic: string): ToolResult {
     if (topic === 'template') {
-      // the helper signatures and their first docstring line, not the 600-line file
-      const lines = fs.readFileSync(path.join(dir, 'assets', 'build_template.py'), 'utf8').split(/\r?\n/);
-      const helpers = lines.flatMap((line, i) => {
-        if (!/^def \w+\(/.test(line)) return [];
-        let end = i;
-        while (!/\):$/.test(lines[end]) && end < i + 5) end++; // signatures that wrap
-        const signature = lines.slice(i, end + 1).map((l) => l.trim()).join(' ').replace(/:$/, '');
-        const doc = /^\s+"""/.test(lines[end + 1] ?? '') ? `  # ${lines[end + 1].trim().replace(/"""/g, '')}` : '';
-        return [`${signature}${doc}`];
+      const kit = path.join(dir, 'assets', 'detail_kit.py');
+      return text({
+        file: path.join(dir, 'assets', 'build_template.py'),
+        helpers: helperList(path.join(dir, 'assets', 'build_template.py')),
+        detailKit: fs.existsSync(kit) ? helperList(kit) : undefined,
+        write: 'action "build" with code defining build(scene, args); objects you make get own(ob) so a rebuild replaces them. The detail kit (bolts, plates, corner caps, planks, straps, tubes, padlock, ring handle, merge, tri_count) is included: faces are "-Y" front, "+Y" back, "+X"/"-X" sides, "+Z" top.',
       });
-      return text({ file: path.join(dir, 'assets', 'build_template.py'), helpers, write: 'action "build" with code defining build(scene, args); objects you make get own(ob) so a rebuild replaces them.' });
     }
     const file = GUIDE_FILES[topic];
     if (!file) throw new Error(`topic must be one of: ${[...Object.keys(GUIDE_FILES), 'template'].join(', ')}`);
@@ -192,11 +225,15 @@ export class ImageTo3d {
       const code = String(args.code);
       if (!/^def build\(/m.test(code)) throw new Error('code must define build(scene, args) (a top-level "def build(scene, args):")');
       fs.mkdirSync(path.dirname(file), { recursive: true });
-      fs.writeFileSync(file, buildScript(fs.readFileSync(path.join(dir, 'assets', 'build_template.py'), 'utf8'), phase, code));
+      const kit = path.join(dir, 'assets', 'detail_kit.py');
+      fs.writeFileSync(file, buildScript(fs.readFileSync(path.join(dir, 'assets', 'build_template.py'), 'utf8'), phase, code, fs.existsSync(kit) ? fs.readFileSync(kit, 'utf8') : ''));
     } else if (!fs.existsSync(file)) {
       throw new Error(`No ${file} yet: pass code (a build(scene, args) function) to write it.`);
     }
-    return this.headless(file, ['--master', master], timeoutMs, 'build', { script: file });
+    const warning = fs.existsSync(path.join(path.dirname(master), 'asset-brief.md'))
+      ? undefined
+      : 'No asset-brief.md next to the master: write the Phase 0 brief (guide topic "skill") with the size, the proportions to check and the triangle budget, the gates rely on it.';
+    return this.headless(file, ['--master', master], timeoutMs, 'build', { script: file, warning });
   }
 
   private async load(args: Record<string, any>): Promise<ToolResult> {

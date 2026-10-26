@@ -228,6 +228,26 @@ Gemini) en plus de `query`. Code dans `packages/core/src/gamekit/blender.ts` (`r
   build cassé renvoie l'erreur Python.
 - **À tester en vrai** : un asset complet depuis une planche Gemini jusqu'à Studio (`bake_maps`, `world_gate`,
   `load` dans le Blender ouvert, puis `blender_to_roblox`).
+- **Après le test du coffre dans le vrai Blender** (même jour, note Obsidian « 10 - Leçons image vers 3D ») :
+  - `make_matte_bpy.py` : détoure une référence qui n'est pas sur fond blanc (sur une capture du viewport, un coffre
+    juste donnait IoU 0,27) ; `fit_camera_bpy.py` : trouve `--ref-cam` d'une image en perspective (affine autour des
+    3 meilleurs candidats) ; `review_render.py` en Standard (AgX délavait les couleurs cartoon). Liste dans
+    `integrations/blender-image-to-3d/LOCAL-CHANGES.md`.
+  - `load` garde l'emplacement de la copie précédente (avec mise à jour de `matrix_world`, sinon décalage de 22 cm) ;
+    `build` prévient quand `asset-brief.md` manque ; guide `image3d` : planche 4 vues d'abord, matte, fit_camera,
+    budget dès les formes, métal 0 en cartoon, un mesh par matériau et pièce mobile.
+  - Coffre : IoU 0,275 → 0,924, 3 236 → 1 472 triangles. Tests réels (`BLENDER_BIN=...`) étendus à ces cas.
+- **Deuxième passe, les détails** (même jour) :
+  - `compose_review_bpy.py --detail` : grille de cases (r1 c1 en haut à gauche), détail relatif (force des contours
+    rapportée à la moyenne de chaque image) et couleur médiane après alignement de l'exposition ; carte DETAIL sur la
+    planche (rouge = détail manquant, bleu = couleur/pièce), score et liste des cases dans le JSON.
+  - `assets/detail_kit.py`, ajouté à chaque script de build : `hex_bolt`, `bolt_grid`, `bolt_row`, `metal_plate`,
+    `corner_cap`, `plank_stack`, `arch_points`, `prism`, `strap`, `tube`, `padlock`, `ring_handle`, `merge`,
+    `tri_count` ; `guide template` les liste (`detailKit`).
+  - Guide `image3d` : kit, contrôle des détails depuis la caméra de la référence, budget selon le niveau de détail.
+  - Coffre refait avec le kit, budget 3 000 : IoU 0,949, largeurs ±0,047, détail 0,74, 2 904 triangles. Reste et
+    leçons : note Obsidian « 10 - Leçons image vers 3D ». Le zip threejs-skills (connaissances three.js r186) servira
+    pour une future page d'aperçu `/preview`, pas pour modéliser.
 
 ## ⚠️ À tester par toi dans le vrai Studio et le vrai Blender
 

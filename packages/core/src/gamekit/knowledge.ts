@@ -435,13 +435,18 @@ All paths absolute. Each script lists its options with args: ["--help"].
 ## 0. Pictures and brief
 - Best input: a 4-view sheet on white (front, side, back, 3/4) from Gemini (guide "design", ask first), or separate
   orthographic views. Measure only from orthographic views; a perspective concept or a photo gives silhouette and
-  detail, not proportions.
+  detail, not proportions. Only one perspective picture? Ask the user for the 4-view sheet BEFORE the blockout.
+- Picture not on plain white or transparent (a viewport screenshot, a photo, a grid, labels, a dark background)?
+  run { script: "make_matte", args: ["--ref", "<asset>/ref/concept.png", "--out", "<asset>/ref/concept_matte.png"] }
+  and use the matte everywhere (compose_review --ref, world_gate and fit_camera --matte). Without it the numbers mean
+  nothing: a correct chest, dark brown on a dark grey background, scored IoU 0.27 instead of 0.90.
 - Asset folder, e.g. <project>/Assets/PR_Egg/ with ref/: crop each view of a sheet into ref/front.png, ref/side.png,
   ref/back.png (same scale, same ground line). Prefixes: CH_ character, CR_ creature, AR_ architecture, VH_ vehicle,
   PR_ prop, WP_ weapon, EN_ environment.
 - Write <asset>/asset-brief.md (format: blender_image_to_3d { action: "guide", topic: "skill" }, Phase 0): views and
   camera angles, real size in METERS (studs x 0.28: character 1.8 m, door 2 m), 8-15 proportions to check, parts,
-  materials, what the pictures do not show (inferred). Category advice: topic "categories".
+  materials, what the pictures do not show (inferred), the triangle budget. Category advice: topic "categories".
+  build warns while the brief is missing.
 ## 1. Master file
 run { script: "init_master", args: ["--out", "<asset>/PR_Egg_master.blend", "--name", "PR_Egg", "--height", "1.2",
   "--ref-front", "<asset>/ref/front.png", "--ref-right", "<asset>/ref/side.png", "--subject-frac", "0.9", "--ground-frac", "0.05"] }
@@ -453,7 +458,9 @@ replaces it. A comment on each constant: the view it was measured in, or # infer
 Gate:
 - run { script: "review_render", args: ["--blend", master, "--out", "<asset>/review/02", "--views", "front,side,threequarter",
   "--mode", "clay", "--gameplay-px", "128"] } (front and side are orthographic; for a concept or photo add
-  "--ref-cam", AZ, EL, LENS of its camera: it renders clay_ref.png)
+  "--ref-cam", AZ, EL, LENS of its camera: it renders clay_ref.png). Do not guess that camera: once the blockout is
+  roughly right, run { script: "fit_camera", args: ["--blend", master, "--matte", <matte>, "--out", "<asset>/review/camera"] }
+  (~30 s) and use its ref_cam. A Blender viewport screenshot is about 24 mm, not 50.
 - run { script: "compose_review", args: ["--ref", "<asset>/ref/front.png", "--render", "<asset>/review/02/clay_front.png",
   "--out", "<asset>/review/02/compare_front.png", "--measure", "--gameplay-px", "128"] } for every view. The sheet
   shows REF | RENDER | OVERLAY | GAMEPLAY size.
@@ -463,11 +470,28 @@ Gate:
   sheets also run world_gate (topic "skill", gate protocol). Show the sheet to the user before the next phase.
 ## 3. Forms, 4. topology
 - 03_forms: secondary then fine forms, parts in their real overlap order. Gate: IoU >= 0.90, bands within 0.03,
-  proportions within 2%, plus "--turntable", "8".
+  proportions within 2%, plus "--turntable", "8". List every part of the picture first (plates, rivets, handles,
+  lock...) and compare the material render side by side, not only the numbers: the silhouette misses inner details.
+- Hard-surface details come from the detail kit, already in every build script (topic "template", detailKit):
+  hex_bolt / bolt_grid / bolt_row, metal_plate (with bolts), corner_cap (feet, corner plates), plank_stack (boards
+  with real gaps), arch_points + prism (lids) + strap (bands), tube (pipes, rings), padlock, ring_handle, then
+  merge(name, parts, material) and tri_count(objects) for the log. Faces: "-Y" front, "+Y" back, "+X"/"-X", "+Z".
+- Detail gate: render "--mode", "material" from the reference camera (fit_camera's ref_cam, never blender_scene's iso
+  view: another camera exaggerates every difference) and run compose_review with "--detail". It cuts both images into
+  a grid (r1 c1 = top left) and flags the cells where the reference has more detail (red: missing bolts, grooves,
+  plates) or another colour (blue: a part missing or in the wrong place). Fix the flagged cells, render, check again.
+  Many red or blue cells down one side usually mean wrong proportions (the chest was too wide), not missing parts.
+- Budget by detail level, set in the brief: plain blocky props 1-1.5k triangles, props with metalwork (bolts,
+  chamfers) 2.5-3.5k. Run validate with "--budget-tris" at the end of 03_forms: bolts and chamfers add up fast.
+  Chamfer what catches the light (boards, big plates, the lock); leave faces nobody sees without bolts.
+- Roblox makes one MeshPart per mesh: merge the parts into one mesh per material and per moving part, keep what
+  opens (lid, door) separate with set_origin on its hinge.
 - 04_topology: the LOW meshes that go to Roblox, then run { script: "validate", args: ["--blend", master,
   "--out", "<asset>/review/04_validate.json", "--budget-tris", "5000"] } (exit 1 = a FAIL to fix). Roblox: < 20k
   triangles per mesh (props 1-5k, characters 5-15k). Skip LOD1/LOD2: Roblox makes its own.
 ## 5. Materials and textures
+Cartoon or stylised pictures: metallic 0 (blender_to_roblox turns metallic > 0.5 into Roblox Metal, which darkens a
+bright gold), colors as in the picture.
 One material per mesh where possible (Roblox splits a mesh per material). LOW meshes need UVs first (smart_uv in the
 build code); a normal map needs a HIGH sculpt to bake from. Bake at 1024 px (Roblox's limit), slow: start_job.
 run { script: "bake_maps", args: ["--blend", master, "--res", "1024", "--maps", "normal,basecolor,roughness,metallic",
@@ -478,7 +502,8 @@ Open Cloud key (FBX upload); without one Studio keeps the base colors.
 Topic "rigging". Roblox: at most 4 bone weights per vertex, under 100 bones. Animations: blender_animation after the import.
 ## 9. Into the game
 load { master: "<asset>/PR_Egg_baked.blend" (or the _master) } puts LOW (+ RIG_DEF) into the open Blender, in a
-collection named after the asset (a reload replaces it). blender_scene { object: "PR_Egg", screenshot: true,
+collection named after the asset (a reload replaces it and keeps where you moved it). The scene may already hold a
+map: move the new collection to a free spot with blender_python. blender_scene { object: "PR_Egg", screenshot: true,
 reference: "<asset>/ref/front.png" }, then, with the user's OK (it uploads):
 start_job { tool: "blender_to_roblox", arguments: { name: "PR_Egg", objects: ["PR_Egg"] } }.
 ## Maps

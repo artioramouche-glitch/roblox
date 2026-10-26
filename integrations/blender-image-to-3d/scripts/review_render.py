@@ -214,7 +214,8 @@ def setup_engine(scene, a, engine, scope, center, extent):
     scene.render.image_settings.file_format = "PNG"
     scene.render.image_settings.color_mode = "RGBA"
     scene.render.resolution_percentage = 100
-    scene.view_settings.view_transform = "AgX" if a.mode == "material" else "Standard"
+    # Roblox Ultimate MCP: Standard in every mode; AgX washed out saturated cartoon colours that Roblox shows as authored
+    scene.view_settings.view_transform = "Standard"
     if a.mode == "wire":
         for o in scope:
             if o.type == "MESH" and not any(m.type == "WIREFRAME" and m.name == "_review_wire" for m in o.modifiers):

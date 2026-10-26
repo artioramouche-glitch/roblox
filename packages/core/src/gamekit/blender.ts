@@ -1010,7 +1010,7 @@ export const BLENDER_TOOLS: ToolDef[] = [
     name: 'blender_image_to_3d',
     category: 'write',
     tier: 'blender',
-    description: 'Reference images (4-view sheet, concept, photo) -> game-ready model or map piece through measured gates: calibrated master .blend, build scripts, renders compared to the reference (IoU, widths), validate, bake, then load into Blender for blender_to_roblox. Runs in a background Blender. Read roblox_guide image3d first.',
+    description: 'Reference images (4-view sheet, concept, photo) -> game-ready model or map piece through measured gates: calibrated master .blend, build scripts, renders compared to the reference (IoU, widths, compose_review --detail cell by cell; make_matte cleans a picture not on white, fit_camera finds the camera of a perspective one), a detail kit (bolts, plates, planks, straps, padlock, handles), validate, bake, then load into Blender for blender_to_roblox. Runs in a background Blender. Read roblox_guide image3d first.',
     inputSchema: {
       type: 'object',
       properties: {
