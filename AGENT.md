@@ -1,264 +1,145 @@
-# AGENT.md — Roblox Studio MCP
+# AGENT.md — Roblox Ultimate MCP
 
-> This doc tells AI agents how to operate this MCP. If you're a human setting it up, follow the numbered install steps and give this file to your AI agent afterward.
+> Instructions for AI agents (Claude, GPT/Codex, Gemini, Copilot, local models...).
+> Humans: see [README.md](README.md) (French) — give this file to your AI after installing.
 
----
+## 1. Install for the user (once)
 
-## 1. Install (Human Does This Once)
-
-```bash
-git clone https://github.com/aaronaalmendarez/roblox-mcp.git
-cd roblox-mcp
-npm install
-npm run build
-npm run build:plugin
-npm run luau:install
-
-# Copy plugin to Studio
-# Windows:  copy "studio-plugin\MCPPlugin.rbxmx" "%LOCALAPPDATA%\Roblox\Plugins\"
-# macOS:    cp studio-plugin/MCPPlugin.rbxmx ~/Documents/Roblox/Plugins/
-# Then restart Roblox Studio
-```
-
-**In Studio:** Game Settings → Security → ✅ Allow HTTP Requests. Open a place, then click the MCP plugin button in the Plugins toolbar to connect.
-
-**Add MCP to your AI client:**
-```bash
-# Claude Code
-claude mcp add robloxstudio -- node /path/to/roblox-mcp/dist/index.js
-
-# Cursor/Windsurf JSON config
-{ "mcpServers": { "robloxstudio": { "command": "node", "args": ["/path/to/roblox-mcp/dist/index.js"] } } }
-```
-
----
-
-## 2. The Studio CLI — Your Daily Driver
-
-This repo ships a **zero-dependency CLI** that orchestrates the entire workflow. Use it for everything.
+Fastest (once the package is published on npm): `npx roblox-ultimate-mcp setup` installs the Studio plugin and
+registers the server in Claude Desktop, Cursor, Windsurf, OpenCode, Qoder, Gemini CLI, Antigravity, VS Code, Cline,
+Roo Code, Kiro, LM Studio and Codex (`--blender` also installs the Blender addon). It prints the line for other clients. Otherwise, from the repository:
 
 ```bash
-npm run studio -- dev --place <slug>     # Start everything
-npm run studio -- status                  # Check health
-npm run studio -- place list              # See all places
-npm run studio -- stop                    # Kill all processes
+git clone https://github.com/artioramouche-glitch/roblox.git
+cd roblox
+npm install            # also builds dist/ (prepare script)
 ```
 
-### Why use the CLI?
-
-| Feature | Benefit |
-|---------|---------|
-| **PID tracking** | Every spawned process gets a PID file. No orphaned `node.exe` processes. |
-| **Tree kill** | `studio stop` kills the entire process tree (not just the shell). |
-| **Log capture** | Background services write timestamped logs to `.studio-cli/logs/`. |
-| **Health checks** | Waits for MCP HTTP and Rojo TCP before reporting "ready". |
-| **Place context** | Auto-resolves active place, detected Studio place, or legacy fallback. |
-| **Beautiful UI** | ANSI boxes, spinners, tables — works in any terminal. |
-
-### Full command reference
+Install the Studio plugin (copies `studio-plugin/MCPPlugin.rbxmx` into the Roblox plugins folder):
 
 ```bash
-studio dev              # MCP + Rojo + Watch + Reverse sync
-studio serve            # Rojo server only
-studio mcp              # MCP server only
-studio sync             # One-shot property sync
-studio watch            # Property file watcher
-studio build            # Build .rbxl via Rojo
-studio lint             # Luau lint
-studio place list       # Places table with active marker
-studio place status     # Resolved context box
-studio place use <key>  # Switch active place
-studio place detect     # Auto-register current Studio place
-studio status           # System dashboard
-studio stop [name]      # Kill tracked process(es)
-studio transcribe       # Whisper transcription
-studio doctor           # Blueprint doctor
-studio version          # Version + logo
+npm run install-plugin
 ```
 
-### Global flags
+Then ask the human to:
+1. Restart Studio and open a place.
+2. In Studio: Game Settings > Security > **Allow HTTP Requests** = ON.
+3. Plugins tab > **MCP Server** > **Connect**.
+
+Optional, for custom 3D models: `npm run install-blender-addon`, then ask the human to open Blender, press N >
+"MCP for Blender" > "Connect to MCP server". Check with `blender_status`.
+
+Register the server in your client (replace PATH with the clone folder). The plugin talks to `localhost:58741`.
 
 ```bash
---place <key>     # Target place (slug / id / name)
---verbose         # Show process output
---json            # Machine-readable output
---dry-run         # Preview changes without applying
+claude mcp add roblox -- node PATH/packages/roblox-ultimate-mcp/dist/index.js          # Claude Code
+gemini mcp add roblox node PATH/packages/roblox-ultimate-mcp/dist/index.js             # Gemini CLI
 ```
-
----
-
-## 3. What This Is
-
-An MCP server that lets AI agents read/write Luau scripts, execute code, create instances, and run playtests inside Roblox Studio.
-
-**Two ways to work:**
-
-| Approach | When to use |
-|----------|-------------|
-| **Blueprint V1 + Rojo** (RECOMMENDED) | Persistent projects. Edit `.luau` files locally, Rojo syncs to Studio automatically. |
-| **MCP direct** | Quick patches, geometry, instances, or when Rojo isn't running. |
-
----
-
-## 4. Blueprint V1 — The Golden Path
-
-This is how you build games with this MCP. Do not skip this.
-
-### 3.1 Register the Place
-
-```bash
-npm run studio -- place detect     # Detects open Studio place, creates mapping
-npm run studio -- place status     # Verify it resolved to Mode: place (not legacy)
-```
-
-This creates `blueprint-v1/places/<slug>/` with:
-- `default.project.json` — Rojo config
-- `src/` — your `.luau` source files
-- `properties/instances.json` — non-script properties/attributes/tags
-
-### 3.2 Start the Dev Environment
-
-```bash
-npm run studio -- dev --place <slug>
-```
-
-This starts **four processes:**
-1. **MCP server** — `localhost:3002` (Studio plugin talks to this)
-2. **Rojo** — `localhost:34872` (syncs local `.luau` files → Studio)
-3. **Property watcher** — watches `instances.json`, syncs props/attrs/tags to Studio
-4. **Reverse sync** — pulls Studio-side script changes back to local files
-
-> **Legacy:** `npm run dev:studio -- --place <slug>` still works if you prefer the old orchestrator.
-
-### 3.3 Edit Local Files, Not Studio
-
-**The rule:** Always edit files in `blueprint-v1/places/<slug>/src/`. Rojo pushes them to Studio automatically. Never use `set_script_source` or `create_object("Script")` for scripts when Rojo is active — it causes duplicates.
-
-| File suffix | Script Type | Example |
-|-------------|-------------|---------|
-| `.server.luau` | Script (server) | `GameLoop.server.luau` |
-| `.client.luau` | LocalScript (client) | `HUD.client.luau` |
-| `.luau` | ModuleScript | `Config.luau` |
-
-> ⚠️ **Never use `.module.luau`** — Rojo does NOT strip `.module` from the name.
-
-### 3.4 instances.json — Properties/Attributes/Tags
-
-Edit `blueprint-v1/places/<slug>/properties/instances.json` to sync non-script data:
-
 ```json
-{
-  "instances": [
-    {
-      "path": "game.ReplicatedStorage.HollowPurple",
-      "properties": { "Name": "HollowPurple" },
-      "attributes": { "Damage": 100 },
-      "tags": ["Ability"]
-    }
-  ]
-}
+{ "mcpServers": { "roblox": { "command": "node", "args": ["PATH/packages/roblox-ultimate-mcp/dist/index.js"] } } }
 ```
 
-The property watcher auto-detects saves and pushes to Studio. `instances` must be an **array** `[]`, not an object `{}`.
+## 2. How to build a game (the golden path)
 
-### 3.5 Luau Lint (Run After Every Change)
+1. `roblox_start_here` — connection check, what is already installed, and the project memory (`game_notes`).
+   Keep `game_notes` up to date (idea, decisions, todo, done): the next conversation resumes from it.
+2. `create_game { template, options }` — templates: `obby`, `tycoon`, `simulator`, `arena`, `survival`, `horror_escape`,
+   `tower_defense`, `farming`, `racing`, `fishing`, `craft_survival`. Builds scripts, config, world, HUD and lighting in one call (and backs up the previous place).
+3. `test_game` — automatic playtest. Fix **every** error it reports (script + line + code + hint, fix with
+   `edit_script`), then run it again until `PASS`.
+4. Customise **without code**:
+   - `add_system { system, config }` — settings live in `ReplicatedStorage/GameKit/Config/<System>`.
+     Retention systems: `inventory`, `levels`, `quests` (chain = tutorial; `Target` = guide arrow), `pets` (eggs).
+     Growth systems: `codes` (redeem codes), `social` (friend boost, invite button, group bonus).
+   - `build_world { kind, options }` — whole worlds (`obby_course`, `maze`, `arena`...) or pieces (`jump_pad`, `coin`, `spinner`...).
+   - `build_ui { spec }` — JSON UI with `bind` / `bar` / `showIf` / `action` (no Luau).
+   - `set_environment { preset, terrain }` — lighting mood and terrain.
+   - `populate_world { theme | items, zone }` — scenery snapped to the ground, never blocking gameplay.
+   - `look_at_game` — screenshots from several angles: LOOK at what you built and fix what looks wrong.
+   - `balance_economy { fromGame: true }` — progression simulation + suggested prices.
+5. Custom code (read `roblox_guide coding`):
+   - First `code_recipe` (verified scripts from params: touch_reward, prompt_action, door, timed_spawner, npc_dialog,
+     ui_button_remote, badge_award, chat_command...). `code_recipe {}` lists them.
+   - New script: `write_script`. Change: `edit_script { path, find, replace }` (never rewrite a whole script).
+     Both auto-fix JS/Python habits and refuse broken code or invented Roblox APIs (they suggest the right name).
+   - Understand existing code: `code_outline`, then `read_script { path, find }` (only the lines you need).
+   - Reuse PlayerData / Net / Util / UIKit (`roblox_guide gamekit-api`).
+6. Finish with `check_game` (static audit) and a last `test_game`. Before publishing: `test_game { players: 2 }`
+   (multiplayer), `test_game { device: "phone" }` (phone screen + UI checks), `check_assets` (sounds/animations really
+   load), `optimize_game` (low-end phones; `apply` for safe fixes), then `publish_checklist`.
 
-```bash
-npm run studio -- lint
-```
+Every GameKit change is one undo step named "MCP: AI <tool>": the human can revert your last action from the
+plugin's AI panel.
 
-Or run strict:
-```bash
-npm run studio -- lint --strict --fail-on-findings
-```
+Safety and speed: `backup_game { action: "save" }` before risky changes (`restore` to undo). Slow tools run in the
+background with `start_job { tool, arguments }` + `job_status { id, wait: 30 }`.
 
-Expected output: `findings=0`. Fix everything before pushing/committing.
+## 2b. Blender (custom 3D models)
 
-Common fixes:
-- `Unknown global 'tick'` → use `os.clock()`
-- `LocalUnused: Variable 'X'` → rename to `_X`
+`blender_status` → model with `blender_python` (meters, base at Z = 0, < 20k triangles, 1 material per mesh) or get a
+model with `blender_assets` (Poly Pizza, Sketchfab, Poly Haven, Hyper3D/Hunyuan3D generation from text or from
+reference `images`: absolute image paths or URLs; hunyuan3d takes exactly one) → `blender_scene
+{ screenshot: true }` → `blender_to_roblox { name, position }` (needs ROBLOX_OPEN_CLOUD_API_KEY + ROBLOX_CREATOR_USER_ID;
+without them it exports the file for a manual Import 3D, then `blender_to_roblox { name, existing }`). Read
+`roblox_guide blender`.
 
-### 3.6 When Rojo Is NOT Running
+From reference pictures (a 4-view sheet, concept art, photos): `blender_image_to_3d` (`roblox_guide image3d`) runs the
+blender-image-to-3d skill in a background Blender: `init_master`, `build` phases, then `review_render` +
+`compose_review` until the silhouette IoU and band widths pass, `validate`, `bake_maps`, then `load` into the open
+Blender and `blender_to_roblox`. Also for map landmarks and kit pieces.
 
-If Rojo is down, push scripts manually:
+Maps: lay out the map in studs first, then ONE `set_environment { terrain, features: [mountain, hill, lake, river,
+road, path, plateau, paint] }` call shapes the terrain where the plan says (`roblox_guide map`). Sounds: `make_sound
+{ prompt, name, parent }` (Mirelo API, needs MIRELO_API_KEY + Open Cloud key) or `make_sound { action: "plugin" }`
+then `{ action: "collect" }` with the free Mirelo Studio plugin (`roblox_guide sound`). Ask before uploading.
 
-```bash
-node scripts/push-script-fast.mjs \
-  --instance game.ServerScriptService.GameLoop \
-  --file blueprint-v1/places/<slug>/src/ServerScriptService/GameLoop.server.luau
-```
+Rigged characters: `blender_to_roblox` exports the armature with the mesh (max 4 weights per vertex, < 100 bones) and
+adds an Animator. Then `blender_animation { rig: "<model path>", action: "Walk", priority: "Movement" }` for each
+Blender action: KeyframeSequence in `ServerStorage/GameKit/Animations`, temporary id to test in Studio, animated FBX
+as a fallback (Animation Editor > Import > From FBX Animation).
 
----
+## 2b'. Design: references, Figma UI, effects
 
-## 5. MCP Direct — When Blueprint Is Off
+- Before any visual design: `design_refs { query }` searches the local "roblox-ai" picture library (UI styles, VFX,
+  thumbnails by genre; `ROBLOX_REFS_DIR` if it is not in Downloads). `show: true` attaches the first pictures.
+- UI screens: `figma { action: "draw", spec }` (a build_ui spec) puts a mockup in Figma, the human adjusts it, then
+  `figma { action: "import" }` builds the selected frame in StarterGui. Needs the "Roblox MCP Bridge" development
+  plugin running in the Figma desktop app (added once with `npm run install-figma-plugin` while Figma is closed). Works from any MCP client and on
+  the free Figma plan. Read `roblox_guide figma`.
+- Effects: `make_vfx { preset }` (hit_spark, sparkle, explosion, fire, smoke_puff, heal_aura, level_up, magic, portal,
+  dust, celebration) saves a template in `ReplicatedStorage/GameKit/Effects`; scripts play it with
+  `Util.vfx("Name", part)`. Polished effects: `make_vfx { action: "plugin" }` (free VFX Studio plugin), then
+  `{ action: "collect", name }`. Read `roblox_guide vfx`.
 
-Use MCP tools directly for:
-- Creating/modifying **geometry** (Parts, Folders, RemoteEvents)
-- Quick **script patches** when Rojo isn't running
-- **Playtests** (`start_playtest`, `get_playtest_output`, `stop_playtest`)
-- Running arbitrary **Luau** (`execute_luau`)
+## 2c. Several AIs on one game
 
-**Key tools:**
-- `get_project_structure` — explore the game tree
-- `get_script_source` / `get_script_snapshot` — read scripts
-- `set_script_source` / `edit_script_lines` / `batch_script_edits` — write scripts
-- `create_object` / `create_object_with_properties` — make instances
-- `set_property` / `set_attribute` / `add_tag` — modify instances
-- `execute_luau` — run any code in Studio edit context
+Read `roblox_guide team`. Lead: `team { action: "plan", goal }`. Everyone: pick a unique `agent` name, then
+`team claim` → work → `team done`. Reserve map space with `team claim_zone` and build inside it
+(`build_world { zone }`, `populate_world { zone }`). Don't run `test_game` while others edit.
 
----
+## 3. Rules
 
-## 6. Key Commands
+- Server logic (money, damage, saving) → Script in ServerScriptService. Input/UI/camera → LocalScript in StarterPlayerScripts/StarterGui.
+- Never trust the client: it sends *what* it wants (`Net.send("Buy", "Sword")`), the server decides and checks the price.
+- `task.wait()` not `wait()`. Every `while true do` loop needs a `task.wait()`.
+- Stats and saving: `PlayerData` (never raw DataStore code). Clients read stats with `player:GetAttribute("Coins")`.
+- Anchor static parts. Positions are part centers, in studs, Y up.
+- Don't invent APIs; read `roblox_guide luau`, `client-server`, `errors` when unsure.
 
-### CLI (Recommended)
+## 4. Tool profiles and the 140+ Studio tools
 
-| Command | What it does |
-|---------|-------------|
-| `npm run studio -- dev --place <slug>` | Start MCP + Rojo + watchers + reverse sync |
-| `npm run studio -- mcp` | MCP server only |
-| `npm run studio -- serve` | Rojo server only |
-| `npm run studio -- place detect` | Register current Studio place |
-| `npm run studio -- place status` | Show active place context |
-| `npm run studio -- place list` | List all registered places |
-| `npm run studio -- place use <key>` | Switch active place |
-| `npm run studio -- sync` | One-shot property sync |
-| `npm run studio -- watch` | Property file watcher |
-| `npm run studio -- build` | Build .rbxl via Rojo |
-| `npm run studio -- lint` | Luau static analysis |
-| `npm run studio -- status` | System health dashboard |
-| `npm run studio -- stop` | Kill all tracked processes |
-| `npm run studio -- doctor` | Full connectivity check |
+Default profile `starter` lists 46 of the 186 tools (`builder` 106). Everything else is still callable:
+`find_tools { query }` then `call_tool { name, arguments }`, or `set_tool_profile { profile: "builder" | "full" }`.
+Useful families: terrain_*, lighting_*, animation_*, particle_*, sound_*, material_*, insert_asset / search_assets
+(needs an Open Cloud key), capture_screenshot, simulate_*_input, character_navigation, eval_server_runtime /
+eval_client_runtime (live game VM), get_runtime_logs, multiplayer_playtest, set_device_simulator, profilers,
+breakpoints, export_rbxm / import_rbxm, source_pull / source_push, get_roblox_docs.
 
-### Legacy npm scripts (still work)
+## 5. Guides available through the server
 
-| Command | What it does |
-|---------|-------------|
-| `npm run dev:studio -- --place <slug>` | Legacy orchestrator |
-| `npm run place:detect` | Same as `studio place detect` |
-| `npm run blueprint:watch` | Property watcher |
-| `npm run blueprint:reverse-sync` | Pull Studio scripts → local |
-| `npm run blueprint:sync` | One-shot instances.json sync |
-| `npm run blueprint:doctor` | Same as `studio doctor` |
-| `npm run luau:lint` | Same as `studio lint` |
-| `npm run build` | Compile TS → dist/ |
-| `npm run build:plugin` | Build Studio plugin .rbxmx |
+`roblox_guide` topics: workflow, coding, design, figma, vfx, reference, luau, client-server, data, ui, building, testing, errors, blender, team,
+localization, publishing, performance, gamekit-api, catalog, and every system/template id. Also exposed as MCP
+resources `gamekit://...` and prompts `make_game`, `fix_my_game`, `add_feature`, `polish_game`, `team_build`,
+`blender_prop`, `copy_image`.
 
----
-
-## 7. Troubleshooting
-
-| Problem | Fix |
-|---------|-----|
-| `pluginConnected: false` | Studio plugin not connected. Click Connect in Plugins toolbar. |
-| `EADDRINUSE :3002` | MCP server already running. Run `npm run studio -- stop` or use the existing one. |
-| `EADDRINUSE :34872` | Rojo already running. Run `npm run studio -- stop` first. |
-| Place resolves to `legacy` | Run `npm run studio -- place detect` again. |
-| `"Manifest must contain an instances array"` | `instances.json` has `{}` instead of `[]`. |
-| Large script writes fail | Use `push-script-fast.mjs` or chunked upload tools. |
-| `set_property cannot be used for Source` | Expected — use `set_script_source` or push scripts via Rojo. |
-| Orphaned `node.exe` processes | Run `npm run studio -- stop` to kill tracked processes. Check Task Manager for stragglers. |
-| Process crashes silently | Check `.studio-cli/logs/<name>.log` for timestamped stdout/stderr. |
-
----
-
-*Version: 2.3.0*
+Full reference: [docs/GAMEKIT.md](docs/GAMEKIT.md).

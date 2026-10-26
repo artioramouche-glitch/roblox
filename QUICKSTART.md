@@ -1,180 +1,104 @@
-# AI Agent Quickstart — rblxMCP
+# Démarrage rapide
 
-> **Purpose:** A concise cheat-sheet so AI agents (and humans) can immediately
-> orient themselves in this project without rediscovering the setup every session.
+## Installation (une seule fois)
 
----
-
-## 1. Project Overview
-
-| Item | Value |
-|------|-------|
-| **Repo root** | `c:\Users\aaron\OneDrive\Desktop\rblxMCP` |
-| **Stack** | Roblox Studio + MCP Server (Node/TS) + Blueprint V1 (Rojo) + Luau |
-| **MCP port** | `localhost:58741` (auto-discovery 58741–58745) |
-| **Rojo port** | `localhost:34872` |
-| **Luau linter** | `.tools/luau-lsp/luau-lsp.exe` via `scripts/luau-lint.mjs` |
-| **Plugin** | `studio-plugin/MCPPlugin.rbxmx` → `%LOCALAPPDATA%\Roblox\Plugins\` |
-
----
-
-## 2. Registered Places
-
-Places live under `blueprint-v1/places/<slug>/`. The active place is tracked in
-`blueprint-v1/places/.active-place.json`.
-
-| Slug | Display Name | Place ID |
-|------|-------------|----------|
-| `ta4` | Tusk Act 4 | 118279409372030 |
-| `horror` | Horror | 85915000064125 |
-| `place1-2` | Place1 | 125175608517936 |
-| `brainrot` | Place2 | 106571941339581 |
-| `gacha-titles` | Gacha Titles | 126469112336825 |
-| `japanese-horror` | Japanese Horror | 95715171009660 |
-
-**To find the currently open place in Studio:**
-```bash
-# Option A — MCP tool
-mcp_robloxstudio-mcp_get_place_info
-# Returns placeId, placeName, etc.
-
-# Option B — execute_luau
-mcp_robloxstudio-mcp_execute_luau  code="return game.PlaceId .. ' / ' .. game.Name"
-```
-
----
-
-## 3. Session Bootstrap Checklist
-
-Do these **in order** when starting a new coding session:
-
-```
-1. Confirm Studio is open with the correct place loaded.
-2. Confirm Rojo is running:
-     rojo serve blueprint-v1/places/<slug>/default.project.json
-   (check terminal — should say "Rojo server listening on port 34872")
-3. Confirm Rojo plugin is connected in Studio (Plugins toolbar → Rojo → Connect).
-4. Identify the active place slug — read blueprint-v1/places/.active-place.json
-   or call mcp get_place_info and match placeId to registry.json.
-5. Read the relevant source files BEFORE editing:
-     blueprint-v1/places/<slug>/src/ServerScriptService/   ← server scripts
-     blueprint-v1/places/<slug>/src/StarterPlayer/StarterPlayerScripts/ ← client scripts
-     blueprint-v1/places/<slug>/src/ReplicatedStorage/     ← shared modules / configs
-```
-
----
-
-## 4. File Naming Conventions
-
-| Suffix | Script Type | Example |
-|--------|------------|---------|
-| `.server.luau` | Script (runs on server) | `EchoesServer.server.luau` |
-| `.client.luau` | LocalScript (runs on client) | `EchoesClient.client.luau` |
-| `.luau` | ModuleScript (shared) | `EchoesConfig.luau` |
-
-> ⚠️ **Never** use `.module.luau` — Rojo does NOT strip `.module` from the name.
-
----
-
-## 5. Editing Workflow (Golden Path)
-
-```
-1. Edit the LOCAL .luau file on disk.
-   → Rojo auto-syncs to Studio within seconds.
-2. Do NOT use MCP set_script_source / create_object for scripts managed by Rojo.
-   → Use MCP only for geometry (Parts, RemoteEvents, Folders, etc.).
-3. If Rojo is NOT running, you can manually push:
-     node scripts/push-script-fast.mjs \
-       --instance game.ServerScriptService.EchoesServer \
-       --file blueprint-v1/places/ta4/src/ServerScriptService/EchoesServer.server.luau
-```
-
----
-
-## 6. Luau Lint (ALWAYS run after edits)
+**En une commande** (dès que le paquet est publié sur npm, voir le [README](README.md#publier-sur-npm)) :
 
 ```bash
-npm run luau:lint
+npx roblox-ultimate-mcp setup             # plugin Studio + applis d'IA configurées
+npx roblox-ultimate-mcp setup --blender   # ... et l'addon Blender
 ```
 
-Expected clean output:
-```
-[luau-lint] findings=0
-```
+Puis redémarre Studio et ton appli d'IA, et fais l'étape 4 ci-dessous (requêtes HTTP).
 
-### Common fixes
+**Depuis le zip (sans git) :**
 
-| Lint error | Fix |
-|-----------|-----|
-| `Unknown global 'tick'` | Use `os.clock()` |
-| `LocalUnused: Variable 'X'` | Prefix with `_` → `_X` |
-| `TypeError: Unknown require` | IDE-only issue with cross-place paths; runtime works fine |
+1. Installe [Node.js](https://nodejs.org) 18+ (version LTS).
+2. Télécharge le zip : sur GitHub, bouton vert **Code → Download ZIP** (branche `claude/charming-johnson-0o1yse` tant
+   que la PR n'est pas fusionnée), puis dézippe-le dans un dossier **qui ne bougera plus** (ex. `C:\roblox-mcp`).
+3. Dans ce dossier, ouvre un terminal et tape :
+   ```bash
+   npm install        # télécharge les dépendances et compile (1 à 2 minutes)
+   npm run setup      # plugin Studio + applis d'IA configurées (ajoute -- --blender pour Blender)
+   ```
+4. Redémarre Studio et ton appli d'IA, puis fais l'étape 4 ci-dessous (requêtes HTTP).
 
----
+**Depuis le dépôt (git) :**
 
-## 7. Key npm Scripts
+1. Installe [Node.js](https://nodejs.org) 18+.
+2. Dans un terminal :
+   ```bash
+   git clone https://github.com/artioramouche-glitch/roblox.git
+   cd roblox
+   npm install
+   ```
+3. Installe le plugin Studio : `npm run install-plugin` (ou copie `studio-plugin/MCPPlugin.rbxmx` dans
+   `%LOCALAPPDATA%\Roblox\Plugins\` sous Windows, `~/Documents/Roblox/Plugins/` sous macOS), puis redémarre Studio.
+4. Dans Studio : **Paramètres du jeu → Sécurité → Autoriser les requêtes HTTP**.
+5. Ajoute le serveur à ton IA (voir [README](README.md#3-brancher-ton-ia)), ex. Claude Code :
+   ```bash
+   claude mcp add roblox -- node CHEMIN/VERS/roblox/packages/roblox-ultimate-mcp/dist/index.js
+   ```
+6. *(Optionnel, objets 3D)* `npm run install-blender-addon`, puis dans Blender : **N → MCP for Blender → Connect to MCP
+   server**. Pour l'envoi automatique vers Roblox, ajoute à la config MCP `ROBLOX_OPEN_CLOUD_API_KEY` et
+   `ROBLOX_CREATOR_USER_ID` (voir [docs/CLIENTS.md](docs/CLIENTS.md)).
 
-| Command | What it does |
-|---------|-------------|
-| `npm run build` | Compile TS → `dist/` |
-| `npm run build:plugin` | Build Studio plugin `.rbxmx` |
-| `npm run luau:lint` | Luau static analysis |
-| `npm run place:detect` | Detect + register the open Studio place |
-| `npm run place:status` | Show resolved paths for active place |
-| `npm run blueprint:doctor` | Full connectivity check |
-| `npm run blueprint:reverse-sync` | Pull Studio scripts → local files |
-| `npm run dev:studio -- --place <slug>` | Start MCP + Rojo + watchers |
+## À chaque session
 
----
+1. Ouvre Studio avec ton jeu.
+2. Onglet **Plugins → MCP Server → Connect**.
+3. Parle à ton IA :
+   - « Crée un obby de 15 niveaux thème néon et teste-le. »
+   - « Ajoute une boutique qui vend une épée et des traînées. »
+   - « Le jeu a des erreurs, trouve-les et corrige-les. »
+   - « Rends le jeu plus beau et plus fun. »
+   - « Fais un tower defense à 20 vagues » / « Fais un jeu de ferme relaxant ».
+   - « Entoure la carte d'une forêt et montre-moi le résultat. » (`populate_world` + `look_at_game`)
+   - « Modélise une fontaine dans Blender et mets-la au centre du lobby. »
+   - « Ajoute un PNJ qui explique le jeu, et une porte VIP à 500 pièces. » (recettes `npc_dialog`, `door`)
+   - « Fais un jeu de course en karts » / « un jeu de pêche » / « une survie à plusieurs avec du craft ».
+   - « Ajoute des quêtes pour guider les nouveaux joueurs, des niveaux et des œufs de familiers. »
+   - « Ajoute un code cadeau LANCEMENT qui donne 500 pièces, et un bonus quand on joue avec ses amis. »
+   - « Vérifie que le jeu marche à 2 joueurs et sur téléphone, et qu'il ne rame pas. »
+   - « Anime mon personnage Blender (marche et attaque) et mets-le dans le jeu. »
 
-## 8. MCP Tools Cheat-Sheet
+## Ce que l'IA fait toute seule
 
-### Orientation (run first)
-```
-get_place_info          → place name, ID, workspace info
-get_project_structure   → full game hierarchy (use maxDepth=5+)
-get_services            → list all Roblox services
-```
+`roblox_start_here` → `create_game` → `test_game` → corrections → `add_system` / `build_world` / `build_ui` /
+`set_environment` / `populate_world` → `look_at_game` → `check_game` → avant publication : `test_game {players: 2}`,
+`test_game {device: "phone"}`, `check_assets`, `optimize_game`, `publish_checklist`.
 
-### Read scripts
-```
-get_script_source       → full source (use startLine/endLine for large files)
-get_script_snapshot     → source + SHA-256 hash (for checked writes)
-```
+Elle note l'idée, ses décisions et ce qui reste à faire dans `game_notes` (stocké dans le jeu) : dans une nouvelle
+conversation, dis juste *« reprends le jeu »*.
 
-### Write scripts (only if NOT using Rojo)
-```
-set_script_source       → full rewrite
-edit_script_lines       → replace specific line range
-insert_script_lines     → insert at position
-delete_script_lines     → remove lines
-```
+## Voir ce que fait l'IA
 
-### Execute arbitrary Luau in Studio
-```
-execute_luau            → run code in plugin context, returns result
-                           Use for: finding place name, debugging, creating
-                           non-script instances, reading properties at runtime
-```
+Dans Studio, clique sur **AI Panel** (onglet Plugins) : le panneau **« IA : activité »** montre chaque action de l'IA
+en direct, le tableau d'équipe et la liste des choses à faire. **« ↶ Annuler l'action de l'IA »** annule sa dernière
+modification (jamais la tienne).
 
-### Create instances (geometry, events, folders — NOT scripts when Rojo is active)
-```
-create_object           → basic instance
-create_object_with_properties → instance + initial props
-```
+## Plusieurs IA en même temps
 
----
+Branche plusieurs IA sur le même Studio, puis dis à la première : *« Utilise le prompt team_build avec le nom
+chef-1 pour faire un jeu de ferme »*, et aux autres : *« team_build avec le nom aide-1 »*. Elles se répartissent les
+tâches et les zones de la carte (`team`) sans se marcher dessus.
 
-## 9. Common Pitfalls Learned
+## Revenir en arrière
 
-1. **Don't call `execute_luau` to find the place name every time.** Read
-   `blueprint-v1/places/.active-place.json` or `registry.json` instead.
-2. **Rojo owns the script tree.** Never `create_object("Script")` via MCP when
-   Rojo is active — it causes duplicates.
-3. **`TypeError: Unknown require` lint errors** for cross-place config paths are
-   IDE-only; they do not affect runtime.
-4. **ModuleScript files** should end in `.luau`, NOT `.module.luau`.
+Chaque `create_game` sauvegarde d'abord le jeu existant. Dis *« restaure la dernière sauvegarde »*
+(`backup_game { action: "restore" }`), ou fais **Ctrl+Z** dans Studio.
 
----
+## Où modifier quoi dans Studio (sans code)
 
-*Last updated: 2026-03-20*
+| Quoi | Où |
+|---|---|
+| Récompenses, prix, vitesses, textes | `ReplicatedStorage > GameKit > Config > <Système>` |
+| Couleurs de toute l'interface | `ReplicatedStorage > GameKit > Config > Theme` |
+| Le monde généré | `Workspace > GameKit` |
+| Réglage d'un obstacle (puissance d'un jump pad…) | Sélectionne la pièce → Propriétés → Attributs |
+| Scripts du kit | `ServerScriptService > GameKit` et `StarterPlayer > StarterPlayerScripts > GameKit` |
+| Traductions (FR/ES/PT/DE + les tiennes) | `ReplicatedStorage > GameKit > Config > Lang` |
+| Sauvegardes / tableau d'équipe / mémoire du projet | `ServerStorage > GameKitBackups` / `GameKitTeam` / `GameKitNotes` |
+| Animations créées depuis Blender | `ServerStorage > GameKit > Animations` |
+
+Tout ce que le kit installe s'annule en une fois avec **Ctrl+Z**.

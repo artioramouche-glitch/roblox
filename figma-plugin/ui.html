@@ -1,0 +1,57 @@
+<!-- Polls the Roblox Ultimate MCP server on localhost and relays its commands to code.js. -->
+<style>
+  body { font: 12px Inter, system-ui, sans-serif; margin: 12px; color: #222; }
+  #dot { color: #c62828; }
+  #dot.on { color: #2e7d32; }
+  input { width: 56px; }
+  p { color: #666; margin: 8px 0 0; }
+</style>
+<div><span id="dot">●</span> <b id="status">Looking for the MCP server…</b></div>
+<p>Port <input id="port" value="58741"> · keep this window open while the AI works.</p>
+<p id="file"></p>
+<script>
+  let info = {};
+  const $ = (id) => document.getElementById(id);
+  const base = () => 'http://localhost:' + ($('port').value.trim() || '58741');
+
+  function setStatus(on) {
+    $('dot').className = on ? 'on' : '';
+    $('status').textContent = on ? 'Connected to Roblox Ultimate MCP' : 'MCP server not found (start your AI app)';
+  }
+
+  onmessage = async (event) => {
+    const msg = event.data.pluginMessage;
+    if (!msg) return;
+    if (msg.type === 'info') {
+      info = msg;
+      $('file').textContent = (msg.file || '') + ' · ' + (msg.selection || 0) + ' selected';
+    } else if (msg.type === 'result') {
+      try {
+        await fetch(base() + '/figma/result', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(msg) });
+      } catch (e) {
+        setStatus(false);
+      }
+    }
+  };
+
+  // Long poll: the server holds the request until it has a command (20 s at most), then we ask
+  // again at once. Chromium slows timers to once a minute when Figma is hidden behind another
+  // window, but not an open request, so no timer is used while the server answers.
+  async function tick() {
+    try {
+      const started = Date.now();
+      const query = new URLSearchParams({ file: info.file || '', page: info.page || '', selection: String(info.selection || 0), wait: '20000' });
+      const res = await fetch(base() + '/figma/poll?' + query);
+      const next = await res.json();
+      setStatus(true);
+      if (next && next.id) parent.postMessage({ pluginMessage: { type: 'command', id: next.id, command: next.command } }, '*');
+      // An older server answers at once instead of holding the request: do not spin.
+      if (!(next && next.id) && Date.now() - started < 1000) setTimeout(tick, 1000);
+      else tick();
+    } catch (e) {
+      setStatus(false);
+      setTimeout(tick, 2000);
+    }
+  }
+  tick();
+</script>

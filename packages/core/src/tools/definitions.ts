@@ -1,3 +1,5 @@
+import { GAMEKIT_TOOLS } from '../gamekit/tools.js';
+
 export type ToolCategory = 'read' | 'write';
 
 export interface ToolDefinition {
@@ -8,6 +10,9 @@ export interface ToolDefinition {
 }
 
 export const TOOL_DEFINITIONS: ToolDefinition[] = [
+  // === GameKit: build complete games with little or no code (always listed) ===
+  ...GAMEKIT_TOOLS,
+
   // === File & Instance Browsing ===
   {
     name: 'get_file_tree',
@@ -1377,7 +1382,9 @@ part(0,2,0,2,1,1,"b")`,
     description: 'Capture a screenshot of the Roblox Studio viewport and return it as a PNG image. Requires EditableImage API to be enabled: Game Settings > Security > "Allow Mesh / Image APIs". Only works in Edit mode with the viewport visible.',
     inputSchema: {
       type: 'object',
-      properties: {},
+      properties: {
+        maxSize: { type: 'number', description: 'Longest side in pixels (default 1024, 0 = full size). Smaller costs fewer tokens.' },
+      },
     }
   },
 

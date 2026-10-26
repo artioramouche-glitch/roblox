@@ -69,7 +69,7 @@ export class ToolRegistry {
       shapes: [
         ['packages', 'core', 'dist'],
         ['core', 'dist'],
-        ['node_modules', '@6xvl', 'robloxstudio-mcp-core', 'dist'],
+        ['node_modules', 'roblox-ultimate-mcp-core', 'dist'],
         ['dist'],
       ],
       requireAll: [path.join('tools', 'index.js'), 'http-server.js', path.join('tools', 'definitions.js')],

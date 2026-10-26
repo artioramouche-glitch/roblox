@@ -1,0 +1,21 @@
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+.env
+.env.*
+.studio-cli/
+studio-plugin/out/
+studio-plugin/include/
+studio-plugin/node_modules/
+.tools/
+.DS_Store
+Thumbs.db
+*.log
+studio-plugin/MCPInspectorPlugin.rbxmx
+packages/*/studio-plugin/
+
+# Python build artefacts (integrations/blender-mcp)
+__pycache__/
+*.egg-info/
+integrations/blender-mcp/build/

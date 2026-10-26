@@ -19,6 +19,8 @@ export default {
       }
     }],
   },
+  // GameKit tests need native ESM: see jest.gamekit.config.js (npm run test:gamekit).
+  testPathIgnorePatterns: ['/node_modules/', '/src/gamekit/'],
   testMatch: [
     '**/__tests__/**/*.test.ts',
     '**/*.test.ts'

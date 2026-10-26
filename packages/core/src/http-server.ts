@@ -1,5 +1,4 @@
 import express from 'express';
-import cors from 'cors';
 import http from 'http';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
@@ -13,6 +12,10 @@ import { RobloxStudioTools } from './tools/index.js';
 import { BridgeService } from './bridge-service.js';
 import type { ToolDefinition } from './tools/definitions.js';
 import { RobloxOfficialMCPClient } from './roblox-mcp-client.js';
+import { GAMEKIT_TOOLS } from './gamekit/tools.js';
+import { SERVER_INSTRUCTIONS, handleMetaTool, listingView, metaToolDefinitions, registerPromptsAndResources, toolVisible } from './gamekit/mcp-extras.js';
+import { getProfile } from './gamekit/profiles.js';
+import { mountFigmaPluginRoutes, mountFigmaToolRoutes } from './gamekit/figma.js';
 
 interface StreamableHttpConfig {
   name: string;
@@ -24,7 +27,12 @@ interface StreamableHttpConfig {
 
 export type ToolHandler = (tools: RobloxStudioTools, body: any) => Promise<any>;
 
+// GameKit tools answer errors as readable results (isError) instead of throwing.
+const gameKitHandlers = (): Record<string, ToolHandler> =>
+  Object.fromEntries(GAMEKIT_TOOLS.map((t) => [t.name, (tools: RobloxStudioTools, body: any) => tools.gamekit().run(t.name, body ?? {})]));
+
 export const TOOL_HANDLERS: Record<string, ToolHandler> = {
+  ...gameKitHandlers(),
   source_pull: (tools, body) => tools.sourcePull(body.out_dir, {
     roots: body.roots, exclude: body.exclude, batchSize: body.batch_size, dryRun: body.dry_run,
   }),
@@ -105,7 +113,7 @@ export const TOOL_HANDLERS: Record<string, ToolHandler> = {
   compare_instances: (tools, body) => tools.compareInstances(body.instancePathA, body.instancePathB),
   get_output_log: (tools, body) => tools.getOutputLog(body.maxEntries, body.messageType),
   bulk_set_attributes: (tools, body) => tools.bulkSetAttributes(body.instancePath, body.attributes),
-  capture_screenshot: (tools) => tools.captureScreenshot(),
+  capture_screenshot: (tools, body) => tools.captureScreenshot(body?.maxSize),
   simulate_mouse_input: (tools, body) => tools.simulateMouseInput(body.action, body.x, body.y, body.button, body.scrollDirection, body.target),
   simulate_keyboard_input: (tools, body) => tools.simulateKeyboardInput(body.keyCode, body.action, body.duration, body.target),
   character_navigation: (tools, body) => tools.characterNavigation(body.position, body.instancePath, body.waitForCompletion, body.timeout, body.target),
@@ -238,10 +246,25 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
     return bridge.getInstances().length > 0;
   };
 
-  app.use(cors());
+  // The Figma plugin window is a cross-origin page: its two routes come before the check below.
+  app.use(['/figma/poll', '/figma/result'], express.json({ limit: '50mb' }));
+  mountFigmaPluginRoutes(app);
+
+  // No CORS: only Studio and local MCP processes talk to this port. A web page open in the
+  // user's browser must not be able to run Luau in Studio, so browser cross-site calls are refused.
+  app.use((req, res, next) => {
+    const origin = req.headers.origin;
+    const site = req.headers['sec-fetch-site'];
+    const loopback = !origin || /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i.test(origin);
+    if (!loopback || site === 'cross-site' || site === 'same-site') {
+      res.status(403).json({ error: 'Browser requests are not allowed on the Studio bridge' });
+      return;
+    }
+    next();
+  });
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ limit: '50mb', extended: true }));
-
+  mountFigmaToolRoutes(app);
 
   app.get('/health', (req, res) => {
     const instances = bridge.getInstances();
@@ -321,7 +344,9 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
       // Happens when the plugin's /ready POST landed on a primary that since died,
       // or when the plugin reconnects to a fresh server without re-firing /ready.
       if (!inst) {
-        bridge.registerInstance(instanceId, 'edit');
+        // Older plugins send no role: assume edit, as before.
+        const role = String(req.query.role ?? 'edit');
+        bridge.registerInstance(instanceId, ['edit', 'server', 'client'].includes(role) ? role : 'edit');
         inst = bridge.getInstances().find(i => i.instanceId === instanceId);
       }
       if (inst) {
@@ -412,10 +437,11 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
 
         const server = new Server(
           { name: serverConfig.name, version: serverConfig.version },
-          { capabilities: { tools: {} } }
+          { capabilities: { tools: {}, prompts: {}, resources: {} }, instructions: SERVER_INSTRUCTIONS }
         );
+        registerPromptsAndResources(server);
 
-        server.setRequestHandler(ListToolsRequestSchema, async () => {
+        const allTools = () => {
           const ours = filteredTools.map(t => ({
             name: t.name,
             description: t.description,
@@ -438,11 +464,24 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
             },
           ];
           const hookTools = serverConfig.robloxHook?.isConnected() ? serverConfig.robloxHook.getTools() : [];
-          return { tools: [...ours, ...routingTools, ...hookTools] };
-        });
+          return [...ours, ...routingTools, ...hookTools];
+        };
+        const hookNames = () => new Set<string>(serverConfig.robloxHook?.isConnected() ? serverConfig.robloxHook.getTools().map((t: any) => t.name) : []);
+        const listedTools = () => {
+          const all = allTools();
+          const hooks = hookNames();
+          return [...metaToolDefinitions(all.length), ...all.filter(t => (hooks.has(t.name) ? getProfile() !== 'starter' : toolVisible(t.name)))].map(listingView);
+        };
 
-        server.setRequestHandler(CallToolRequestSchema, async (request) => {
-          const { name, arguments: args } = request.params;
+        server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: listedTools() }));
+
+        const dispatch = async (name: string, args: any): Promise<any> => {
+          const meta = await handleMetaTool(name, args ?? {}, {
+            allTools,
+            dispatch,
+            listedCount: () => listedTools().length,
+          });
+          if (meta) return meta;
 
           // Roblox official MCP forwarding
           const robloxName = RobloxOfficialMCPClient.stripPrefix(name);
@@ -503,6 +542,11 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
               `Tool execution failed: ${error instanceof Error ? error.message : String(error)}`
             );
           }
+        };
+
+        server.setRequestHandler(CallToolRequestSchema, async (request) => {
+          const { name, arguments: args } = request.params;
+          return dispatch(name, args ?? {});
         });
 
         const transport = new StreamableHTTPServerTransport({
@@ -574,35 +618,28 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
  * Attempt to bind an Express app to a port, using an explicit http.Server
  * so that EADDRINUSE errors are properly caught.
  */
-export function listenWithRetry(
+export async function listenWithRetry(
   app: express.Express,
   host: string,
   startPort: number,
   maxAttempts: number = 5
 ): Promise<{ server: http.Server; port: number }> {
-  return new Promise(async (resolve, reject) => {
-    for (let i = 0; i < maxAttempts; i++) {
-      const port = startPort + i;
-      try {
-        const server = await bindPort(app, host, port);
-        resolve({ server, port });
-        return;
-      } catch (err: any) {
-        if (err.code === 'EADDRINUSE') {
-          // Only when there IS a next one. server.ts asks for a single attempt at the
-          // base port precisely so it can decide to proxy instead, and announcing a
-          // climb that never happens sends anyone reading the log the wrong way.
-          if (i < maxAttempts - 1) {
-            console.error(`Port ${port} in use, trying next...`);
-          }
-          continue;
-        }
-        reject(err);
-        return;
+  for (let i = 0; i < maxAttempts; i++) {
+    const port = startPort + i;
+    try {
+      const server = await bindPort(app, host, port);
+      return { server, port };
+    } catch (err: any) {
+      if (err.code !== 'EADDRINUSE') throw err;
+      // Only when there IS a next one. server.ts asks for a single attempt at the
+      // base port precisely so it can decide to proxy instead, and announcing a
+      // climb that never happens sends anyone reading the log the wrong way.
+      if (i < maxAttempts - 1) {
+        console.error(`Port ${port} in use, trying next...`);
       }
     }
-    reject(new Error(`All ports ${startPort}-${startPort + maxAttempts - 1} are in use. Stop some MCP server instances and retry.`));
-  });
+  }
+  throw new Error(`All ports ${startPort}-${startPort + maxAttempts - 1} are in use. Stop some MCP server instances and retry.`);
 }
 
 function bindPort(app: express.Express, host: string, port: number): Promise<http.Server> {

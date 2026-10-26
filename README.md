@@ -1,870 +1,547 @@
 <div align="center">
 
-# 🎮 Roblox Studio MCP
+# 🎮 Roblox Ultimate MCP
 
-### Give your AI full access to Roblox Studio
+### N'importe quelle IA crée un vrai jeu Roblox, de A à Z
 
-[![npm](https://img.shields.io/npm/v/%40aaronalm19%2Froblox-mcp?style=for-the-badge&logo=npm&logoColor=white&label=npm&color=CB3837)](https://www.npmjs.com/package/@aaronalm19/roblox-mcp)
-[![License](https://img.shields.io/badge/license-MIT-3DA639?style=for-the-badge&logo=opensourceinitiative&logoColor=white)](LICENSE)
-[![Node](https://img.shields.io/badge/node-%3E%3D18-417E38?style=for-the-badge&logo=nodedotjs&logoColor=white)](https://nodejs.org)
-[![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+**Claude · ChatGPT/Codex · Gemini · Cursor · Windsurf · Copilot · modèles locaux** — tout client MCP
 
-**Claude** · **Gemini** · **Codex** · **OpenCode** · *any MCP client*
-
-[Quick Start](#-quick-start) · [Studio CLI](#-the-studio-cli) · [Features](#-features) · [Tools](#-tool-reference) · [Client Setup](#-client-setup) · [Docs](#-docs)
+[Démarrage](#-démarrage-en-5-minutes) · [Premier jeu](#-ton-premier-jeu-en-une-phrase) · [Modèles](#-11-jeux-complets-prêts-à-lemploi) · [Systèmes](#-30-systèmes-plug-and-play) · [Qualité](#-qualité-avant-publication) · [Panneau Studio](#-le-panneau-ia-dans-studio) · [Blender](#-modèles-3d-avec-blender) · [Plusieurs IA](#-plusieurs-ia-sur-le-même-jeu) · [Outils](#-les-outils) · [Dev](#-développement)
 
 </div>
 
 ---
 
-An [MCP](https://modelcontextprotocol.io/) server that connects AI assistants directly to a running Roblox Studio session. Read the instance tree, edit Luau scripts, set properties, manage attributes & tags, create objects, detect drift, and sync source files — all over a **100% local** connection that never leaves your machine.
+Un serveur [MCP](https://modelcontextprotocol.io/) qui connecte ton IA à **Roblox Studio**. Il réunit :
+
+- **le Game Kit** : des jeux complets, des systèmes testés, des générateurs de mondes et d'interfaces, et un **playtest
+  automatique** qui trouve et explique les erreurs ;
+- **plus de 140 outils Studio** (base [6xvl](https://github.com/6xvl/robloxstudio-mcp-server)) : scripts, objets,
+  terrain, éclairage, animations, sons, particules, assets, profilage, captures d'écran, tests multijoueurs,
+  plusieurs Studio à la fois, et le lien vers le MCP officiel intégré à Studio ;
+- **Blender** ([blender-mcp](https://github.com/ahujasid/blender-mcp), addon inclus) : l'IA modélise, télécharge ou
+  génère des objets 3D et les envoie dans le jeu à la bonne taille, **par le même serveur** ;
+- **le travail à plusieurs IA** : tableau de tâches partagé, zones de carte réservées, tâches de fond.
+
+Résultat : même une IA « faible en code » peut sortir un jeu jouable et propre, parce qu'elle **assemble des briques
+déjà testées** au lieu d'écrire 2000 lignes de Luau fragile.
 
 ```
-  Your AI                    MCP Server                Studio Plugin
- ┌──────────┐    stdio    ┌──────────────┐   HTTP    ┌──────────────┐
- │  Claude   │◄──────────►│   Node.js    │◄─────────►│    Luau      │
- │  Gemini   │            │  port 3002   │ localhost │  polls every │
- │  Codex    │            │              │           │    500ms     │
- └──────────┘            └──────┬───────┘           └──────────────┘
-                                │
-                         ┌──────┴───────┐
-                         │ Blueprint V1 │
-                         │  Rojo sync   │
-                         └──────────────┘
+ Ton IA ──stdio──► Roblox Ultimate MCP ──HTTP localhost:58741──► Plugin Studio ──► Ton jeu
+  (1 ou plusieurs)  │                                              (édition + copies serveur/client
+                    │                                               pendant les playtests)
+                    ├─ Game Kit : 11 jeux complets, 30 systèmes, mondes, décor, UI, ambiances
+                    ├─ Mémoire : game_notes (idée, décisions, fait / à faire) stockée dans le jeu
+                    ├─ Garde-fous : compilateur Luau (WASM) + linter « erreurs de débutant »
+                    ├─ Vérification : check_game, test_game (solo, 2 joueurs, téléphone), look_at_game
+                    ├─ Qualité : check_assets (sons/animations), optimize_game (téléphones), publish_checklist
+                    ├─ Sécurité : backup_game (sauvegardes restaurables), tâches de fond
+                    ├─ Équipe : tableau de tâches + zones partagées entre plusieurs IA
+                    ├─ Blender ──TCP localhost:9876──► addon « MCP for Blender » ──► objets, personnages riggés, animations
+                    └─ 140+ outils Studio (terrain, éclairage, animations, profilage, multi-Studio…)
 ```
+
+## ✨ Ce qui le rend « ultime »
+
+| | Fonction | Ce que ça change |
+|---|---|---|
+| 🏗️ | **`create_game`** — 11 jeux complets | Obby, Tycoon, Simulator, Arène PvP, Survie zombies, Horreur/évasion, Tower defense coop, Ferme (idle), **Course en karts**, **Pêche**, **Survie coop avec craft** : scripts serveur+client, config, monde, HUD et éclairage **en un seul appel** (avec sauvegarde automatique de l'existant) |
+| 🧩 | **`add_system`** — 30 systèmes | Sauvegarde, checkpoints, boutique, rounds, épée, ennemis avec pathfinding, tower defense, ferme, **inventaire**, **niveaux & XP**, **quêtes avec flèche de guidage**, **œufs & familiers**, **course**, **pêche**, **récolte & craft**, **codes cadeaux**, **bonus entre amis & groupe**, récompense quotidienne, classement mondial, monétisation, **analytics** et **traduction** intégrées… |
+| 🧠 | **`game_notes`** — mémoire du projet | Idée, décisions, fait, à faire et historique des changements, **stockés dans le jeu** : une nouvelle conversation (ou une autre IA) reprend en un appel au lieu de tout relire |
+| 🌍 | **`build_world`** — mondes & pièces | Parcours d'obby progressif (12 types d'obstacles), labyrinthe, arène, tycoon, simulateur, tower defense, ferme, **circuit**, **lacs de pêche**, **camp de survie**, 53 pièces (jump pad, pièce, spinner, œuf, point de pêche, arbre à couper…) |
+| 🌳 | **`populate_world`** — décor en masse | Forêt, désert, neige, plage, fantasy, ville, ferme, spooky, jardin — ou tes modèles (Creator Store, Blender) ; posé au sol, sans jamais bloquer le gameplay |
+| 👀 | **`look_at_game`** | L'IA **voit** son jeu : captures sous plusieurs angles (vue d'ensemble, dessus, joueur) |
+| 🎨 | **Blender → Roblox** | `blender_to_roblox` : export (réduction auto à 20k triangles), upload, insertion à l'échelle (1 m = 3,57 studs), posé au sol ; **personnages riggés** et **animations** (`blender_animation`) |
+| 🤝 | **`team`** + **`start_job`** | Plusieurs IA sur le même jeu (tâches, zones), et les outils lents tournent en arrière-plan |
+| 💾 | **`backup_game`** | Instantanés restaurables en un appel (monde, scripts, UI, éclairage, terrain) |
+| 📈 | **`balance_economy`** · **`publish_checklist`** | Simulation de progression (prix trop bas, murs de 20 min…) avec prix suggérés ; checklist de publication vérifiée |
+| 🖼️ | **`build_ui`** — UI en JSON | Écrans responsive + comportements **sans code** (`bind: "stat:Coins"`, `action: "toggle:Boutique"`) |
+| 🎨 | **`figma`** — UI dessinée dans Figma | L'IA dessine l'écran dans Figma, tu l'ajustes, elle l'importe dans Studio. **Toutes les IA** (OpenCode, Qoder…), **plan Figma gratuit**, via le plugin « Roblox MCP Bridge » |
+| 🖌️ | **`design_refs`** — références visuelles | Cherche dans la bibliothèque « roblox-ai » (~6 000 images : styles d'UI, VFX, miniatures par genre) **avant** de dessiner |
+| ✨ | **`make_vfx`** — effets visuels | 11 effets prêts (étincelles, explosion, feu, aura, level up, portail…), effets de **VFX Studio** récupérés, joués en une ligne : `Util.vfx("Nom", part)` |
+| 🌅 | **`set_environment`** | 10 ambiances (jour, coucher de soleil, nuit, horreur, néon…) + terrain (collines, île, eau) |
+| 🛡️ | **`write_script`** / **`check_luau`** | Le vrai compilateur Luau (WASM) + linter : refuse le code cassé **avant** Studio, explique la correction |
+| 🔍 | **`check_game`** | Audit complet : syntaxe de tous les scripts, scripts mal placés (qui ne tournent jamais), spawn manquant, pièces non ancrées… |
+| 🧪 | **`test_game`** | Lance le jeu, **joue tout seul** (checkpoints, pièces, pièges, quêtes, œufs, pêche, craft…), récupère les erreurs serveur ET client avec explication, s'arrête et nettoie. **`{players: 2}`** : vrai test multijoueur. **`{device: "phone"}`** : écran de téléphone + contrôle de l'interface |
+| 🔊 | **`check_assets`** | Vérifie que chaque son, animation et image **se charge vraiment** (et que les animations appartiennent au propriétaire du jeu) avant que les joueurs n'entendent le silence |
+| 📱 | **`optimize_game`** | Bilan pour les **téléphones d'entrée de gamme** (pièces, physique, ombres, lumières, particules, streaming, scripts lourds) et corrections sûres en un appel |
+| 🖥️ | **Panneau « IA » dans Studio** | Ce que fait l'IA en direct, tableau d'équipe, tâches à faire, bouton **« Annuler l'action de l'IA »** |
+| ⚡ | **`npx roblox-ultimate-mcp setup`** | Installation en une commande, sans cloner le dépôt : plugin Studio + configuration de tes applis d'IA (+ addon Blender) |
+| 🧰 | **140+ outils Studio** | Terrain, éclairage, animations, particules, sons, matériaux, assets du Creator Store, captures d'écran, simulateur d'appareils, tests à 8 joueurs, profileurs, points d'arrêt, `.rbxm`, synchro de fichiers… |
+| 🧠 | Guides, prompts, instructions | La méthode est injectée automatiquement dans l'IA ; `roblox_guide` explique Luau, client/serveur, game design, erreurs… |
+| 🧑‍💻 | **Aide au code** | Correction auto des réflexes JavaScript/Python, détection des API Roblox inventées (avec la bonne suggestion), `edit_script` vérifié, 12 recettes de code prêtes à l'emploi |
+| 🪙 | **Économe en tokens** | Liste d'outils allégée (−36 %), réponses JSON compactes, lecture de scripts ciblée, captures réduites |
+| 🎚️ | Profils d'outils | 46 outils par défaut (au lieu de 186) pour ne pas perdre une petite IA ; tout reste accessible via `find_tools`/`call_tool` |
 
 ---
 
-> ## 🤖 Using an AI Agent? (Claude Code, Cursor, etc.)
->
-> **Let your AI agent set everything up for you!**
->
-> ### Option 1: Copy-Paste This Prompt
->
-> Just copy and paste this to your AI agent:
->
-> ```
-> Go to https://raw.githubusercontent.com/aaronaalmendarez/roblox-mcp/main/AGENT.md
-> Read the entire file, then set up the Roblox Studio MCP on my machine. Follow all the installation steps in the "Complete Installation Guide" section.
-> ```
->
-> Your agent will handle cloning, building, configuring MCP, and setting up Blueprint V1 automatically.
->
-> ### Option 2: Manual
->
-> - **[📖 View AGENT.md on GitHub](https://github.com/aaronaalmendarez/roblox-mcp/blob/main/AGENT.md)**
-> - **[📋 View Raw](https://raw.githubusercontent.com/aaronaalmendarez/roblox-mcp/main/AGENT.md)** (copy all)
+## 🚀 Démarrage en 5 minutes
 
----
+Il faut [Node.js](https://nodejs.org) 18 ou plus.
 
-## 🚀 Quick Start
-
-**1 →** Install the Studio plugin ([download `.rbxmx`](https://github.com/aaronaalmendarez/roblox-mcp/releases/latest/download/MCPPlugin.rbxmx)) into your plugins folder
-
-| OS      | Path                             |
-| :------ | :------------------------------- |
-| Windows | `%LOCALAPPDATA%\Roblox\Plugins\` |
-| macOS   | `~/Documents/Roblox/Plugins/`    |
-
-**2 →** In Studio: **Game Settings → Security → Allow HTTP Requests** ✅
-
-**3 →** Start the server:
+### ⚡ En une commande (sans cloner le dépôt)
 
 ```bash
-# From this repo
-npm install && npm run build
-node dist/index.js
+npx roblox-ultimate-mcp setup             # plugin Studio + toutes tes applis d'IA configurées (liste ci-dessous)
+npx roblox-ultimate-mcp setup --blender   # ... et l'addon Blender
 ```
 
-**4 →** Configure your AI client (see [Client Setup](#-client-setup)) — done!
+La commande installe le plugin Studio, ajoute le serveur dans les applis d'IA trouvées sur l'ordinateur (sans toucher
+aux autres serveurs, avec une copie `.bak`), et affiche la ligne à coller pour Claude Code ou une autre appli.
+Applis configurées automatiquement : Claude Desktop, Cursor, Windsurf, OpenCode, **Qoder**, Gemini CLI, Antigravity,
+VS Code (Copilot), Cline, Roo Code, Kiro, LM Studio et Codex. N'importe quel modèle marche derrière (DeepSeek, Qwen,
+Kimi, GLM, modèles locaux…) : la méthode, les modèles de jeu et les vérifications sont dans le serveur, pas dans l'IA.
+Il reste à redémarrer Studio et l'appli d'IA, puis à faire l'étape « Autoriser les requêtes HTTP » ci-dessous.
 
-<details>
-<summary><b>Build plugin from source</b></summary>
+> Cette commande marche dès que le paquet est publié sur npm (workflow `.github/workflows/publish.yml`, voir
+> [Publier sur npm](#publier-sur-npm)). En attendant, utilise l'installation depuis le dépôt ci-dessous.
+
+### 📦 Depuis le zip (sans git)
+
+1. Sur GitHub : bouton vert **Code → Download ZIP** (choisis la branche `claude/charming-johnson-0o1yse` tant que la
+   PR n'est pas fusionnée). Dézippe dans un dossier qui ne bougera plus (ex. `C:\roblox-mcp`).
+2. Dans ce dossier, ouvre un terminal (Windows : clic droit → *Ouvrir dans le terminal*) :
+   ```bash
+   npm install        # dépendances + compilation (le zip ne contient pas les fichiers compilés)
+   npm run setup      # plugin Studio + toutes tes applis d'IA configurées vers CE dossier
+   ```
+   `npm run setup -- --blender` installe aussi l'addon Blender.
+3. Redémarre Studio et l'appli d'IA, puis active **Autoriser les requêtes HTTP** (étape 2 ci-dessous).
+
+Si tu déplaces le dossier plus tard, relance `npm run setup -- --force`.
+
+### 1. Installer le serveur (depuis le dépôt)
 
 ```bash
-npm run build:plugin
-# Copy studio-plugin/MCPPlugin.rbxmx → plugins folder → restart Studio
+git clone https://github.com/artioramouche-glitch/roblox.git
+cd roblox
+npm install        # installe ET compile tout
 ```
-</details>
 
----
-
-## ✨ Features
-
-### 37+ MCP Tools
-
-|      | Category               | What You Can Do                                                   |
-| :--- | :--------------------- | :---------------------------------------------------------------- |
-| 📂    | **Instance Hierarchy** | Browse game tree, search by name / class / content, list services |
-| 📝    | **Script Management**  | Read, write, line-edit Luau scripts with range support            |
-| ⚡    | **Batch Editing**      | Atomic multi-op edits with SHA-256 hash checks + auto-rollback    |
-| 🔩    | **Properties**         | Get/set any property, mass ops, formula & relative calculations   |
-| 🏗️    | **Object Lifecycle**   | Create, delete, smart-duplicate with offset grids & variations    |
-| 🏷️    | **Attributes & Tags**  | Full CRUD for attributes + CollectionService tags                 |
-| 🩺    | **Diagnostics**        | Drift detection, deprecated API lint, health endpoints, telemetry |
-| 💾    | **Snapshots**          | In-memory script snapshots with instant rollback                  |
-
-### IDE-First Sync
-
-- **Blueprint V1** — [Rojo](https://rojo.space/)-based multi-place source control
-- **Bi-directional** — push local files to Studio *or* pull Studio changes back
-- **Conflict-safe** — hash-based guards prevent accidental overwrites
-- **Drift detection** — know exactly when local and Studio have diverged
-
-### Built for Reliability
-
-- Optimistic concurrency via SHA-256 source hashes
-- Write idempotency — replay-safe with `X-Idempotency-Key`
-- Chunked script uploads for very large rewrites that exceed single MCP payload limits
-- Safe bridge fallback for script writes instead of `set_property` on `Source`
-- Full-source reads for large scripts automatically avoid truncated plugin responses
-- Smart plugin polling: hot → active → idle intervals
-- Drift checks ignore formatting-only differences by default and report both raw and normalized hashes
-- Atomic **apply → verify → rollback** pipeline
-
----
-
-## 🎨 The Studio CLI
-
-One command to rule them all. A zero-dependency, cross-terminal orchestrator for your entire Roblox workflow.
-
-```
-    ____  ____  ____________  ______________  _____
-   / __ \/ __ )/ ____/ __ \/  _/ ____/ __ \/ ___/
-  / /_/ / __  / /   / / / // // /   / / / /\__ \
- / _, _/ /_/ / /___/ /_/ // // /___/ /_/ /___/ / 
-/_/ |_/_____/\____/_____/___/\____/_____//____/
-```
+### 2. Installer le plugin dans Roblox Studio
 
 ```bash
-# One command starts everything
-npm run studio -- dev
-
-# Or pick your services
-npm run studio -- mcp              # MCP server only
-npm run studio -- serve            # Rojo server only
-npm run studio -- dev --verbose    # See all process output
+npm run install-plugin
 ```
 
-### What it does
+(ou copie `studio-plugin/MCPPlugin.rbxmx` dans `%LOCALAPPDATA%\Roblox\Plugins\` sous Windows,
+`~/Documents/Roblox/Plugins/` sous macOS). Puis :
 
-| Feature | Description |
-| :------ | :---------- |
-| **Process Orchestration** | Spawns MCP + Rojo + Watchers + Reverse Sync with a single command |
-| **PID Tracking** | Every process gets a PID file in `.studio-cli/pids/` — no orphaned `node.exe` processes |
-| **Cross-Platform Kill** | `taskkill /T` on Windows, `SIGTERM` on Unix — tree-wide shutdown, no zombies |
-| **Log Capture** | Background processes write timestamped logs to `.studio-cli/logs/` |
-| **Health Checks** | Auto-verifies MCP (HTTP) and Rojo (TCP socket) before reporting "ready" |
-| **Place Context** | Auto-resolves active place, detected Studio place, or legacy fallback |
-| **Beautiful UI** | ANSI boxes, spinners, tables, and status indicators — works in any terminal |
+1. Redémarre Studio et ouvre un jeu (Fichier → Nouveau → Baseplate suffit).
+2. **Paramètres du jeu → Sécurité → Autoriser les requêtes HTTP** ✅
+3. Onglet **Plugins → MCP Server → Connect**.
 
-### Commands
+### 3. Brancher ton IA
 
+Remplace `CHEMIN` par le dossier cloné (ex. `C:/Users/moi/roblox` ou `/home/moi/roblox`).
+
+**Claude Code**
 ```bash
-studio dev              # Full environment (MCP + Rojo + Watch + Reverse)
-studio serve            # Rojo server only
-studio mcp              # MCP server only
-studio sync             # Blueprint property sync once
-studio watch            # Property file watcher
-studio build            # Build .rbxl via Rojo
-studio lint             # Luau lint
-studio place list       # Places table with active marker
-studio place status     # Resolved context box
-studio place use <key>  # Switch active place
-studio place detect     # Auto-register current Studio place
-studio status           # System dashboard with health checks
-studio stop [name]      # Kill tracked process(es)
-studio transcribe       # Whisper transcription
-studio doctor           # Blueprint doctor
-studio version          # Version + logo
+claude mcp add roblox -- node CHEMIN/packages/roblox-ultimate-mcp/dist/index.js
 ```
 
-### Global Flags
-
-```bash
---place <key>     # Target place (slug / id / name)
---verbose         # Show process output
---json            # Machine-readable output
---dry-run         # Preview changes without applying
-```
-
----
-
-## 🆕 Recent Reliability Fixes
-
-- **Large script reads are no longer silently truncated** — full-source reads now return the complete script even when the plugin would otherwise cap the response to the first 1000 lines.
-- **Formatting-only drift no longer shows up as content drift** — `check_script_drift` now normalizes line endings, BOM, trailing whitespace, and trailing final newlines by default.
-- **Drift output is more explicit** — diagnostics now include `comparisonMode`, `formattingOnly`, `formattingDifferences`, raw hashes/lengths, and normalized hashes/lengths.
-- **Large script writes now have a safe transport** — use the chunked upload tools or `scripts/push-script-fast.mjs` for large files; they commit through the plugin bridge and `UpdateSourceAsync` instead of `set_property`.
-- **`Source` writes no longer go through property tools** — `set_property` and `mass_set_property` now reject the `Source` property so escape sequences are not corrupted.
-- **Server and plugin defaults are aligned around port `3002`** — current builds start on `3002` first and keep `58741` only as a legacy fallback.
-
-Example of the expected healthy case:
-
-```json
-{
-  "status": "in-sync",
-  "comparisonMode": "canonical-text",
-  "formattingOnly": true,
-  "formattingDifferences": ["trailing-newline"],
-  "rawLocalLength": 74884,
-  "rawStudioLength": 74883,
-  "normalizedLocalLength": 74883,
-  "normalizedStudioLength": 74883
-}
-```
-
-This means the raw bytes differ, but the actual script content is the same.
-
-A real healthy verification case now looks like this:
-
-- Full source read: `localLength: 74883`, `studioLength: 74883`
-- Raw bytes can still differ by one trailing newline: `rawLocalLength: 74884`, `rawStudioLength: 74883`
-- Normalized hashes then match, so the result is correctly reported as `in-sync`
-- The result includes `comparisonMode`, `formattingOnly`, `formattingDifferences`, and raw vs normalized hashes/lengths
-
----
-
-## 🔧 Tool Reference
-
-<details>
-<summary><b>📂 Instance Hierarchy</b> — 9 tools</summary>
-
-| Tool                    | Description                              |
-| :---------------------- | :--------------------------------------- |
-| `get_file_tree`         | Instance hierarchy as a tree             |
-| `search_files`          | Search by name, class, or script content |
-| `get_services`          | List Roblox services and children        |
-| `search_objects`        | Find by name, class, or property         |
-| `get_project_structure` | Full game hierarchy (configurable depth) |
-| `get_instance_children` | Children + class types                   |
-| `get_class_info`        | Properties/methods for any class         |
-| `get_place_info`        | Place ID, name, game settings            |
-| `get_selection`         | Currently selected objects               |
-</details>
-
-<details>
-<summary><b>📝 Script Management</b> — 15 tools</summary>
-
-| Tool                             | Description                        |
-| :------------------------------- | :--------------------------------- |
-| `get_script_source`              | Read source (optional line range, full reads safe for large scripts)  |
-| `get_script_snapshot`            | Source + SHA-256 hash with full-source recovery              |
-| `set_script_source`              | Full rewrite (editor-safe; use chunked upload for very large files)         |
-| `begin_script_source_upload`     | Start chunked upload session for large files |
-| `append_script_source_upload_chunk` | Append one chunk to an upload session |
-| `commit_script_source_upload`    | Commit an uploaded script through the plugin bridge |
-| `cancel_script_source_upload`    | Discard an upload session without writing |
-| `set_script_source_checked`      | Write only if hash matches         |
-| `set_script_source_fast`         | Fast write with safe bridge fallback  |
-| `set_script_source_fast_gzip`    | Gzip-compressed fast write         |
-| `edit_script_lines`              | Replace line ranges                |
-| `insert_script_lines`            | Insert at position                 |
-| `delete_script_lines`            | Delete line ranges                 |
-| `batch_script_edits`             | Atomic multi-edit + rollback       |
-| `apply_and_verify_script_source` | Apply → verify → rollback pipeline |
-</details>
-
-<details>
-<summary><b>💾 Snapshots & Safety</b> — 4 tools</summary>
-
-| Tool                       | Description              |
-| :------------------------- | :----------------------- |
-| `create_script_snapshot`   | In-memory rollback point |
-| `list_script_snapshots`    | List session snapshots   |
-| `rollback_script_snapshot` | Restore from snapshot    |
-| `cancel_pending_writes`    | Cancel queued writes     |
-</details>
-
-<details>
-<summary><b>🔩 Properties & Objects</b> — 14 tools</summary>
-
-| Tool                                  | Description                         |
-| :------------------------------------ | :---------------------------------- |
-| `get_instance_properties`             | All properties of an instance       |
-| `set_property`                        | Set any property except `Source`    |
-| `mass_set_property`                   | Set on multiple instances except `Source` |
-| `mass_get_property`                   | Read from multiple instances        |
-| `search_by_property`                  | Find by property value              |
-| `set_calculated_property`             | Formula-based property sets         |
-| `set_relative_property`               | Relative modifications              |
-| `create_object`                       | Create instance                     |
-| `create_object_with_properties`       | Create with initial props           |
-| `mass_create_objects`                 | Batch create                        |
-| `mass_create_objects_with_properties` | Batch create with props             |
-| `delete_object`                       | Delete instance                     |
-| `smart_duplicate`                     | Smart dup with offsets & variations |
-| `mass_duplicate`                      | Multiple smart dups at once         |
-</details>
-
-<details>
-<summary><b>🏷️ Attributes & Tags</b> — 7 tools</summary>
-
-| Tool                              | Description                 |
-| :-------------------------------- | :-------------------------- |
-| `get_attribute` / `set_attribute` | Read/write single attribute |
-| `get_attributes`                  | All attributes on instance  |
-| `delete_attribute`                | Remove attribute            |
-| `get_tags`                        | CollectionService tags      |
-| `add_tag` / `remove_tag`          | Add or remove tag           |
-| `get_tagged`                      | All instances with a tag    |
-</details>
-
-<details>
-<summary><b>🩺 Diagnostics</b> — 4 tools</summary>
-
-| Tool                   | Description                     |
-| :--------------------- | :------------------------------ |
-| `get_runtime_state`    | Write queue + bridge telemetry  |
-| `get_diagnostics`      | Full diagnostic report          |
-| `check_script_drift`   | Local vs Studio drift check with formatting normalization and raw/normalized diagnostics |
-| `lint_deprecated_apis` | Deprecated API scanner          |
-</details>
-
----
-
-## 🔌 Client Setup
-
-> All configs point to the **local build**. Replace the path with your actual install location.
-
-<details open>
-<summary><b>Claude Code</b></summary>
-
-```bash
-claude mcp add robloxstudio -- node /path/to/roblox-mcp/dist/index.js
-```
-</details>
-
-<details>
-<summary><b>Gemini CLI</b></summary>
-
-```bash
-gemini mcp add robloxstudio node --trust -- /path/to/roblox-mcp/dist/index.js
-```
-</details>
-
-<details>
-<summary><b>Claude Desktop / Generic JSON</b></summary>
-
+**Claude Desktop / Cursor / Windsurf / Cline / LM Studio / tout client JSON**
 ```json
 {
   "mcpServers": {
-    "robloxstudio-mcp": {
+    "roblox": {
       "command": "node",
-      "args": ["/path/to/roblox-mcp/dist/index.js"]
+      "args": ["CHEMIN/packages/roblox-ultimate-mcp/dist/index.js"]
     }
   }
 }
 ```
-</details>
 
-<details>
-<summary><b>Codex CLI</b></summary>
+**VS Code (Copilot)** — `.vscode/mcp.json`
+```json
+{ "servers": { "roblox": { "type": "stdio", "command": "node", "args": ["CHEMIN/packages/roblox-ultimate-mcp/dist/index.js"] } } }
+```
 
-`~/.codex/config.toml`:
+**Gemini CLI**
+```bash
+gemini mcp add roblox node CHEMIN/packages/roblox-ultimate-mcp/dist/index.js
+```
+
+**Codex CLI** — `~/.codex/config.toml`
 ```toml
-[mcp_servers.robloxstudio]
+[mcp_servers.roblox]
 command = "node"
-args = ["/path/to/roblox-mcp/dist/index.js"]
+args = ["CHEMIN/packages/roblox-ultimate-mcp/dist/index.js"]
 ```
-</details>
 
-<details>
-<summary><b>OpenCode</b></summary>
+> Plus de variantes (Windows, ports, clé Open Cloud, Blender, édition lecture seule…) : [docs/CLIENTS.md](docs/CLIENTS.md).
 
-`~/.config/opencode/opencode.json`:
+### 4. (Optionnel) Brancher Blender
+
+```bash
+npm run install-blender-addon
+```
+
+Puis dans Blender : touche **N** → onglet **MCP for Blender** → **Connect to MCP server**. Rien d'autre à configurer :
+le serveur Roblox parle directement à l'addon (pas de serveur Python, pas de télémétrie). Détails :
+[Modèles 3D avec Blender](#-modèles-3d-avec-blender).
+
+---
+
+## 🗣️ Ton premier jeu en une phrase
+
+Dis simplement à ton IA :
+
+> *« Crée-moi un obby candy de 20 niveaux, difficulté moyenne, puis teste-le et corrige tout. »*
+
+> *« Fais un simulateur avec 4 zones, des familiers et des renaissances. »*
+
+> *« Un jeu d'horreur : labyrinthe sombre, 4 clés à trouver, un monstre qui poursuit. »*
+
+> *« Un tower defense à 20 vagues avec une tour laser en plus, et un décor de désert autour. »*
+
+> *« Modélise un coffre au trésor dans Blender et mets-en 5 dans la forêt. »*
+
+> *« Un jeu de pêche avec un requin légendaire, des quêtes et des œufs de familiers marins. »*
+
+> *« Une survie à plusieurs : on coupe du bois le jour, on se défend contre les zombies la nuit. »*
+
+L'IA suit d'elle-même la méthode (elle lui est envoyée à la connexion) :
+`roblox_start_here` → `create_game` → `test_game` → corrections → personnalisation (`populate_world`, `build_ui`…)
+→ `look_at_game` → `check_game` → avant publication : `test_game {players: 2}`, `test_game {device: "phone"}`,
+`check_assets`, `optimize_game`, `publish_checklist`. Elle note son avancement dans `game_notes`.
+
+Les clients qui gèrent les **prompts MCP** proposent aussi `make_game`, `fix_my_game`, `add_feature`, `polish_game`,
+`team_build` (plusieurs IA), `blender_prop` (objet 3D sur mesure) et `copy_image` (recopier une image : plan au sol,
+objets « héros » dans Blender, comparaison côte à côte avec `look_at_game {reference}`).
+
+---
+
+## 🎮 11 jeux complets prêts à l'emploi
+
+| Modèle | Genre | Contenu |
+|---|---|---|
+| `obby` | Parkour | Parcours flottant au-dessus d'une mer de lave, checkpoints sauvegardés, 12 types d'obstacles à difficulté croissante, pièces, récompenses de fin, boutique (traînées, boosts), classement mondial |
+| `tycoon` | Tycoon | Parcelles à réclamer, droppers → tapis → collecteur, amplificateur, 10 achats en chaîne (murs, jardin, super dropper, tour), progression sauvegardée |
+| `simulator` | Simulator | Entraîne-toi → sac à dos → vends → améliorations & familiers → zones payantes → renaissance (multiplicateur permanent) |
+| `arena` | Combat | Lobby + arène, boucle de rounds (le dernier debout gagne), épées pendant les rounds, récompenses, boutique |
+| `survival` | Survie | Vagues de zombies (normal, rapide, colosse) de plus en plus grosses, épée, pièces par kill et par vague |
+| `horror_escape` | Horreur | Labyrinthe généré, lumières qui clignotent, clés à trouver, porte de sortie, monstre avec pathfinding |
+| `tower_defense` | Tower defense (coop) | Chemin sinueux, vagues (Basic, Fast, Tank, Boss), 15 emplacements : tours Archer, Canon (zone), Givre (ralentit), amélioration/revente, château à défendre, victoire récompensée |
+| `farming` | Ferme / idle | 24 parcelles, 5 cultures qui poussent en 3 étapes visibles, récolte, marché, cultures à débloquer (blé → carotte → tomate → citrouille → cristal) |
+| `racing` | Course | Circuit ovale avec grille de départ, 3-2-1-GO, karts (clavier, manette, mobile), tours et points de passage, positions en direct, meilleur tour sauvegardé, podium, quêtes et niveaux |
+| `fishing` | Pêche / collection | Lancer, attendre la touche, ferrer à temps : 6 poissons et 2 zones (étang, océan) avec raretés, marché aux poissons, canne à améliorer (touches plus rapides, poissons plus rares, océan débloqué), quêtes, œufs et familiers marins |
+| `craft_survival` | Survie coop + craft | Couper du bois, miner, cueillir le jour ; fabriquer haches, épées, murs, pics et feux de camp ; gérer la faim ; défendre le camp ensemble contre les zombies chaque nuit |
+
+Options courantes : `title`, `theme` (rainbow, candy, neon, nature, space, lava, ice), `difficulty`, `stages`, `plots`,
+`zones`, `mazeSize`, `keys`, `waves`, `laps`, `karts`, `seed`, `lighting`. Tout reste modifiable sans code dans
+`ReplicatedStorage/GameKit/Config/<Système>` (fichiers Luau commentés).
+
+## 🧩 30 systèmes plug-and-play
+
+| Système | Rôle |
+|---|---|
+| `core` (toujours) | Sauvegarde DataStore sûre (verrou de session, réessais, sauvegarde auto, mode mémoire en Studio), leaderstats, réseau sécurisé (`Net`), UI kit, liaison UI sans code, **Analytics** (économie, funnel, progression dans le Creator Dashboard) et **traduction** de l'interface (FR/ES/PT/DE) |
+| `hud` | Stats avec animations « +N », barre de statut/minuteur, notifications, boutons latéraux |
+| `checkpoints` · `hazards` · `movers` · `collectibles` | Obby : checkpoints, kill bricks/dégâts/soins, plateformes mobiles/spinners/disparaissantes/qui tombent, tapis, téléporteurs, jump/speed pads, pièces |
+| `rounds` · `combat` · `enemies` | Boucle de rounds, épée avec détection serveur anti-triche, PNJ avec pathfinding + mode vagues |
+| `shop` · `daily` · `leaderboard` · `monetization` | Boutique validée par le serveur (boosts, outils, traînées, multiplicateurs, familiers, améliorations), récompense quotidienne avec série, classement mondial, produits/pass sans double attribution |
+| `movement` · `atmosphere` · `admin` | Sprint + double saut, cycle jour/nuit + musique + lumières qui clignotent, commandes `/give /tp /kick…` |
+| `tycoon` · `simulator` · `objectives` · `towerdefense` · `farming` | Mécaniques de genre complètes |
+| `inventory` · `levels` · `quests` · `pets` | **Rétention** : objets sauvegardés (fenêtre 🎒, vente), XP et niveaux (barre, récompenses), quêtes en chaîne qui servent de tutoriel (avec une **flèche lumineuse** qui montre où aller), œufs à éclore et familiers qui multiplient les gains |
+| `codes` · `social` | **Croissance** : codes cadeaux à saisir (🎟, une fois par joueur, date d'expiration), +10 % de gains par ami dans le serveur, bouton d'invitation 👥 récompensé, bonus pour les membres de ton groupe Roblox |
+| `racing` · `fishing` · `crafting` | Course (tours, points de passage, karts arcade), pêche (zones, raretés, canne), récolte + craft + constructions + faim (avec `enemies` en mode vagues jour/nuit) |
+
+La référence complète (réglages, tags, attributs) est dans **[docs/GAMEKIT.md](docs/GAMEKIT.md)**
+(générée depuis le code, donc toujours exacte) — et l'IA peut la lire avec `roblox_guide <système>`.
+
+## 🖼️ Une interface sans écrire de code
+
 ```json
-{
-  "mcp": {
-    "robloxstudio": {
-      "type": "local",
-      "enabled": true,
-      "command": ["node", "/path/to/roblox-mcp/dist/index.js"]
-    }
-  }
-}
+{ "name": "MonUI", "children": [
+  { "type": "frame", "position": "top-right", "size": [220, 56], "stroke": true, "padding": 8, "children": [
+    { "type": "label", "size": [1, 1], "bind": "stat:Coins", "format": "💰 {value}" } ] },
+  { "type": "button", "position": "bottom-right", "size": [150, 50], "text": "Menu", "action": "toggle:Fenetre" },
+  { "type": "frame", "name": "Fenetre", "position": "center", "size": [0.4, 0.5], "visible": false } ] }
 ```
-</details>
 
-<details>
-<summary><b>Published npm package</b></summary>
+`bind` suit une stat en direct, `bar` fait une barre de progression, `showIf` affiche selon l'état,
+`action` ouvre/ferme/déclenche un RemoteEvent. Tailles ≤ 1 = fraction d'écran, > 1 = pixels.
 
-If using the published package instead of a local build:
-```bash
-npx -y @aaronalm19/roblox-mcp@latest
-```
-</details>
+### 🎨 Dessiner l'écran dans Figma (toutes les IA, plan gratuit)
 
-> **Full reference with Windows fallbacks:** [docs/CLIENTS.md](docs/CLIENTS.md)
+1. Une fois : **ferme Figma**, puis `npm run install-figma-plugin` (fait aussi par `npm run setup`) : le plugin est
+   ajouté à Figma bureau, rien à importer. À la main sinon : *Plugins → Development → Import plugin from manifest…* →
+   `figma-plugin/manifest.json`.
+2. **Une fois par fichier** : *Plugins → Development → **Roblox MCP Bridge*** (laisse sa petite fenêtre ouverte).
+   Ensuite, sous Windows, **il se relance tout seul** dès que tu ouvres ce fichier (~30 s après le démarrage de
+   Figma) : le serveur clique son bouton de relance par l'accessibilité de Windows, sans clavier ni souris.
+   `ROBLOX_MCP_FIGMA_AUTOSTART=0` coupe ce comportement. Ailleurs : bouton **Roblox MCP Bridge** dans le panneau de
+   droite du fichier (rien de sélectionné). Figma lui-même ne laisse aucun plugin démarrer tout seul.
+3. L'IA cherche un style (`design_refs { query: "simulator shop" }`), dessine l'écran (`figma { action: "draw", spec }`),
+   tu l'ajustes dans Figma, tu sélectionnes le cadre, et `figma { action: "import" }` le construit dans Studio.
+
+Comportement dans les noms de calques : `Boutique [toggle:FenetreBoutique]`, `[open:X]`, `[close:X]`, `[remote:Achat]`,
+`[showIf:state:RoundActive]`. Texte en direct : écris `💰 {stat:Coins}` dans le calque texte. Calque caché = fenêtre
+fermée au départ. Les images et icônes sont exportées en PNG (tu les ajoutes dans Studio : *Image → Add Image…*).
+
+Pourquoi un plugin plutôt que le MCP officiel de Figma ? Figma refuse les applis qui ne sont pas dans sa liste
+(OpenCode, Qoder…) et limite la lecture à quelques appels par mois en plan gratuit. Le plugin marche partout, sans clé,
+sans limite. Avec Claude Code tu peux en plus ajouter le MCP officiel :
+`claude mcp add --transport http figma https://mcp.figma.com/mcp`.
+
+### ✨ Effets visuels et VFX Studio
+
+`make_vfx { preset: "hit_spark" }` (ou `sparkle`, `explosion`, `fire`, `smoke_puff`, `heal_aura`, `level_up`, `magic`,
+`portal`, `dust`, `celebration`) enregistre l'effet dans `ReplicatedStorage/GameKit/Effects`. Dans un script :
+`Util.vfx("HitSpark", part)`. Pour un effet plus travaillé : `make_vfx { action: "plugin" }` donne les étapes du plugin
+gratuit **VFX Studio**, puis `make_vfx { action: "collect", name }` récupère l'effet que tu as sélectionné.
+
+### 🖌️ Bibliothèque de références (`design_refs`)
+
+Télécharge la bibliothèque « roblox-ai » (zip GitHub) et dézippe-la dans `Téléchargements/roblox-ai-main` (trouvée
+toute seule) ou ailleurs avec `ROBLOX_REFS_DIR=<dossier>` dans la config du serveur. L'IA y cherche des styles d'UI,
+des VFX et des miniatures par genre avant de dessiner (`show: true` lui montre les images).
 
 ---
 
-## 📘 Blueprint V1
+## 🧑‍💻 Une IA moyenne en code devient fiable
 
-IDE-first source control built on [Rojo](https://rojo.space/) with multi-place support.
+Les petits modèles échouent surtout sur trois choses : des habitudes d'autres langages, des API Roblox inventées, et
+des réécritures complètes de scripts qui cassent tout. Le serveur s'en occupe :
 
-```
-blueprint-v1/
-├── places/
-│   ├── registry.json           # Place ID → slug
-│   ├── .active-place.json      # Active context
-│   └── <slug>/
-│       ├── default.project.json
-│       ├── src/                 # Luau source
-│       └── properties/
-│           └── instances.json   # Non-script props
-└── src/                         # Legacy fallback
-```
+| Aide | Ce qu'elle fait |
+|---|---|
+| **Correction automatique** | `write_script`, `edit_script` et `check_luau` convertissent `!=`, `&&`, `\|\|`, `!x`, `null`, `// commentaires`, `let/const`, `i++`, `"texte" + x`, `` `${x}` ``, `wait()`… en Luau correct, et disent ce qui a été changé (l'IA apprend) |
+| **Détecteur d'API inventées** | Index de toute l'API Roblox (965 classes, 635 enums) : `GetService("Player")` → *Players*, `Instance.new("Brick")` → *Part*, `Enum.Material.Wooden` → *Wood*, `Vector3.New`, `humanoid.Walkspeed` → *WalkSpeed*, méthodes obsolètes (`AwardBadge` → `AwardBadgeAsync`)… |
+| **`code_recipe`** | 12 scripts vérifiés à partir de quelques paramètres : récompense au toucher, prompt « E », porte à condition, apparition d'objets, récompense de temps de jeu, bouton UI → serveur, dialogue de PNJ, badge, stats du personnage, commande de chat, musique de zone, mouvement en boucle. Chacun passe le compilateur, le linter, le contrôle d'API et luau-lsp |
+| **`edit_script`** | Modifie une partie d'un script par rechercher/remplacer (tolère une indentation différente), vérifie le résultat **avant** d'écrire : jamais de script cassé, et pas besoin de renvoyer tout le fichier |
+| **`read_script`** / **`code_outline`** | Lire seulement les lignes utiles (plage ou mot-clé) ; plan du code du jeu en une ligne par script |
+| **Erreurs avec leur code** | `test_game` et `check_game` montrent les lignes fautives à côté de l'explication : la correction se fait sans relire le script |
 
-```bash
-npm run place:detect             # Auto-detect Studio place
-npm run place:list               # List registered places
-npm run blueprint:sync           # Property sync → Studio
-npm run blueprint:watch          # Continuous sync
-npm run blueprint:reverse-sync   # Pull Studio → local
-npm run drift:check              # Detect file divergence
-npm run luau:lint                # Static analysis (requires luau-lsp, see below)
-```
+## 🪙 Économie de tokens
 
-### Luau Lint Setup (luau-lsp)
+| | Avant | Maintenant |
+|---|---|---|
+| Liste d'outils du profil de base (renvoyée à chaque message par la plupart des clients) | ~7 200 tokens | ~4 600 tokens (avec 2 outils de plus) |
+| `find_tools` (recherche) | ~2 600 tokens | ~400 tokens (index ; schéma complet pour un nom exact) |
+| Catalogue | ~1 900 tokens | ~1 200 tokens |
+| Réponses | JSON indenté, champs vides | JSON compact, champs vides retirés |
+| Captures (`look_at_game`, `capture_screenshot`) | pleine taille | 640 / 1024 px (≈ 4× moins de tokens d'image) |
+| Lire un script | le source envoyé deux fois | `read_script` : lignes numérotées, plage ou recherche |
+| Modifier un script | tout réécrire | `edit_script` : seulement le passage changé |
 
-`npm run luau:lint` uses [luau-lsp](https://github.com/JohnnyMorganz/luau-lsp) which ships **full Roblox type stubs** — `Player`, `BasePart`, `Vector3`, `RemoteEvent`, etc. all resolve correctly under `--!strict`.
-
-**One-time setup:**
-
-Option A — use the bundled binary (already in this repo, v1.63.0 Windows x64):
-```powershell
-Expand-Archive tools\luau-lsp\luau-lsp-win64.zip -DestinationPath .tools\luau-lsp -Force
-```
-
-Option B — download the latest release for your platform:
-- 👉 https://github.com/JohnnyMorganz/luau-lsp/releases/latest
-- Download `luau-lsp-win64.zip` (Windows), `luau-lsp-macos.zip` (macOS), or `luau-lsp-linux.zip` (Linux)
-- Extract `luau-lsp[.exe]` → `.tools/luau-lsp/luau-lsp.exe`
-
-Then generate the Rojo sourcemap:
-```bash
-rojo sourcemap blueprint-v1/places/<slug>/default.project.json --output sourcemap.json
-```
-
-**Run:**
-```bash
-npm run luau:lint          # findings=0 is the goal
-npm run luau:lint:strict   # exits non-zero if any findings (use in CI)
-```
-
-**Expected clean output:**
-```
-[context] Place1 (125175608517936) [place1-2]
-[luau-lint] files=4 analyzer=.tools/luau-lsp/luau-lsp.exe
-[luau-lint] sourcemap=sourcemap.json
-[luau-lint] findings=0
-```
-
-> **Deep dive:** [docs/BLUEPRINT_V1.md](docs/BLUEPRINT_V1.md)
+Les descriptions détaillées sont dans `roblox_guide`, lues seulement quand l'IA en a besoin.
+Variables : `ROBLOX_MCP_COMPACT=0` (descriptions complètes), `ROBLOX_MCP_PRETTY=1` (JSON indenté).
 
 ---
 
-## 📋 Blueprint Operator Playbook
+## ✅ Qualité avant publication
 
-Everything below is the **strict operational guide** for working with Blueprint V1. Follow these steps exactly.
+| Outil | Ce qu'il vérifie |
+|---|---|
+| `test_game { players: 2 }` | Un vrai test serveur + 2 clients (StudioTestService) : tous les joueurs chargés, apparus, et qui se voient. Les rounds, le PvP et la coop ne cassent souvent qu'à plusieurs |
+| `test_game { device: "phone" }` | Le jeu tourne dans le simulateur d'appareil (le plus petit téléphone disponible) : boutons trop petits pour le doigt, interface hors de l'écran, texte illisible. Le simulateur est remis comme avant |
+| `check_assets` | Chaque son, animation et image du jeu (ou les ids donnés) **se charge-t-il vraiment ?** Les animations d'un autre créateur ne jouent pas dans un jeu publié : elles sont signalées |
+| `optimize_game` | Bilan vert / orange / rouge pour les téléphones d'entrée de gamme ; `optimize_game { apply: ["shadows", "lights", "particles", "streaming", "technology"] }` corrige sans risque (un seul Ctrl+Z) |
+| `publish_checklist` | Reprend tout : erreurs, playtests (solo, 2 joueurs, téléphone), performances, assets, monétisation, étapes manuelles |
 
-### 1. Canonical Windows Flow (copy-paste)
+L'interface GameKit est pensée pour le téléphone : sur un petit écran, la colonne de boutons (🛒 🎁 🎒 🐾 🔨 🎟 👥…)
+réduit la taille des boutons et passe sur deux colonnes au lieu de sortir de l'écran. Tous les textes des systèmes
+sont traduits en français, espagnol, portugais et allemand selon la langue du joueur.
 
-Open a terminal in the repo root and run each step in order:
+## 🖥️ Le panneau IA dans Studio
 
-```powershell
-# Step 1 — Detect the place open in Studio and register it
-npm run place:detect
+Le plugin ajoute un bouton **AI Panel** qui ouvre le panneau **« IA : activité »** :
 
-# Step 2 — Confirm resolved paths
-npm run place:status
-
-# Step 3 — Start Rojo against the resolved project
-rojo serve blueprint-v1/places/<slug>/default.project.json
-
-# Step 4 — Start continuous property sync (separate terminal)
-npm run blueprint:watch
-
-# Step 5 — Start reverse sync guard (separate terminal)
-npm run blueprint:reverse-sync
-```
-
-Or use the **one-command launcher** that does steps 3-5 automatically:
-
-```powershell
-npm run studio -- dev --place <slug>
-```
-
-Or the legacy orchestrator:
-
-```powershell
-npm run dev:studio -- --place <slug>
-```
-
-> This resolves the existing place context, then spawns the MCP server, Rojo, property watcher, and reverse-sync in parallel. It does **not** run `place:detect` — you must register the place first. Press `Ctrl+C` to stop all.
+- **Ce que fait l'IA**, en direct : chaque outil (« create_game obby », « write_script … »), en ✏️ quand il modifie le
+  jeu, en ❌ quand il échoue ;
+- le **tableau d'équipe** (`team`) et la liste **À faire** de `game_notes` ;
+- **« ↶ Annuler l'action de l'IA »** : chaque modification de l'IA est une seule étape d'annulation nommée
+  `MCP: AI …`. Le bouton n'annule que ça, jamais une modification que tu as faite toi-même. Une action de l'IA qui
+  échoue est annulée automatiquement.
 
 ---
 
-### 2. Required Tooling Install Matrix
+## 🎨 Modèles 3D avec Blender
 
-| Tool             | Required                | Install (Windows)                                                                                             |
-| :--------------- | :---------------------- | :------------------------------------------------------------------------------------------------------------ |
-| **Node.js** ≥ 18 | ✅ Yes                   | `winget install OpenJS.NodeJS.LTS` or [nodejs.org](https://nodejs.org)                                        |
-| **Rojo**         | ✅ Yes (for script sync) | `cargo install rojo` — or [download binary](https://github.com/rojo-rbx/rojo/releases) and add to `PATH`      |
-| **Luau CLI**     | Optional (for lint)     | `npm run luau:install` (auto-downloads from [luau-lang releases](https://github.com/luau-lang/luau/releases)) |
+Le dossier `integrations/blender-mcp/` contient [blender-mcp](https://github.com/ahujasid/blender-mcp) (MIT). Seul son
+**addon** est utilisé : le serveur Roblox lui parle directement en TCP (`localhost:9876`), donc une seule entrée MCP
+dans ton IA pour Studio **et** Blender.
 
-<details>
-<summary><b>No winget or cargo?</b></summary>
+| Outil | Rôle |
+|---|---|
+| `blender_status` | Vérifie le lien, liste la scène ; explique l'installation si besoin. Une fois Blender connecté, les autres outils apparaissent |
+| `blender_python` | Modélise en Python (`bpy`), étape par étape |
+| `blender_scene` | Objets (taille en mètres, triangles, matériaux) + capture de la vue 3D |
+| `blender_assets` | Modèles gratuits (Poly Pizza, Sketchfab, Poly Haven) ou génération par IA (Hyper3D, Hunyuan3D) à partir d'un texte **ou d'images** (`images` : chemins absolus .png/.jpg/.webp ou URLs, par exemple des vues faites avec Gemini) |
+| `blender_image_to_3d` | **Images de référence → modèle mesuré** (skill [blender-image-to-3d](https://github.com/majidmanzarpour/blender-game-skills), MIT, intégré dans `integrations/blender-image-to-3d`). Fichier maître calibré, scripts de construction relançables, rendus comparés à la référence avec des chiffres (IoU de silhouette, largeurs à 10 hauteurs) jusqu'à passer la tolérance, validation, baking des textures, puis `load` dans le Blender ouvert pour `blender_to_roblox`. Marche aussi pour les pièces de map. Tourne dans un Blender en arrière-plan (sans Python ni Pillow à installer). Guide : `roblox_guide image3d` |
+| `blender_to_roblox` | Export (réduction auto à 20 000 triangles/maillage, alertes textures et matériaux) → upload Roblox → insertion à la bonne taille, posée au sol. **Personnage riggé** : l'armature est exportée avec le maillage (4 influences max par sommet) et le modèle reçoit un Animator |
+| `blender_animation` | Une **action Blender** (Marche, Attaque…) devient une **KeyframeSequence** dans `ServerStorage/GameKit/Animations`, testable tout de suite (id temporaire), + un FBX animé pour l'Animation Editor. Publie-la ensuite (clic droit → *Save to Roblox*) et vérifie l'id avec `check_assets` |
 
-- **Node.js:** Download the `.msi` installer from [nodejs.org/en/download](https://nodejs.org/en/download)
-- **Rojo:** Download `rojo.exe` from [GitHub releases](https://github.com/rojo-rbx/rojo/releases), place in a folder on your `PATH`
-- **Luau:** `npm run luau:install` handles this — it downloads the correct binary for your OS into `.tools/`
-</details>
+- **Automatique** avec une clé Open Cloud : `ROBLOX_OPEN_CLOUD_API_KEY` (droits *asset:read* + *asset:write*) et
+  `ROBLOX_CREATOR_USER_ID` (ou `ROBLOX_CREATOR_GROUP_ID`).
+- **Sans clé** : le fichier est exporté, tu fais *Accueil → Importer 3D* dans Studio, puis l'IA l'ajuste
+  (`blender_to_roblox { name, existing: "Workspace/MonModele" }`).
+- `BLENDER_MCP_SAFE_MODE=1` fait valider chaque script Python par le validateur de blender-mcp (Python requis).
+
+## 🔊 Sons sur mesure (Mirelo AI)
+
+`make_sound` crée des effets sonores à partir d'un texte (« coffre en bois qui se brise sur de la pierre, court »).
+- **Automatique** : `MIRELO_API_KEY` (clé `sk-…` créée sur mirelo.ai, Studio → Developer → API Keys ; crédits
+  Mirelo, environ 10 par seconde de son) génère le son, puis la clé Open Cloud l'uploade et l'IA place le `Sound` sur
+  une pièce (son 3D) ou dans `SoundService`. `upload: false` = fichier seulement.
+- **Gratuit, sans clé** : avec le plugin Studio *Mirelo AI SFX Generation (BETA)*. `make_sound { action: "plugin",
+  prompt, parent }` sélectionne l'objet que le plugin doit « écouter » et donne les étapes ; tu cliques *Generate*
+  dans le plugin ; `make_sound { action: "collect", parent, name }` range le nouveau son au bon endroit.
+- Guide pour l'IA : `roblox_guide sound`.
+
+## 🗺️ Cartes : relief placé où on veut
+
+`set_environment { features: [...] }` pose montagnes (neige au-dessus de 60 studs), collines, lacs (rive de sable),
+rivières, routes et chemins (qui suivent le sol), plateaux (`height: 0` = aplanir un emplacement) et zones repeintes,
+aux coordonnées du plan. Guide : `roblox_guide map`.
+
+## 🤝 Plusieurs IA sur le même jeu
+
+Lance plusieurs clients (Claude, Gemini, Codex, un modèle local…) : le premier serveur tient le port, les suivants
+passent en mode proxy vers le **même Studio**.
+
+1. Une IA « chef » : `team { action: "plan", goal: "..." }` crée les tâches (jeu de base, zones, décor, objets 3D,
+   UI, économie, QA, publication), puis `create_game`.
+2. Chaque IA prend un nom (`claude-1`, `gemini-1`…) et boucle : `claim` → travail → `done`.
+3. Avant de construire : `claim_zone` réserve une boîte de la carte ; une zone qui chevauche celle d'une autre IA est
+   refusée. `build_world { zone }` et `populate_world { zone }` construisent dedans.
+4. Les outils lents passent en arrière-plan : `start_job { tool: "blender_to_roblox", … }` puis `job_status`.
+
+Le tableau est stocké **dans le jeu** (`ServerStorage/GameKitTeam`) : il est partagé et sauvegardé avec la place.
 
 ---
 
-### 3. Expected Success Output Per Step
+## 🔧 Les outils
 
-**`npm run place:detect`**
-```
-✔ Detected place: Place2 (136131439760483)
-✔ Registered slug: place2
-✔ Set as active place
-```
+**Game Kit (toujours visibles)** : `roblox_start_here`, `roblox_guide`, `gamekit_catalog`, `create_game`, `add_system`,
+`build_world`, `build_ui`, `set_environment`, `game_notes`, `write_script`, `edit_script`, `read_script`, `code_outline`,
+`code_recipe`, `check_luau`, `check_game`, `test_game`, `populate_world`, `look_at_game`, `backup_game`, `team`,
+`start_job`, `job_status`, `blender_status`, `blender_to_roblox`, `make_sound`, `design_refs`, `figma`, `make_vfx`.
 
-**`npm run place:status`**
-```
-Mode:       place
-Place:      Place2 (136131439760483)
-Slug:       place2
-Project:    blueprint-v1/places/place2/default.project.json
-Source:     blueprint-v1/places/place2/src
-Properties: blueprint-v1/places/place2/properties/instances.json
-```
+**En plus dès le profil `builder`** : `check_assets`, `optimize_game`, `balance_economy`, `publish_checklist`,
+`blender_python`, `blender_scene`, `blender_assets`, `blender_image_to_3d`, `blender_animation`, `blender_command` (les outils Blender
+apparaissent aussi dès que Blender est connecté).
 
-**`rojo serve ...`**
-```
-Rojo server listening on port 34872
-```
+**Profils** (variable `ROBLOX_MCP_PROFILE` ou outil `set_tool_profile`) :
 
-**`http://localhost:3002/health`**
+| Profil | Outils listés | Contenu |
+|---|---|---|
+| `starter` *(défaut)* | 46 | Game Kit + essentiels (propriétés, objets, `execute_luau`, annuler, capture d'écran, doc Roblox) |
+| `builder` | 106 | + qualité (assets, performances), économie, publication, Blender, scripts bas niveau, tags, attributs, opérations de masse, terrain, éclairage, assets, playtest manuel, logs par pair, runtime eval, navigation du personnage, multi-Studio |
+| `full` | 186 | Tout : animations, sons, particules, matériaux, profileurs, points d'arrêt, simulateur d'appareils/réseau, tests multijoueurs, `.rbxm`, synchro de fichiers, publication… |
+
+Même en `starter`, **tous** les outils restent utilisables : `find_tools` (recherche + schéma) puis `call_tool`.
+
 ```json
-{
-  "pluginConnected": true,
-  "mcpServerActive": true,
-  "plugin": { "version": "1.10.0" }
-}
+{ "mcpServers": { "roblox": { "command": "node", "args": ["CHEMIN/packages/roblox-ultimate-mcp/dist/index.js"], "env": { "ROBLOX_MCP_PROFILE": "full" } } } }
 ```
 
-**`npm run blueprint:reverse-sync`**
-```
-Reverse sync active. Tracked scripts: 3
-Polling every 2000ms...
-```
-
-> If any output differs from the above, stop and consult the [Troubleshooting](#-troubleshooting) table.
+**Édition lecture seule** : `packages/roblox-ultimate-mcp-inspector/dist/index.js` (inspection, guides, vérification
+Luau ; aucune écriture) — pratique pour faire relire un jeu sans risque.
 
 ---
 
-### 4. Source of Truth Rules
+## 🧠 Pourquoi ça marche même avec une petite IA
 
-| Situation                                       | Who Wins               | Action                                                        |
-| :---------------------------------------------- | :--------------------- | :------------------------------------------------------------ |
-| You edited a `.luau` file locally               | **Local wins**         | Rojo pushes to Studio automatically                           |
-| You edited a script inside Studio               | **Studio wins**        | Run `npm run blueprint:reverse-sync` to pull changes back     |
-| Both sides changed the same script              | **Neither** — conflict | A conflict snapshot folder is written; you manually merge     |
-| Non-script property changed in Studio           | **Studio wins**        | No automated pull — manually update `instances.json` to match |
-| Non-script property changed in `instances.json` | **Local wins**         | Run `npm run blueprint:sync` to push to Studio                |
-| You aren't sure what changed                    | **Check first**        | Run `npm run drift:check` to compare hashes                   |
-
-**Golden rule:** Edit scripts in your IDE (Rojo syncs them). Edit non-script properties via `instances.json`. Only reverse-sync when you intentionally made Studio-side script changes.
-
----
-
-### 5. File Naming & Path Mapping
-
-Rojo uses file suffixes to determine the script type and instance name:
-
-| File Suffix         | Script Type                    | Instance Name           |
-| :------------------ | :----------------------------- | :---------------------- |
-| `.server.luau`      | `Script` (runs on server)      | Filename without suffix |
-| `.client.luau`      | `LocalScript` (runs on client) | Filename without suffix |
-| `.module.luau`      | `ModuleScript` (shared)        | Filename without suffix |
-| `.luau` (no suffix) | `ModuleScript`                 | Full filename           |
-
-**Path resolution example:**
-
-```
-File:     blueprint-v1/places/place2/src/ServerScriptService/HorrorMain.server.luau
-Instance: game.ServerScriptService.HorrorMain       (Script)
-
-File:     blueprint-v1/places/place2/src/StarterPlayer/StarterPlayerScripts/HorrorClient.client.luau
-Instance: game.StarterPlayer.StarterPlayerScripts.HorrorClient   (LocalScript)
-
-File:     blueprint-v1/places/place2/src/ReplicatedStorage/HorrorConfig.module.luau
-Instance: game.ReplicatedStorage.HorrorConfig        (ModuleScript)
-```
-
-> The directory path under `src/` maps directly to the Roblox service hierarchy. The `default.project.json` defines which directories map to which services.
+1. **Moins de code à écrire** : un jeu complet = 1 appel ; une fonctionnalité = 1 système + un peu de config.
+2. **Moins de choix** : 46 outils au lieu de 186, avec des descriptions courtes qui disent *quand* les utiliser.
+3. **Instructions automatiques** : la méthode est envoyée à l'IA dès la connexion (champ `instructions` MCP).
+4. **Garde-fous** : `write_script` / `edit_script` corrigent automatiquement les réflexes d'autres langages, compilent
+   le Luau (vrai compilateur), vérifient les noms d'API Roblox et bloquent les erreurs de débutant
+   (`LocalPlayer` côté serveur, boucle infinie sans `task.wait`, argent modifié côté client…).
+5. **Du code déjà écrit** : `code_recipe` fournit des scripts vérifiés au lieu de les faire écrire de zéro.
+6. **Boucle de correction** : `test_game` renvoie chaque erreur avec le script, la ligne, **le code fautif** et
+   **l'explication en clair** ; `edit_script` corrige juste ce passage.
+7. **Guides intégrés** : méthode de code, Luau, client/serveur, sauvegarde, UI, game design, erreurs courantes,
+   Blender, travail en équipe, traduction, publication.
+8. **Filets de sécurité** : sauvegarde automatique avant chaque `create_game`, `backup_game` pour revenir en arrière,
+   chaque action de l'IA annulable d'un clic dans le panneau Studio, `look_at_game` pour vérifier visuellement.
+9. **Mémoire** : `game_notes` garde l'idée, les décisions et la liste des tâches dans le jeu ; une nouvelle
+   conversation reprend là où la précédente s'est arrêtée.
 
 ---
 
-### 6. Conflict Handling
-
-When reverse-sync detects **both local and Studio changed** the same script, it writes a conflict snapshot folder instead of overwriting:
-
-```
-blueprint-v1/places/<slug>/.reverse-sync-conflicts/
-└── ServerScriptService/
-    └── HorrorMain.server.luau/
-        ├── local.luau       # Your local version at time of conflict
-        ├── studio.luau      # The Studio version that diverged
-        └── meta.json        # Timestamps, hashes, instance path
-```
-
-**Recovery workflow:**
-
-1. Open the conflict folder (e.g. `.reverse-sync-conflicts/ServerScriptService/HorrorMain.server.luau/`)
-2. Compare `local.luau` (your version) vs `studio.luau` (Studio's version)
-3. Manually merge the changes into the original `.luau` file in `src/`
-4. Delete the conflict folder
-5. Run `npm run blueprint:reverse-sync` again — it will re-baseline from the merged file
-
-**State tracking:** Each tracked script's hashes are stored in:
-```
-blueprint-v1/places/<slug>/.reverse-sync-state.json
-```
-
-This file contains `lastLocalHash` and `lastStudioHash` per script. If you need to force a full re-sync, delete this file and restart reverse-sync.
-
----
-
-### 7. Common Failures & Fixes
-
-| Failure                            | Cause                                       | Fix                                                   |
-| :--------------------------------- | :------------------------------------------ | :---------------------------------------------------- |
-| Place resolves wrong slug          | `.active-place.json` points to old place    | `npm run place:detect` (re-detects from Studio)       |
-| `rojo: command not found`          | Rojo not installed or not on PATH           | Install via `cargo install rojo` or download binary   |
-| Module path mismatch               | File in wrong `src/` subdirectory           | Match directory to Roblox service name exactly        |
-| HTTP 403 from plugin               | HTTP requests disabled in Studio            | Game Settings → Security → Allow HTTP Requests        |
-| Stale `.active-place.json`         | Switched Studio places without re-detecting | `npm run place:detect`                                |
-| `ECONNREFUSED :3002`               | MCP server not running                      | `npm run studio -- dev` or `npm run dev:studio`       |
-| Reverse-sync shows 0 tracked       | No scripts match Rojo mappings              | Verify files exist in resolved `src/` path            |
-| Rojo sync not updating Studio      | Rojo serving wrong project file             | Check `npm run place:status` for correct project path |
-| Lint says "luau-analyze not found" | Luau CLI not installed                      | `npm run luau:install`                                |
-| `blueprint:doctor` fails           | Server or plugin not connected              | Start server, open Studio, enable plugin              |
-
----
-
-### 8. One-Command Dev Launcher
-
-The **Studio CLI** is the recommended daily driver:
-
-```powershell
-npm run studio -- dev --place place2
-```
-
-Or use the legacy orchestrator:
-
-```powershell
-npm run dev:studio -- --place place2
-```
-
-Both start **all four services** in parallel:
-
-| Service              | What It Does                                                 |
-| :------------------- | :----------------------------------------------------------- |
-| **MCP server**       | `node dist/index.js`                                         |
-| **Rojo**             | `rojo serve blueprint-v1/places/place2/default.project.json` |
-| **Property watcher** | Continuous `blueprint:watch` for non-script sync             |
-| **Reverse sync**     | Guarded Studio → local pull                                  |
-
-The CLI adds PID tracking, health checks, log capture, and a beautiful terminal UI:
-
-```
-✓ Resolved: Place2 [place2]
-✓ MCP server listening on port 3002
-✓ Rojo server listening on port 34872
-✓ Property watcher active
-✓ Reverse sync active
-
-┌─────────────────────────────────────────────────────────────────────────┐
-│  Dev Environment                                                    │
-│  Project:  blueprint-v1\places\place2\default.project.json           │
-│  Mode:     place                                                    │
-│  Studio:   ● Press Ctrl+C to stop all                              │
-└─────────────────────────────────────────────────────────────────────────┘
-```
-
-> **CLI flags:** `--no-rojo`, `--no-watch`, `--no-reverse` to disable individual services. `--verbose` to see process output.
-
----
-
-### 9. Blueprint Scope Boundaries
-
-Blueprint separates concerns cleanly between two systems:
-
-| What                                                    | Managed By                            | Files                                                    |
-| :------------------------------------------------------ | :------------------------------------ | :------------------------------------------------------- |
-| **Scripts** (Luau code)                                 | **Rojo**                              | `.server.luau`, `.client.luau`, `.module.luau` in `src/` |
-| **Non-script properties** (Position, Size, Color, etc.) | **Sync scripts**                      | `properties/instances.json`                              |
-| **Attributes**                                          | **Sync scripts**                      | `properties/instances.json` (attributes field)           |
-| **Tags**                                                | **Sync scripts**                      | `properties/instances.json` (tags field)                 |
-| **Instance creation / hierarchy**                       | **Rojo** (via `default.project.json`) | `default.project.json` tree                              |
-
-**Do NOT:**
-- Edit `.luau` files through `instances.json` — Rojo handles scripts
-- Create new services by adding directories without updating `default.project.json`
-- Mix legacy `blueprint-v1/src/` with place-specific `blueprint-v1/places/<slug>/src/`
-
----
-
-### 10. Example: Horror Game (`place2`)
-
-A complete real-world place from this repository:
-
-```
-blueprint-v1/places/place2/
-├── default.project.json              # Rojo project mapping 12 services
-├── .reverse-sync-state.json          # Tracks 3 scripts with SHA-256 hashes
-├── .reverse-sync-conflicts/          # Empty (no conflicts currently)
-├── src/
-│   ├── ServerScriptService/
-│   │   └── HorrorMain.server.luau    # → game.ServerScriptService.HorrorMain (Script)
-│   ├── ReplicatedStorage/
-│   │   └── HorrorConfig.module.luau  # → game.ReplicatedStorage.HorrorConfig (ModuleScript)
-│   └── StarterPlayer/
-│       └── StarterPlayerScripts/
-│           └── HorrorClient.client.luau  # → game.StarterPlayer.StarterPlayerScripts.HorrorClient (LocalScript)
-└── properties/
-    ├── instances.json                # Non-script property manifest (empty for now)
-    └── schema.json                   # Property schema definitions
-```
-
-**Registry entry** (`blueprint-v1/places/registry.json`):
-```json
-{
-  "136131439760483": {
-    "placeId": 136131439760483,
-    "gameId": 9708597637,
-    "slug": "place2",
-    "displayName": "Place2"
-  }
-}
-```
-
-**Full workflow for this place:**
-```powershell
-# One-time: detect and register
-npm run place:detect
-# → ✔ Detected place: Place2 (136131439760483), slug: place2
-
-# Daily: start everything
-npm run studio -- dev --place place2
-# → MCP server, Rojo, property watcher, and reverse sync all running
-
-# Or the legacy orchestrator:
-npm run dev:studio -- --place place2
-
-# Or manually:
-rojo serve blueprint-v1/places/place2/default.project.json
-npm run blueprint:watch
-npm run blueprint:reverse-sync
-```
-
----
-
-## 🛠️ Development
+## 🧰 Développement
 
 ```bash
-npm install                      # Dependencies
-npm run build                    # TypeScript → dist/
-npm run build:plugin             # Build .rbxmx plugin
-npm run dev                      # Dev server (tsx hot reload)
-npm run typecheck                # Type-check
-npm test                         # Jest suite
-npm run test:all                 # Jest + Luau E2E
+npm run build            # intègre gamekit/*.luau puis compile core + serveur + édition lecture seule
+npm test                 # 107 tests du serveur + 90 tests Game Kit (faux addon Blender, multijoueur, téléphone, assets, flèches de quête…)
+npm run gamekit:smoke    # test MCP de bout en bout (stdio)
+npm run gamekit:verify   # syntaxe (WASM) + types Roblox (si luau-lsp est installé) de tout le Luau, recettes comprises
+npm run build:plugin     # recompile le plugin Studio (roblox-ts) et l'installe (Windows/macOS)
 ```
 
-### Verify Connection
+Validation avancée (optionnelle, nécessite [Lune](https://github.com/lune-org/lune)) :
 
 ```bash
-curl http://localhost:3002/health
-curl http://localhost:3002/diagnostics
+node scripts/dump-gamekit-cases.mjs /tmp/cases && lune run scripts/lune/validate-installers.luau /tmp/cases
+LUNE=lune npm run gamekit:integration   # MCP -> pont HTTP -> faux plugin Studio (Lune) -> Luau
 ```
 
-### Project Layout
+La première commande exécute chaque installateur (121 cas, ~6 900 instances) contre la base de données officielle des
+classes Roblox : un mauvais nom de propriété ou un mauvais type est détecté sans ouvrir Studio. Le test d'intégration
+crée les 11 jeux, fait tourner le tableau d'équipe (réservations exclusives, zones qui se chevauchent refusées), les
+sauvegardes, le décor, une tâche de fond et la checklist de publication.
 
-```
-├── src/                         # TypeScript MCP server
-│   ├── index.ts                 # Tool definitions + handler
-│   ├── http-server.ts           # Express bridge (:3002)
-│   ├── bridge-service.ts        # Plugin comms
-│   └── tools/                   # Tool implementations
-├── studio-plugin/               # Luau Studio plugin
-├── blueprint-v1/                # Rojo projects + sync state
-├── scripts/                     # 20+ CLI helpers
-├── tests/                       # Jest + Luau E2E
-└── docs/                        # Additional docs
-```
+### Organisation
 
----
+| Dossier | Contenu |
+|---|---|
+| `gamekit/` | **La bibliothèque Luau** : `shared/` (Net, Util, UIKit, Lang), `core/` (PlayerData, Analytics…), `systems/<système>/`, `runtime/` (installateur, audit, test) |
+| `packages/core/` | Le serveur : pont HTTP multi-Studio, 140+ outils (`src/tools/`), et la couche Game Kit (`src/gamekit/` : Blender, équipe, tâches de fond, décor, captures, sauvegardes, économie…) |
+| `integrations/blender-mcp/` | blender-mcp (MIT) : l'addon Blender `addon.py` utilisé par les outils `blender_*` (+ son serveur Python d'origine, non requis) |
+| `packages/roblox-ultimate-mcp/` | Point d'entrée (commande `roblox-ultimate-mcp`, `setup`, `--install-plugin`, `--install-blender-addon`) |
+| `packages/roblox-ultimate-mcp-inspector/` | Édition lecture seule |
+| `studio-plugin/` | Plugin Studio (`MCPPlugin.rbxmx` prêt à l'emploi + sources roblox-ts, dont le panneau IA `src/modules/ActivityPanel.ts`) |
+| `docs/` | [GAMEKIT.md](docs/GAMEKIT.md) (référence), [CLIENTS.md](docs/CLIENTS.md) |
+| `reference/` | Autres serveurs MCP Roblox importés (ancienne base, serveurs Rust officiels), non utilisés par le build |
 
-## 🔒 Security
+Ajouter un système : écrire les `.luau` dans `gamekit/systems/<id>/` (`.server.luau` → ServerScriptService,
+`.client.luau` → StarterPlayerScripts, sinon ModuleScript), l'ajouter dans `packages/core/src/gamekit/catalog.ts`,
+puis `npm run build && npm test`.
 
-|                  |                                                  |
-| :--------------- | :----------------------------------------------- |
-| **Local-only**   | All traffic stays on `localhost:3002`            |
-| **No telemetry** | Zero data collection — your projects are private |
-| **Explicit**     | Tools only run when your AI invokes them         |
-| **Separated**    | Read and write operations are distinct           |
+### Publier sur npm
 
----
+C'est ce qui rend possible `npx roblox-ultimate-mcp setup` pour tout le monde (le nom est libre sur npm) :
 
-## ❓ Troubleshooting
+1. Sur [npmjs.com](https://www.npmjs.com) : *Access Tokens → Generate New Token* (type *Automation*).
+2. Sur GitHub : *Settings → Secrets and variables → Actions → New repository secret* `NPM_TOKEN`.
+3. *Actions → Publish to npm → Run workflow* (ou pousse un tag `v4.1.0`). Le workflow compile, lance les tests et publie.
 
-| Problem        | Fix                                                    |
-| :------------- | :----------------------------------------------------- |
-| Plugin missing | `.rbxmx` in plugins folder → restart Studio            |
-| HTTP 403       | Game Settings → Security → Allow HTTP Requests         |
-| Disconnected   | Start the MCP server — red is normal until then        |
-| No tools       | Restart MCP client + Studio, check `/health`           |
-| Slow or large writes | Use chunked upload tools or `push-script-fast.mjs` |
-| Firewall       | Allow `localhost:3002`                                 |
+Sans GitHub : `npm login` puis `npm publish -w packages/roblox-ultimate-mcp --access public`.
 
 ---
 
-## 📚 Docs
+## 🩺 Dépannage
 
-|                                                      |                            |
-| :--------------------------------------------------- | :------------------------- |
-| [Client Configurations](docs/CLIENTS.md)             | Setup for every MCP client |
-| [Blueprint V1 Guide](docs/BLUEPRINT_V1.md)           | Multi-place sync deep dive |
-| [Plugin Installation](studio-plugin/INSTALLATION.md) | Detailed plugin setup      |
+Commencer par **`npm run doctor`** (ou `npx roblox-ultimate-mcp doctor`) : il vérifie Node, le démarrage du serveur,
+la connexion à Studio et à Blender, et dit quoi corriger pour chaque ✖.
 
----
-
-## 🤝 Contributing
-
-```bash
-git clone https://github.com/aaronaalmendarez/roblox-mcp.git
-cd roblox-mcp
-npm install
-npm run dev
-```
-
-Issues and PRs welcome on [GitHub](https://github.com/aaronaalmendarez/roblox-mcp).
-
-## 🙏 Acknowledgements
-
-Original project: [`boshyxd/robloxstudio-mcp`](https://github.com/boshyxd/robloxstudio-mcp)
-This fork extends that foundation for multi-agent workflows, local blueprint-first development, and enhanced tooling.
+| Problème | Solution |
+|---|---|
+| `Roblox Studio is not connected` | Studio ouvert ? Plugin installé (`npm run install-plugin`) ? Requêtes HTTP autorisées ? Clique **Connect** |
+| « Saving is OFF » dans la sortie | Normal en Studio non publié : publie puis active *Enable Studio Access to API Services* pour tester la sauvegarde |
+| L'IA ne voit pas un outil | Profil `starter` : `find_tools` puis `call_tool`, ou `set_tool_profile full` |
+| `test_game` ne s'arrête pas | Appuie sur **Stop** dans Studio puis relance ; `check_game` signale un reste de runner de test |
+| Deux IA en même temps | Supporté : la 2e instance passe en mode proxy et partage le même Studio ; organise-les avec `team` |
+| OpenCode : les outils Blender n'apparaissent pas | Ajoute `"environment": { "ROBLOX_MCP_BLENDER": "1" }` et `"timeout": 60000` à l'entrée du serveur (fait automatiquement par `npm run setup -- --blender`) |
+| `blender_status` : `connected: false` | Blender ouvert ? Addon activé (`npm run install-blender-addon`) ? N → **MCP for Blender** → **Connect** ; port 9876 libre (ou `BLENDER_PORT`) |
+| `look_at_game` sans image | Studio en mode Édition, vue 3D visible, **Paramètres du jeu → Sécurité → Allow Mesh / Image APIs** ✅ |
+| Un changement a tout cassé | `backup_game { action: "list" }` puis `restore` (ou Ctrl+Z) |
+| `failed to connect to roblox studio: -32000` | Sans gravité : c'est le lien optionnel vers le MCP officiel de Studio. Pour le couper : `ROBLOX_MCP_HOOK=0` |
+| Un son/une animation ne se charge pas | `check_assets` : l'asset est privé ou appartient à un autre créateur ; utilise un asset public ou le tien |
+| Le jeu rame sur téléphone | `optimize_game`, puis `optimize_game { apply: [...] }` et `test_game { device: "phone" }` |
+| Le bouton « Annuler l'action de l'IA » est gris | La dernière modification vient de toi (Studio annule dans l'ordre) : fais d'abord Ctrl+Z sur la tienne |
+| `test_game { players: 2 }` refuse de démarrer | Studio trop ancien (test multijoueur indisponible) : mets Studio à jour ; sinon Test → Clients and Servers à la main |
 
 ---
 
-<div align="center">
+## Crédits & licence
 
-**[MIT License](LICENSE)** © 2025
-
-</div>
+MIT. Serveur et plugin basés sur [6xvl/robloxstudio-mcp-server](https://github.com/6xvl/robloxstudio-mcp-server)
+(lui-même issu de [boshyxd/robloxstudio-mcp](https://github.com/boshyxd/robloxstudio-mcp) et
+[Chrrxs/robloxstudio-mcp](https://github.com/Chrrxs/robloxstudio-mcp)), addon Blender de
+[ahujasid/blender-mcp](https://github.com/ahujasid/blender-mcp), et [luau-web](https://github.com/xNasuni/luau-web)
+pour la compilation Luau hors-ligne. Détails : [NOTICE.md](NOTICE.md).

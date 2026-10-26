@@ -1,0 +1,21 @@
+{
+  "name": "Roblox MCP Bridge",
+  "id": "roblox-ultimate-mcp-bridge",
+  "api": "1.0.0",
+  "main": "code.js",
+  "ui": "ui.html",
+  "editorType": ["figma"],
+  "documentAccess": "dynamic-page",
+  "relaunchButtons": [{ "command": "open", "name": "Roblox MCP Bridge" }],
+  "networkAccess": {
+    "allowedDomains": ["none"],
+    "devAllowedDomains": [
+      "http://localhost:58741",
+      "http://localhost:58742",
+      "http://localhost:58743",
+      "http://localhost:58744",
+      "http://localhost:58745",
+      "http://localhost:3002"
+    ]
+  }
+}

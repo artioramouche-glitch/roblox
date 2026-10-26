@@ -1,17 +1,22 @@
 #!/usr/bin/env node
 
 /**
- * Removes the copied studio-plugin/ from the package directory after npm pack/publish.
- * Run from a publishable package directory via its "postpack" script.
+ * Removes what prepack copied into the package directory after npm pack/publish
+ * (listed in .prepack-copied.json). Run from a publishable package directory via its
+ * "postpack" script.
  */
 
-import { rmSync, existsSync } from 'fs';
+import { existsSync, readFileSync, rmSync } from 'fs';
 import { join } from 'path';
 
 const packageDir = process.cwd();
-const dest = join(packageDir, 'studio-plugin');
-
-if (existsSync(dest)) {
-  console.log(`Cleaning up studio-plugin/ from ${packageDir}`);
-  rmSync(dest, { recursive: true, force: true });
+const marker = join(packageDir, '.prepack-copied.json');
+const copied = existsSync(marker) ? JSON.parse(readFileSync(marker, 'utf8')) : [];
+for (const entry of copied) {
+  const target = join(packageDir, entry);
+  if (existsSync(target)) {
+    rmSync(target, { recursive: true, force: true });
+    console.log(`Cleaned up ${entry}`);
+  }
 }
+rmSync(marker, { force: true });

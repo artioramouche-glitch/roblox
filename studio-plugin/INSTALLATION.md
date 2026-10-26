@@ -1,156 +1,65 @@
-# Studio Plugin Installation
+# Installer le plugin Roblox Studio
 
-The Roblox Studio MCP plugin is the bridge between your AI assistant and Studio. It polls the local MCP server for work and executes Studio API calls on behalf of your AI.
-
----
+Le plugin relie Roblox Studio au serveur **Roblox Ultimate MCP** (connexion 100 % locale).
 
 ## Installation
 
-### Method 1: GitHub Release (Recommended)
+### Méthode 1 : automatique (recommandée)
 
-1. Download [`MCPPlugin.rbxmx`](https://github.com/boshyxd/robloxstudio-mcp/releases/latest/download/MCPPlugin.rbxmx) from the latest release
-2. Save to your plugins folder:
-
-   | OS          | Path                             |
-   | ----------- | -------------------------------- |
-   | **Windows** | `%LOCALAPPDATA%\Roblox\Plugins\` |
-   | **macOS**   | `~/Documents/Roblox/Plugins/`    |
-
-   > Or in Studio: **Plugins tab** → **Plugins Folder** → drop the file in
-
-3. **Restart Roblox Studio** — plugin appears in your toolbar
-
-### Method 2: Build From Source
+Depuis le dossier du dépôt, après `npm install` :
 
 ```bash
-npm run build:plugin
+npm run install-plugin
 ```
 
-Then copy `studio-plugin/MCPPlugin.rbxmx` to your plugins folder and restart Studio.
+Le plugin est copié dans le dossier des plugins Roblox (Windows : `%LOCALAPPDATA%\Roblox\Plugins\`,
+macOS : `~/Documents/Roblox/Plugins/`). Redémarre Studio.
 
-### Method 3: Save as Local Plugin
+### Méthode 2 : à la main
 
-1. Open [`plugin.server.luau`](https://github.com/boshyxd/robloxstudio-mcp/blob/main/studio-plugin/plugin.server.luau) on GitHub
-2. Copy the entire file contents
-3. In Studio → create a new **Script** in **ServerScriptService**
-4. Paste the code
-5. **Right-click** the script → **Save as Local Plugin…**
-6. Name it `Roblox Studio MCP`
+Copie `studio-plugin/MCPPlugin.rbxmx` dans le dossier des plugins ci-dessus, puis redémarre Studio.
 
-Plugin appears immediately — no restart needed.
+### Méthode 3 : recompiler depuis les sources
 
----
-
-## Setup
-
-### 1. Enable HTTP Requests (Required)
-
-**Game Settings** → **Security** → ✅ **Allow HTTP Requests**
-
-> This must be enabled for every place you want to use with MCP.
-
-### 2. Activate the Plugin
-
-Click the **MCP Server** button in the Plugins toolbar:
-
-| Status      | Meaning                                                 |
-| ----------- | ------------------------------------------------------- |
-| 🟢 **Green** | Connected — server is running and responding            |
-| 🔴 **Red**   | Disconnected — normal when MCP server isn't running yet |
-
-### 3. Connect Your AI
-
-Set up your MCP client to launch the server. Quick options:
-
-**Claude Code:**
 ```bash
-claude mcp add robloxstudio -- npx robloxstudio-mcp
+npm run build:plugin      # compile studio-plugin/src (roblox-ts) et l'installe sous Windows/macOS
 ```
 
-**Gemini CLI:**
+## Réglages dans Studio
+
+1. **Paramètres du jeu → Sécurité → Autoriser les requêtes HTTP** ✅ (obligatoire)
+2. Onglet **Plugins → MCP Server** → **Connect**
+   - **Vert** = connecté · **Orange** = en attente du serveur MCP · **Rouge** = erreur
+
+## Brancher l'IA
+
+Voir [docs/CLIENTS.md](../docs/CLIENTS.md). Exemple Claude Code :
+
 ```bash
-gemini mcp add robloxstudio npx --trust -- -y robloxstudio-mcp
+claude mcp add roblox -- node CHEMIN/packages/roblox-ultimate-mcp/dist/index.js
 ```
 
-**Generic JSON config:**
-```json
-{
-  "mcpServers": {
-    "robloxstudio-mcp": {
-      "command": "npx",
-      "args": ["-y", "robloxstudio-mcp@latest"]
-    }
-  }
-}
-```
+## Fonctionnement
 
-> Full client configurations: [docs/CLIENTS.md](../docs/CLIENTS.md)
+1. L'IA appelle un outil → le serveur MCP met la requête en file d'attente
+2. Le plugin interroge le serveur en continu (~300 ms) sur `localhost:58741` (port de secours 3002)
+3. Le plugin exécute l'action dans Studio et renvoie le résultat
 
-<details>
-<summary>Windows: <code>npx</code> not found?</summary>
+Pendant un playtest, le plugin tourne aussi dans les copies « serveur » et « client » du jeu : c'est ce qui permet
+`test_game`, `eval_server_runtime`, `get_runtime_logs`, etc.
 
-Wrap with `cmd`:
-```json
-{
-  "command": "cmd",
-  "args": ["/c", "npx", "-y", "robloxstudio-mcp@latest"]
-}
-```
-</details>
+## Dépannage
 
----
+| Problème | Solution |
+|---|---|
+| Plugin absent de la barre d'outils | Vérifie le dossier des plugins, redémarre complètement Studio |
+| « HTTP 403 Forbidden » | Active **Autoriser les requêtes HTTP** |
+| « Disconnected » | Normal tant que ton IA n'a pas lancé le serveur ; clique **Connect** |
+| Pas de connexion | Pare-feu sur `localhost:58741` ? Redémarre Studio et l'IA |
+| Deux plugins chargés | Garde un seul fichier (`MCPPlugin.rbxmx` ou `MCPPlugin-release.rbxmx`) |
 
-## How It Works
+## Sécurité
 
-```
-AI calls tool → MCP server queues request → Plugin polls (500ms) → Plugin executes → AI receives result
-```
-
-1. Your AI invokes an MCP tool (e.g. `get_script_source`)
-2. The MCP server queues the request on `localhost:3002`
-3. The Studio plugin polls for pending work every 500ms
-4. The plugin executes the corresponding Studio API call
-5. Results flow back through the bridge to your AI
-
-**37+ tools** cover instance trees, scripts, properties, attributes, tags, object creation, and diagnostics.
-
----
-
-## Plugin Features
-
-| Feature            | Details                                                                                     |
-| ------------------ | ------------------------------------------------------------------------------------------- |
-| **Visual status**  | Toolbar indicator shows connection state in real-time                                       |
-| **Smart polling**  | Exponential backoff on failed connections to reduce overhead                                |
-| **Error recovery** | Automatic retry with 30-second request timeouts                                             |
-| **Debug logging**  | Comprehensive output in Studio's Output window                                              |
-| **Configurable**   | Server URL (default `http://localhost:3002`) and poll interval (default 500ms) are editable |
-
-### Enable Debug Mode
-
-```lua
--- In plugin source code:
-local DEBUG_MODE = true
-```
-
----
-
-## Troubleshooting
-
-| Problem                | Fix                                                                    |
-| ---------------------- | ---------------------------------------------------------------------- |
-| **Plugin missing**     | Verify `.rbxmx` is in the correct plugins folder → restart Studio      |
-| **HTTP 403**           | Enable **Allow HTTP Requests** in Game Settings → Security             |
-| **Shows disconnected** | Start the MCP server — red status is normal until then                 |
-| **Connection refused** | Check Windows Firewall isn't blocking `localhost:3002`                 |
-| **Old plugin version** | Rebuild (`npm run build:plugin`), recopy, and **fully restart Studio** |
-| **Errors in Output**   | Check Studio's Output window for detailed error messages               |
-
----
-
-## Security
-
-- **Local-only** — plugin only communicates with `localhost:3002`
-- **No external servers** — nothing leaves your machine
-- **Explicit actions** — tools run only when your MCP client invokes them
-- **No data collection** — your projects remain completely private
+- Tout reste sur ta machine (`localhost`), aucune donnée collectée.
+- Réponses limitées à 8 Mo.
+- Le plugin vérifie les mises à jour en lisant la version dans `package.json` sur GitHub (lecture seule).
