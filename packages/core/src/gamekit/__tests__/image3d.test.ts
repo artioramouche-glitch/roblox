@@ -3,7 +3,7 @@ import os from 'os';
 import path from 'path';
 import { spawnSync } from 'child_process';
 import { BlenderClient, BlenderTools } from '../blender.js';
-import { buildScript, findSkillDir, ImageTo3d, outputDir } from '../image3d.js';
+import { buildScript, findSkillDir, ImageTo3d, loadPython, outputDir } from '../image3d.js';
 import { guideText } from '../knowledge.js';
 import type { GameKitHost } from '../tools.js';
 
@@ -37,6 +37,7 @@ describe('blender_image_to_3d', () => {
     expect((await tool.call({ action: 'guide', topic: 'categories' })).content[0].text).toMatch(/Environment pieces/);
     const template = parse(await tool.call({ action: 'guide', topic: 'template' }));
     expect(template.helpers.some((h: string) => h.startsWith('def skin_chain('))).toBe(true);
+    expect(template.helpers.find((h: string) => h.startsWith('def cylinder('))).toMatch(/radius_top=None, base_at_origin=False\)  # Cylinder/);
     await expect(tool.call({ action: 'guide', topic: 'nope' })).rejects.toThrow(/topic must be/);
   });
 
@@ -96,6 +97,15 @@ im.filepath_raw = "${ref}"; im.file_format = "PNG"; im.save()`;
     const broken = parse(await tool.call({ action: 'build', master, phase: '02_blockout', code: 'def build(scene, args):\n    sphere("X", 0.5, nope=1)' }));
     expect(broken.ok).toBe(false);
     expect(broken.log).toMatch(/unexpected keyword argument/);
+
+    // load, twice, as the open Blender would run it: LOD1 skipped, no .001, display colour from the shader
+    expect(parse(await tool.call({ action: 'build', master, phase: '02_blockout', code: 'def build(scene, args):\n    egg = own(sphere("PR_Egg_Body_LOD0", 0.4, location=(0, 0, 0.6)))\n    assign(egg, material("M_Egg", color=(0.9, 0.5, 0.6, 1)))\n    own(lod_copy(egg, 1, 0.5))' })).ok).toBe(true);
+    const snippet = loadPython({ path: master, name: 'PR_Egg', collections: ['LOW', 'RIG_DEF'] });
+    const check = path.join(asset, 'load_check.py');
+    fs.writeFileSync(check, `${snippet}\n${snippet}\nimport bpy\nprint("NAMES", sorted(o.name for o in bpy.data.objects if o.name.startswith("PR_")), sorted(m.name for m in bpy.data.materials if m.name.startswith("M_")), round(bpy.data.materials["M_Egg"].diffuse_color[0], 2))\n`);
+    const loaded = spawnSync(process.env.BLENDER_BIN!, ['--background', '--factory-startup', '--python-exit-code', '1', '--python', check], { encoding: 'utf8' });
+    expect(loaded.status).toBe(0);
+    expect(loaded.stdout).toContain(`NAMES ['PR_Egg_Body_LOD0'] ['M_Egg'] 0.9`);
     fs.rmSync(asset, { recursive: true, force: true });
   }, 300_000);
 });

@@ -123,6 +123,13 @@ for n in skipped:
     o = bpy.data.objects.get(n)
     if o is not None and not o.users_collection:
         drop(o)
+# the skill sets only the shader; blender_scene (Workbench) shows the viewport display colour
+for m in {s.material for o in loaded for s in o.material_slots if s.material and s.material.node_tree}:
+    bsdf = next((n for n in m.node_tree.nodes if n.type == 'BSDF_PRINCIPLED'), None)
+    if bsdf and not bsdf.inputs["Base Color"].is_linked:
+        m.diffuse_color = bsdf.inputs["Base Color"].default_value
+        m.metallic = bsdf.inputs["Metallic"].default_value
+        m.roughness = bsdf.inputs["Roughness"].default_value
 tris = sum(sum(max(0, len(p.vertices) - 2) for p in o.data.polygons) for o in loaded if o.type == 'MESH')
 # the marker BlenderClient.pythonJson reads (not imported: blender.ts imports this module)
 print("@@GAMEKIT@@" + json.dumps({"collection": target.name, "objects": [o.name for o in loaded], "triangles": tris,
@@ -158,8 +165,15 @@ export class ImageTo3d {
   private guide(dir: string, topic: string): ToolResult {
     if (topic === 'template') {
       // the helper signatures and their first docstring line, not the 600-line file
-      const lines = fs.readFileSync(path.join(dir, 'assets', 'build_template.py'), 'utf8').split('\n');
-      const helpers = lines.flatMap((line, i) => (/^def \w+\(/.test(line) ? [`${line.replace(/:$/, '')}${/^\s+"""/.test(lines[i + 1] ?? '') ? `  # ${lines[i + 1].trim().replace(/"""/g, '')}` : ''}`] : []));
+      const lines = fs.readFileSync(path.join(dir, 'assets', 'build_template.py'), 'utf8').split(/\r?\n/);
+      const helpers = lines.flatMap((line, i) => {
+        if (!/^def \w+\(/.test(line)) return [];
+        let end = i;
+        while (!/\):$/.test(lines[end]) && end < i + 5) end++; // signatures that wrap
+        const signature = lines.slice(i, end + 1).map((l) => l.trim()).join(' ').replace(/:$/, '');
+        const doc = /^\s+"""/.test(lines[end + 1] ?? '') ? `  # ${lines[end + 1].trim().replace(/"""/g, '')}` : '';
+        return [`${signature}${doc}`];
+      });
       return text({ file: path.join(dir, 'assets', 'build_template.py'), helpers, write: 'action "build" with code defining build(scene, args); objects you make get own(ob) so a rebuild replaces them.' });
     }
     const file = GUIDE_FILES[topic];
@@ -218,7 +232,7 @@ export class ImageTo3d {
     }
     const timedOut = (run.error as { killed?: boolean } | undefined)?.killed === true;
     // render progress, Blender's banner and the MCP addon's own lines are noise
-    const log = `${run.stdout}\n${run.stderr}`.split(/\r?\n/).filter((l) => l.trim() && !/^(Fra:\d+|BlenderMCP |Blender \d|Blender quit)/.test(l));
+    const log = `${run.stdout}\n${run.stderr}`.split(/\r?\n/).filter((l) => l.trim() && !/^(Fra:\d+|BlenderMCP\b|Blender \d|Blender quit)/.test(l));
     const out = outputDir(argv);
     const files = out && fs.existsSync(out)
       ? fs.readdirSync(out).map((f) => path.join(out, f)).filter((f) => fs.statSync(f).isFile() && fs.statSync(f).mtimeMs >= started)
