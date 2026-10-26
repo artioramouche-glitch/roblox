@@ -207,6 +207,28 @@ Gemini) en plus de `query`. Code dans `packages/core/src/gamekit/blender.ts` (`r
   `make_vfx` de chaque effet dans Studio (le rendu des textures `explosion01_*` et `forcefield_*`) ; un effet fait avec
   VFX Studio puis `collect`.
 
+## ✅ Images de référence → modèle mesuré dans Blender (2026-10-26)
+
+- Le skill **blender-image-to-3d** (Majid Manzarpour, MIT) est copié tel quel dans `integrations/blender-image-to-3d`
+  (et dans `blender/image-to-3d` du paquet npm). Il construit un asset par phases (brief, calibration, blockout,
+  formes, topologie, UV et baking, rig, export) et chaque phase passe sur des chiffres : rendus comparés à l'image de
+  référence (IoU de silhouette, largeurs à 10 hauteurs), pas à l'œil.
+- Outil **`blender_image_to_3d`** (`gamekit/image3d.ts`) : `guide` (le skill et ses références), `run` (ses scripts,
+  lancés dans un Blender en arrière-plan : la scène ouverte n'est pas touchée), `build` (écrit et lance
+  `<asset>/build/<phase>.py` à partir du modèle du skill), `load` (ajoute LOW + RIG_DEF dans le Blender ouvert, dans une
+  collection au nom de l'asset, sans les LOD1+ ; un rechargement remplace l'ancienne copie) puis `blender_to_roblox`.
+- `compose_review.py` demande Python + Pillow, absents sur ce PC : `scripts/compose_review_bpy.py` fait la même planche
+  et les mêmes mesures dans le Python de Blender (numpy). Blender est trouvé via `BLENDER_BIN`, le Blender connecté
+  (`bpy.app.binary_path`) ou `Program Files\Blender Foundation`. Refusé en safe mode, sauf `guide`.
+- Guide **`roblox_guide image3d`** : les phases adaptées à Roblox (mètres → studs, < 20k triangles par maillage,
+  textures 1024, pas de LOD), et une partie **Maps** (chaque pièce passe les contrôles, puis assemblage dans Blender et
+  `blender_to_roblox { keepLayout, merge }`). Guides `blender` et `reference`, instructions serveur et docs mis à jour.
+- Vérification : typecheck et build OK, 111 tests serveur, 117 tests Game Kit (6 nouveaux), 4 tests setup. Test réel
+  avec Blender 5.2 (`BLENDER_BIN=... npm test`) : un œuf conforme passe (IoU 0,99), une boule échoue (IoU 0,67), un
+  build cassé renvoie l'erreur Python.
+- **À tester en vrai** : un asset complet depuis une planche Gemini jusqu'à Studio (`bake_maps`, `world_gate`,
+  `load` dans le Blender ouvert, puis `blender_to_roblox`).
+
 ## ⚠️ À tester par toi dans le vrai Studio et le vrai Blender
 
 Ces points ne peuvent pas être vérifiés ici :

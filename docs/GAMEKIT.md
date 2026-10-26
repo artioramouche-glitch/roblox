@@ -6,7 +6,7 @@
 ## GameKit tools
 
 - **roblox_start_here** — START HERE: checks the Studio connection, shows what the game contains and the step-by-step plan.
-- **roblox_guide** — Short guides. Topics: workflow, design, figma, vfx, reference, luau, client-server, data, ui, building, testing, errors, coding, blender, map, sound, team, localization, publishing, performance, gamekit-api, catalog, or a system/template id. Read "workflow" first, "errors" when stuck.
+- **roblox_guide** — Short guides. Topics: workflow, design, figma, vfx, reference, luau, client-server, data, ui, building, testing, errors, coding, blender, image3d, map, sound, team, localization, publishing, performance, gamekit-api, catalog, or a system/template id. Read "workflow" first, "errors" when stuck.
 - **gamekit_catalog** — Everything installable without code: templates, systems, world pieces, lighting presets, code recipes.
 - **create_game** — Build a COMPLETE playable game in one call (scripts, config, world, UI, lighting; backs up the old place). Then test_game.
 - **add_system** — Install a tested game system (+ what it needs). Its settings: roblox_guide <system>.
@@ -36,6 +36,7 @@
 - **blender_python** — Run Python (bpy) in Blender, in small steps; print() what you need. Model in meters, base at Z=0, < 20k triangles, 1 material per mesh.
 - **blender_scene** — Blender scene: objects (meters, triangles, materials), one object in detail, and/or a rendered screenshot. reference: the picture to copy, shown next to the render to compare before exporting.
 - **blender_assets** — Ready-made 3D content into Blender: search/download (polyhaven, sketchfab, polypizza) or AI generation from text and/or reference images (hyper3d, hunyuan3d: generate, poll, import). Enable sources in the addon panel.
+- **blender_image_to_3d** — Reference images (4-view sheet, concept, photo) -> game-ready model or map piece through measured gates: calibrated master .blend, build scripts, renders compared to the reference (IoU, widths), validate, bake, then load into Blender for blender_to_roblox. Runs in a background Blender. Read roblox_guide image3d first.
 - **blender_command** — Advanced: raw command to the Blender addon ({type, params}).
 - **make_sound** — Custom sound effects (Mirelo AI) from a text prompt. "generate" (MIRELO_API_KEY): prompt -> audio -> uploaded to Roblox (Open Cloud key) -> Sound on a part or in SoundService. "plugin" (no key, free Mirelo Studio plugin): selects the objects the plugin reads and gives the steps; then "collect" moves the new Sounds where they belong. Uploads go to the user's Roblox account: ask first. See roblox_guide sound.
 - **design_refs** — Find reference pictures BEFORE designing UI, VFX, thumbnails, logos, animations or a game look: searches the local roblox-ai library (UI styles, VFX, game thumbnails by genre...). Returns image paths for Figma, Gemini prompts, look_at_game {reference} or blender_assets {images}. No query = what the library holds.
@@ -1676,7 +1677,7 @@ build_world survival_camp makes a camp + forest of resources + enemy spawners. C
    - scenery: populate_world { theme: "forest" | "desert" | "snow" | "beach" | "fantasy" | "city" | "farm" | "spooky" | "garden" }
    - retention: add_system inventory | levels | quests | pets (eggs) | codes | social -- quests teach the game
      step by step (Target = guide arrow), codes reward returning players, social boosts playing with friends
-   - custom 3D models: Blender (guide "blender") -> blender_to_roblox (characters: + blender_animation)
+   - custom 3D models: Blender (guide "blender"; from pictures, measured: guide "image3d") -> blender_to_roblox (characters: + blender_animation)
    - **look_at_game** to SEE the result from several angles; fix what looks wrong.
    - advanced (find_tools + call_tool): terrain_fill_*, lighting_*, particle_create, sound_*, animation_*,
      insert_asset (Creator Store models), capture_device_matrix (phone/tablet screenshots).
@@ -1810,6 +1811,7 @@ fall back to plain Roblox parts.
 - Hero objects (statue, characters, eggs, portals): model them, or blender_assets search, or generate from a Gemini
   4-view sheet of the object ("Isolate the <object> from this image as a 3D game asset sheet: front, side, back and
   3/4 views, plain white background, even lighting, same colors and style"; ask before generating: it uploads).
+  With that sheet, blender_image_to_3d builds the object measured against its views (guide "image3d").
 - Stays in Roblox: big natural relief and water (mountains, lakes, rivers: set_environment features, guide "map"),
   sky and lighting (set_environment). Roblox water and huge ground work better as Terrain than as meshes.
 #### 4. Compare in Blender, before any export
@@ -2089,6 +2091,7 @@ Reading errors: "ServerScriptService.Shop:42: attempt to index nil with 'Value'"
 - From a picture (e.g. a concept image made by an image AI): add images: ["C:/abs/path/front.png", ...] (png/jpg/webp,
   plain white background, one object). hyper3d takes several views of the same object (local paths with Rodin Mode
   "hyper3d.ai", URLs with "fal.ai"); hunyuan3d takes exactly one image and ignores query.
+- From pictures, modelled and measured against them (best quality, no AI service): blender_image_to_3d, guide "image3d".
 - By code: blender_python with bpy, in small steps. Model in METERS (door 2 m, character 1.8 m), base at Z = 0,
   one material per mesh, < 20k triangles per mesh, textures <= 1024 px.
 - Check it: blender_scene { screenshot: true, view: "front" } (a render; add reference: "<picture path>" to compare).
@@ -2108,6 +2111,71 @@ Reading errors: "ServerScriptService.Shop:42: attempt to index nil with 'Value'"
 - Each Blender action -> blender_animation { rig: "<model path>", action: "Walk", priority: "Movement" }:
   a KeyframeSequence in ServerStorage/GameKit/Animations with a temporary id to test in Studio, plus an animated FBX.
 - Publish it (right-click the KeyframeSequence > Save to Roblox), use the new id, then check_assets { ids: [id] }.
+
+### From reference images to a game-ready model, measured (blender_image_to_3d) (`image3d`)
+
+For anything copied from pictures: statues, characters, creatures, eggs, buildings, vehicles, props, map pieces.
+Instead of modelling by eye, every phase ends with renders compared to the picture with numbers (silhouette IoU,
+widths at 10 heights) and is fixed until it is inside the tolerance. No detail before the silhouette passes.
+It runs in a background Blender: the scene open in the user's Blender is only touched by "load".
+All paths absolute. Each script lists its options with args: ["--help"].
+#### 0. Pictures and brief
+- Best input: a 4-view sheet on white (front, side, back, 3/4) from Gemini (guide "design", ask first), or separate
+  orthographic views. Measure only from orthographic views; a perspective concept or a photo gives silhouette and
+  detail, not proportions.
+- Asset folder, e.g. <project>/Assets/PR_Egg/ with ref/: crop each view of a sheet into ref/front.png, ref/side.png,
+  ref/back.png (same scale, same ground line). Prefixes: CH_ character, CR_ creature, AR_ architecture, VH_ vehicle,
+  PR_ prop, WP_ weapon, EN_ environment.
+- Write <asset>/asset-brief.md (format: blender_image_to_3d { action: "guide", topic: "skill" }, Phase 0): views and
+  camera angles, real size in METERS (studs x 0.28: character 1.8 m, door 2 m), 8-15 proportions to check, parts,
+  materials, what the pictures do not show (inferred). Category advice: topic "categories".
+#### 1. Master file
+run { script: "init_master", args: ["--out", "<asset>/PR_Egg_master.blend", "--name", "PR_Egg", "--height", "1.2",
+  "--ref-front", "<asset>/ref/front.png", "--ref-right", "<asset>/ref/side.png", "--subject-frac", "0.9", "--ground-frac", "0.05"] }
+subject-frac: share of the image height the object fills; ground-frac: height of its base above the image bottom.
+#### 2. Blockout, then the gate
+build { master, phase: "02_blockout", code: "def build(scene, args):\n    body = own(sphere(\"PR_Egg_Body_LOD0\", 0.4, location=(0, 0, 0.6), scale=(1, 1, 1.5)))" }
+Primary masses only, meters, base at Z = 0, facing -Y, in collection LOW, every object wrapped in own(...) so a rebuild
+replaces it. A comment on each constant: the view it was measured in, or # inferred. Helpers: topic "template".
+Gate:
+- run { script: "review_render", args: ["--blend", master, "--out", "<asset>/review/02", "--views", "front,side,threequarter",
+  "--mode", "clay", "--gameplay-px", "128"] } (front and side are orthographic; for a concept or photo add
+  "--ref-cam", AZ, EL, LENS of its camera: it renders clay_ref.png)
+- run { script: "compose_review", args: ["--ref", "<asset>/ref/front.png", "--render", "<asset>/review/02/clay_front.png",
+  "--out", "<asset>/review/02/compare_front.png", "--measure", "--gameplay-px", "128"] } for every view. The sheet
+  shows REF | RENDER | OVERLAY | GAMEPLAY size.
+- Pass: IoU >= 0.85, every band width within 0.05, the brief's proportions within 5%. Otherwise write the misses as
+  numbers ("top 12% too narrow", "0.1 m too short"), fix the constants, build again, render again.
+- compose_review aligns the two outlines, so it cannot see a model that is too small or off-center: on orthographic
+  sheets also run world_gate (topic "skill", gate protocol). Show the sheet to the user before the next phase.
+#### 3. Forms, 4. topology
+- 03_forms: secondary then fine forms, parts in their real overlap order. Gate: IoU >= 0.90, bands within 0.03,
+  proportions within 2%, plus "--turntable", "8".
+- 04_topology: the LOW meshes that go to Roblox, then run { script: "validate", args: ["--blend", master,
+  "--out", "<asset>/review/04_validate.json", "--budget-tris", "5000"] } (exit 1 = a FAIL to fix). Roblox: < 20k
+  triangles per mesh (props 1-5k, characters 5-15k). Skip LOD1/LOD2: Roblox makes its own.
+#### 5. Materials and textures
+One material per mesh where possible (Roblox splits a mesh per material). LOW meshes need UVs first (smart_uv in the
+build code); a normal map needs a HIGH sculpt to bake from. Bake at 1024 px (Roblox's limit), slow: start_job.
+run { script: "bake_maps", args: ["--blend", master, "--res", "1024", "--maps", "normal,basecolor,roughness,metallic",
+  "--out", "<asset>/textures", "--match-by-name", "--rebuild-material", "--save", "<asset>/PR_Egg_baked.blend"] }
+Gate: review_render "--mode", "material", "--turntable", "12" on the baked file. Textures reach Roblox only with an
+Open Cloud key (FBX upload); without one Studio keeps the base colors.
+#### 6-8. Rig and animation (characters, creatures)
+Topic "rigging". Roblox: at most 4 bone weights per vertex, under 100 bones. Animations: blender_animation after the import.
+#### 9. Into the game
+load { master: "<asset>/PR_Egg_baked.blend" (or the _master) } puts LOW (+ RIG_DEF) into the open Blender, in a
+collection named after the asset (a reload replaces it). blender_scene { object: "PR_Egg", screenshot: true,
+reference: "<asset>/ref/front.png" }, then, with the user's OK (it uploads):
+start_job { tool: "blender_to_roblox", arguments: { name: "PR_Egg", objects: ["PR_Egg"] } }.
+#### Maps
+Each landmark and kit piece (AR_ / EN_: wall, arch, tower, bridge, rock set...) goes through the gates on its own,
+kit pieces on one grid cell (init_master "--cell"). Then load each one, place them with blender_python (meters,
+north = +Y), compare the whole map with the aerial picture (blender_scene { screenshot: true, reference, view: "aerial" })
+and send it with blender_to_roblox { keepLayout: true, merge: true } (guide "reference").
+#### Rules
+Measure, then model. Renders are the evidence, not the viewport. Never present a guessed back or underside as fact:
+list it as inferred.
 
 ### Making a map: layout first, then terrain, gameplay, decoration (`map`)
 

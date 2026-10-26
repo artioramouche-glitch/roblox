@@ -22,6 +22,7 @@ import { errorMessage, luauJson, resultJson, sleep, text, vec3, withImages, type
 import { placeModelLuau } from './props.js';
 import { runLuauJson } from './installer.js';
 import { referenceImage, VIEWS } from './visual.js';
+import { ImageTo3d, SKILL_SCRIPTS } from './image3d.js';
 import { PathFinder } from '../managers/path-finder.js';
 
 /** 1 stud = 0.28 m (Roblox avatar scale), so a 1.8 m human is ~6.4 studs. */
@@ -1006,6 +1007,28 @@ export const BLENDER_TOOLS: ToolDef[] = [
     },
   },
   {
+    name: 'blender_image_to_3d',
+    category: 'write',
+    tier: 'blender',
+    description: 'Reference images (4-view sheet, concept, photo) -> game-ready model or map piece through measured gates: calibrated master .blend, build scripts, renders compared to the reference (IoU, widths), validate, bake, then load into Blender for blender_to_roblox. Runs in a background Blender. Read roblox_guide image3d first.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        action: { type: 'string', enum: ['guide', 'run', 'build', 'load'] },
+        script: { type: 'string', enum: [...SKILL_SCRIPTS], description: 'run: the skill script' },
+        args: { type: 'array', items: { type: 'string' }, description: 'run: its arguments, absolute paths, e.g. ["--blend", "C:/game/PR_Egg/PR_Egg_master.blend", "--out", "C:/game/PR_Egg/review/02", "--mode", "clay"]; ["--help"] lists them' },
+        master: { type: 'string', description: 'build: the master .blend; load: the .blend to bring into the open Blender (_baked.blend after baking)' },
+        phase: { type: 'string', description: 'build: e.g. "02_blockout" (saved as <asset>/build/<phase>.py; no code = run it again)' },
+        code: { type: 'string', description: 'build: Python defining build(scene, args) with the template helpers (guide topic "template"); measured constants in meters' },
+        name: { type: 'string', description: 'load: collection name in Blender (default: the asset name)' },
+        collections: { type: 'array', items: { type: 'string' }, description: 'load: default ["LOW", "RIG_DEF"]; LOD1+ meshes are skipped' },
+        topic: { type: 'string', enum: ['skill', 'categories', 'delivery', 'rigging', 'blender5', 'template'], description: 'guide' },
+        timeout: { type: 'number', description: 'run/build: seconds (default 600); long bakes: start_job' },
+      },
+      required: ['action'],
+    },
+  },
+  {
     name: 'blender_command',
     category: 'write',
     tier: 'builder',
@@ -1024,11 +1047,15 @@ export interface BlenderToolsOptions {
 }
 
 export class BlenderTools {
+  private imageTo3d: ImageTo3d;
+
   constructor(
     private host: GameKitHost,
     readonly client = new BlenderClient(),
     private options: BlenderToolsOptions = {},
-  ) {}
+  ) {
+    this.imageTo3d = new ImageTo3d(client);
+  }
 
   async call(name: string, args: Record<string, any>): Promise<ToolResult> {
     switch (name) {
@@ -1039,6 +1066,12 @@ export class BlenderTools {
       case 'blender_command': return text(await this.connected(() => this.client.command(String(args.type), args.params ?? {})));
       case 'blender_to_roblox': return this.toRoblox(args);
       case 'blender_animation': return this.animation(args);
+      case 'blender_image_to_3d':
+        // its scripts read and write files where they are told: more than safe mode allows
+        if (safeModeEnabled() && args.action !== 'guide') {
+          return { content: [{ type: 'text', text: 'BLENDER_MCP_SAFE_MODE is on: blender_image_to_3d runs scripts that read and write files, so only action "guide" is available. Turn safe mode off to use it.' }], isError: true };
+        }
+        return this.imageTo3d.call(args);
       default: throw new Error(`Unknown Blender tool: ${name}`);
     }
   }
@@ -1066,7 +1099,7 @@ export class BlenderTools {
         connected: true,
         address: `${this.client.host}:${this.client.port}`,
         ...scene,
-        tools: 'blender_python (model with bpy), blender_scene (look), blender_assets (Poly Haven / Sketchfab / Poly Pizza / AI generation), blender_to_roblox (send to the game)',
+        tools: 'blender_python (model with bpy), blender_scene (look), blender_assets (Poly Haven / Sketchfab / Poly Pizza / AI generation), blender_image_to_3d (from reference images, measured against them: roblox_guide image3d), blender_to_roblox (send to the game)',
         tips: [
           'Model in meters (a character is ~1.8 m, a door 2 m). blender_to_roblox converts to studs.',
           'Keep each mesh under 20k triangles and 1 material; apply a texture of 1024 px max.',

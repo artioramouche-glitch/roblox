@@ -6,7 +6,7 @@
  * README and the licence. Run from a publishable package directory via its "prepack" script.
  */
 
-import { copyFileSync, existsSync, mkdirSync, readdirSync, writeFileSync } from 'fs';
+import { copyFileSync, cpSync, existsSync, mkdirSync, readdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
 
 const packageDir = process.cwd();
@@ -37,6 +37,13 @@ if (existsSync(addon)) {
   const licence = join(rootDir, 'integrations', 'blender-mcp', 'LICENSE');
   if (existsSync(licence)) copyFileSync(licence, join(packageDir, 'blender', 'LICENSE'));
   console.log('Copied the Blender addon to blender/addon.py');
+}
+
+const imageTo3d = join(rootDir, 'integrations', 'blender-image-to-3d');
+if (existsSync(imageTo3d) && !packageDir.includes('inspector')) {
+  if (!existsSync(join(packageDir, 'blender'))) copied.push('blender');
+  cpSync(imageTo3d, join(packageDir, 'blender', 'image-to-3d'), { recursive: true });
+  console.log('Copied the blender-image-to-3d skill to blender/image-to-3d/');
 }
 
 const figma = join(rootDir, 'figma-plugin');

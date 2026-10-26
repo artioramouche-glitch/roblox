@@ -370,6 +370,7 @@ dans ton IA pour Studio **et** Blender.
 | `blender_python` | Modélise en Python (`bpy`), étape par étape |
 | `blender_scene` | Objets (taille en mètres, triangles, matériaux) + capture de la vue 3D |
 | `blender_assets` | Modèles gratuits (Poly Pizza, Sketchfab, Poly Haven) ou génération par IA (Hyper3D, Hunyuan3D) à partir d'un texte **ou d'images** (`images` : chemins absolus .png/.jpg/.webp ou URLs, par exemple des vues faites avec Gemini) |
+| `blender_image_to_3d` | **Images de référence → modèle mesuré** (skill [blender-image-to-3d](https://github.com/majidmanzarpour/blender-game-skills), MIT, intégré dans `integrations/blender-image-to-3d`). Fichier maître calibré, scripts de construction relançables, rendus comparés à la référence avec des chiffres (IoU de silhouette, largeurs à 10 hauteurs) jusqu'à passer la tolérance, validation, baking des textures, puis `load` dans le Blender ouvert pour `blender_to_roblox`. Marche aussi pour les pièces de map. Tourne dans un Blender en arrière-plan (sans Python ni Pillow à installer). Guide : `roblox_guide image3d` |
 | `blender_to_roblox` | Export (réduction auto à 20 000 triangles/maillage, alertes textures et matériaux) → upload Roblox → insertion à la bonne taille, posée au sol. **Personnage riggé** : l'armature est exportée avec le maillage (4 influences max par sommet) et le modèle reçoit un Animator |
 | `blender_animation` | Une **action Blender** (Marche, Attaque…) devient une **KeyframeSequence** dans `ServerStorage/GameKit/Animations`, testable tout de suite (id temporaire), + un FBX animé pour l'Animation Editor. Publie-la ensuite (clic droit → *Save to Roblox*) et vérifie l'id avec `check_assets` |
 
@@ -420,7 +421,7 @@ Le tableau est stocké **dans le jeu** (`ServerStorage/GameKitTeam`) : il est pa
 `start_job`, `job_status`, `blender_status`, `blender_to_roblox`, `make_sound`, `design_refs`, `figma`, `make_vfx`.
 
 **En plus dès le profil `builder`** : `check_assets`, `optimize_game`, `balance_economy`, `publish_checklist`,
-`blender_python`, `blender_scene`, `blender_assets`, `blender_animation`, `blender_command` (les outils Blender
+`blender_python`, `blender_scene`, `blender_assets`, `blender_image_to_3d`, `blender_animation`, `blender_command` (les outils Blender
 apparaissent aussi dès que Blender est connecté).
 
 **Profils** (variable `ROBLOX_MCP_PROFILE` ou outil `set_tool_profile`) :

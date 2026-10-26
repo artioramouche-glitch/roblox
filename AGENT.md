@@ -83,6 +83,11 @@ reference `images`: absolute image paths or URLs; hunyuan3d takes exactly one) â
 without them it exports the file for a manual Import 3D, then `blender_to_roblox { name, existing }`). Read
 `roblox_guide blender`.
 
+From reference pictures (a 4-view sheet, concept art, photos): `blender_image_to_3d` (`roblox_guide image3d`) runs the
+blender-image-to-3d skill in a background Blender: `init_master`, `build` phases, then `review_render` +
+`compose_review` until the silhouette IoU and band widths pass, `validate`, `bake_maps`, then `load` into the open
+Blender and `blender_to_roblox`. Also for map landmarks and kit pieces.
+
 Maps: lay out the map in studs first, then ONE `set_environment { terrain, features: [mountain, hill, lake, river,
 road, path, plateau, paint] }` call shapes the terrain where the plan says (`roblox_guide map`). Sounds: `make_sound
 { prompt, name, parent }` (Mirelo API, needs MIRELO_API_KEY + Open Cloud key) or `make_sound { action: "plugin" }`
